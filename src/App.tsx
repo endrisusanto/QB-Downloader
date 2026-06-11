@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import {
   Activity,
   Check,
@@ -91,7 +92,16 @@ type SettingsState = {
   showCompleteDialog: boolean;
 };
 
+type DialogKind = "progress" | "complete";
+
+type DialogSnapshot = {
+  kind: DialogKind;
+  group: BuildArtifactGroup;
+  rows: Record<string, DownloadEvent>;
+};
+
 const STORAGE_KEY = "quickbuild-download-manager-settings";
+const DIALOG_CHANNEL = "quickbuild-download-dialogs";
 const DEFAULT_TYPES = ["ALL", "AP", "BL", "CP", "CSC", "md5", "USERDATA", "HOME"];
 const TYPE_OPTIONS = ["ALL", "AP", "BL", "CP", "CSC", "md5", "USERDATA", "HOME"];
 
@@ -106,6 +116,11 @@ const defaultSettings: SettingsState = {
 };
 
 function App() {
+  const standaloneDialog = getStandaloneDialogConfig();
+  if (standaloneDialog) {
+    return <StandaloneDialogWindow kind={standaloneDialog.kind} storageKey={standaloneDialog.storageKey} />;
+  }
+
   const [settings, setSettings] = useState<SettingsState>(loadSettings);
   const [groups, setGroups] = useState<BuildArtifactGroup[]>([]);
   const [downloadRows, setDownloadRows] = useState<Record<string, DownloadEvent>>({});
@@ -129,14 +144,25 @@ function App() {
 
     for (const group of groups) {
       if (!group.buildId || completedNotifiedRef.current.has(group.id)) continue;
-      const rows = group.artifacts.map((artifact) => downloadRows[artifact.id]).filter(Boolean);
+      const rows = selectedArtifacts(group).map((artifact) => downloadRows[artifact.id]).filter(Boolean);
       if (rows.length > 0 && rows.every((row) => row.status === "completed")) {
         completedNotifiedRef.current.add(group.id);
-        setCompleteGroupId(group.id);
+        void openDialogWindow("complete", group).then((opened) => {
+          if (!opened) setCompleteGroupId(group.id);
+        });
         break;
       }
     }
   }, [downloadRows, groups, settings.showCompleteDialog]);
+
+  useEffect(() => {
+    for (const group of groups) {
+      if (group.artifacts.some((artifact) => downloadRows[artifact.id])) {
+        writeDialogSnapshot("progress", group, downloadRows);
+        writeDialogSnapshot("complete", group, downloadRows);
+      }
+    }
+  }, [downloadRows, groups]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
@@ -272,7 +298,55 @@ function App() {
     );
 
     if (settings.showProgressDialog) {
-      setProgressGroupId(group.id);
+      void openDialogWindow("progress", group).then((opened) => {
+        if (!opened) setProgressGroupId(group.id);
+      });
+    }
+  }
+
+  async function openDialogWindow(kind: DialogKind, group: BuildArtifactGroup) {
+    writeDialogSnapshot(kind, group, downloadRows);
+    const label = dialogWindowLabel(kind, group.id);
+    const title =
+      kind === "progress"
+        ? `Download progress - ${group.buildId || group.input}`
+        : `Download complete - ${group.buildId || group.input}`;
+
+    try {
+      const existing = await WebviewWindow.getByLabel(label);
+      if (existing) {
+        await existing.setFocus();
+        return true;
+      }
+
+      const webview = new WebviewWindow(label, {
+        url: `index.html?dialog=${kind}&key=${encodeURIComponent(dialogStorageKey(kind, group.id))}`,
+        title,
+        width: kind === "progress" ? 780 : 460,
+        height: kind === "progress" ? 620 : 320,
+        center: true,
+        resizable: true,
+        decorations: true,
+      });
+
+      return await new Promise<boolean>((resolve) => {
+        let settled = false;
+        const settle = (opened: boolean) => {
+          if (settled) return;
+          settled = true;
+          resolve(opened);
+        };
+
+        void webview.once("tauri://created", () => settle(true));
+        void webview.once("tauri://error", (event) => {
+          console.error(event.payload);
+          settle(false);
+        });
+        window.setTimeout(() => settle(true), 600);
+      });
+    } catch (error) {
+      console.error(error);
+      return false;
     }
   }
 
@@ -384,13 +458,14 @@ function App() {
 
             {groups.map((group) => {
               const isExpanded = expanded[group.id] ?? true;
-              const selectedCount = group.artifacts.filter((artifact) => artifact.selected).length;
               const jobId = group.status.startsWith("job:") ? group.status.slice(4) : undefined;
-              const groupRows = group.artifacts.map((artifact) => downloadRows[artifact.id]);
+              const visibleArtifacts = jobId ? selectedArtifacts(group) : group.artifacts;
+              const selectedCount = selectedArtifacts(group).length;
+              const groupRows = visibleArtifacts.map((artifact) => downloadRows[artifact.id]);
               const isRunning = groupRows.some((row) => row?.status === "downloading");
               const hasPaused = groupRows.some((row) => row?.status === "paused");
               const hasDownloadRows = groupRows.some(Boolean);
-              const cardPercent = groupProgress(group.artifacts, downloadRows);
+              const cardPercent = groupProgress(visibleArtifacts, downloadRows);
 
               return (
                 <article
@@ -422,7 +497,11 @@ function App() {
                             <button
                               className="icon-button"
                               title="Open progress"
-                              onClick={() => setProgressGroupId(group.id)}
+                              onClick={() => {
+                                void openDialogWindow("progress", group).then((opened) => {
+                                  if (!opened) setProgressGroupId(group.id);
+                                });
+                              }}
                             >
                               <Activity size={16} />
                             </button>
@@ -468,9 +547,9 @@ function App() {
                     </div>
                   </div>
 
-                  {isExpanded && group.artifacts.length > 0 && (
+                  {isExpanded && visibleArtifacts.length > 0 && (
                     <div className="artifact-table">
-                      {group.artifacts.map((artifact) => {
+                      {visibleArtifacts.map((artifact) => {
                         const row = downloadRows[artifact.id];
                         const percent = progressPercent(row?.downloaded, row?.total);
                         return (
@@ -484,8 +563,9 @@ function App() {
                             </button>
                             <div className="artifact-name">
                               <strong>{artifact.name}</strong>
-                              <span>{kindLabel(artifact.kind)} • {formatBytes(artifact.size)}</span>
+                              <span>{kindLabel(artifact.kind)}</span>
                             </div>
+                            <div className="size-cell">{formatBytes(artifact.size)}</div>
                             <div className="progress-cell">
                               <div className="progress-bar">
                                 <div style={{ width: `${percent}%` }} />
@@ -564,14 +644,68 @@ function App() {
           rows={downloadRows}
           onClose={() => setCompleteGroupId(null)}
           onOpenFolder={() => {
-            const firstPath = completeGroup.artifacts
-              .map((artifact) => downloadRows[artifact.id]?.path)
-              .find(Boolean);
+            const firstPath = firstDownloadedPath(completeGroup, downloadRows);
             if (firstPath) {
-              void invoke("open_folder", { path: firstPath.replace(/[\\/][^\\/]*$/, "") });
+              void invoke("open_folder", { path: folderFromFilePath(firstPath) });
             }
           }}
         />
+      )}
+    </main>
+  );
+}
+
+function StandaloneDialogWindow({ kind, storageKey }: { kind: DialogKind; storageKey: string }) {
+  const [snapshot, setSnapshot] = useState<DialogSnapshot | null>(() => readDialogSnapshot(storageKey));
+
+  useEffect(() => {
+    const channel = new BroadcastChannel(DIALOG_CHANNEL);
+    channel.onmessage = (event) => {
+      if (event.data?.key === storageKey) {
+        setSnapshot(readDialogSnapshot(storageKey));
+      }
+    };
+    return () => channel.close();
+  }, [storageKey]);
+
+  async function closeWindow() {
+    await WebviewWindow.getCurrent().close();
+  }
+
+  async function openCompletedFolder() {
+    if (!snapshot) return;
+    const firstPath = firstDownloadedPath(snapshot.group, snapshot.rows);
+    if (firstPath) {
+      await invoke("open_folder", { path: folderFromFilePath(firstPath) });
+    }
+  }
+
+  if (!snapshot) {
+    return (
+      <main className="dialog-window">
+        <div className="empty-state compact">
+          <img src="/quickbuild-logo.svg" alt="" />
+          <h1>Dialog data expired</h1>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="dialog-window">
+      {kind === "progress" ? (
+        <div className="modal progress-modal">
+          <ProgressDialogContent group={snapshot.group} rows={snapshot.rows} onClose={closeWindow} />
+        </div>
+      ) : (
+        <div className="modal complete-modal">
+          <CompleteDialogContent
+            group={snapshot.group}
+            rows={snapshot.rows}
+            onClose={closeWindow}
+            onOpenFolder={openCompletedFolder}
+          />
+        </div>
       )}
     </main>
   );
@@ -586,46 +720,64 @@ function ProgressDialog({
   rows: Record<string, DownloadEvent>;
   onClose: () => void;
 }) {
-  const percent = groupProgress(group.artifacts, rows);
-
   return (
     <div className="modal-backdrop">
       <div className="modal progress-modal">
-        <div className="modal-header">
-          <div>
-            <h2>{group.buildId || group.input}</h2>
-            <span>{percent}% overall</span>
-          </div>
-          <button className="ghost-icon" onClick={onClose}>
-            <X size={18} />
-          </button>
-        </div>
-        <div className="progress-overview">
-          <div className="progress-bar large">
-            <div style={{ width: `${percent}%` }} />
-          </div>
-        </div>
-        <div className="progress-file-list">
-          {group.artifacts.map((artifact) => {
-            const row = rows[artifact.id];
-            const itemPercent = progressPercent(row?.downloaded, row?.total);
-            return (
-              <div className="progress-file" key={artifact.id}>
-                <div>
-                  <strong>{artifact.name}</strong>
-                  <span>
-                    {row?.status || "ready"} • {row ? `${formatBytes(row.downloaded)} / ${formatBytes(row.total)}` : formatBytes(artifact.size)}
-                  </span>
-                </div>
-                <div className="progress-bar">
-                  <div style={{ width: `${itemPercent}%` }} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <ProgressDialogContent group={group} rows={rows} onClose={onClose} />
       </div>
     </div>
+  );
+}
+
+function ProgressDialogContent({
+  group,
+  rows,
+  onClose,
+}: {
+  group: BuildArtifactGroup;
+  rows: Record<string, DownloadEvent>;
+  onClose: () => void;
+}) {
+  const artifacts = selectedArtifacts(group);
+  const percent = groupProgress(artifacts, rows);
+
+  return (
+    <>
+      <div className="modal-header">
+        <div>
+          <h2>{group.buildId || group.input}</h2>
+          <span>{percent}% overall</span>
+        </div>
+        <button className="ghost-icon" onClick={onClose}>
+          <X size={18} />
+        </button>
+      </div>
+      <div className="progress-overview">
+        <div className="progress-bar large">
+          <div style={{ width: `${percent}%` }} />
+        </div>
+      </div>
+      <div className="progress-file-list">
+        {artifacts.map((artifact) => {
+          const row = rows[artifact.id];
+          const itemPercent = progressPercent(row?.downloaded, row?.total);
+          return (
+            <div className="progress-file" key={artifact.id}>
+              <div>
+                <strong>{artifact.name}</strong>
+                <span>
+                  {row?.status || "ready"} •{" "}
+                  {row ? `${formatBytes(row.downloaded)} / ${formatBytes(row.total)}` : formatBytes(artifact.size)}
+                </span>
+              </div>
+              <div className="progress-bar">
+                <div style={{ width: `${itemPercent}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 }
 
@@ -640,27 +792,45 @@ function CompleteDialog({
   onClose: () => void;
   onOpenFolder: () => void;
 }) {
-  const completed = group.artifacts.filter((artifact) => rows[artifact.id]?.status === "completed").length;
-
   return (
     <div className="modal-backdrop">
       <div className="modal complete-modal">
-        <CheckCircle2 size={42} />
-        <h2>Download complete</h2>
-        <p>
-          {group.buildId || group.input} completed with {completed} file{completed === 1 ? "" : "s"}.
-        </p>
-        <div className="modal-actions">
-          <button className="secondary-button" onClick={onOpenFolder}>
-            <FolderOpen size={16} />
-            Open folder
-          </button>
-          <button className="primary-button" onClick={onClose}>
-            Done
-          </button>
-        </div>
+        <CompleteDialogContent group={group} rows={rows} onClose={onClose} onOpenFolder={onOpenFolder} />
       </div>
     </div>
+  );
+}
+
+function CompleteDialogContent({
+  group,
+  rows,
+  onClose,
+  onOpenFolder,
+}: {
+  group: BuildArtifactGroup;
+  rows: Record<string, DownloadEvent>;
+  onClose: () => void;
+  onOpenFolder: () => void;
+}) {
+  const completed = selectedArtifacts(group).filter((artifact) => rows[artifact.id]?.status === "completed").length;
+
+  return (
+    <>
+      <CheckCircle2 size={42} />
+      <h2>Download complete</h2>
+      <p>
+        {group.buildId || group.input} completed with {completed} file{completed === 1 ? "" : "s"}.
+      </p>
+      <div className="modal-actions">
+        <button className="secondary-button" onClick={onOpenFolder}>
+          <FolderOpen size={16} />
+          Open folder
+        </button>
+        <button className="primary-button" onClick={onClose}>
+          Done
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -848,12 +1018,15 @@ function normalizeInputs(inputs: string[]) {
 }
 
 function prepareGroup(group: BuildArtifactGroup, selectedTypes: string[]): BuildArtifactGroup {
+  const enabled = new Set(selectedTypes);
   return {
     ...group,
-    artifacts: group.artifacts.map((artifact) => ({
-      ...artifact,
-      selected: selectedTypes.includes(kindLabel(artifact.kind)),
-    })),
+    artifacts: group.artifacts
+      .filter((artifact) => enabled.has(kindLabel(artifact.kind)))
+      .map((artifact) => ({
+        ...artifact,
+        selected: true,
+      })),
   };
 }
 
@@ -894,6 +1067,60 @@ function kindLabel(kind: ArtifactKind) {
     other: "Other",
   };
   return map[kind];
+}
+
+function selectedArtifacts(group: BuildArtifactGroup) {
+  return group.artifacts.filter((artifact) => artifact.selected);
+}
+
+function getStandaloneDialogConfig() {
+  const params = new URLSearchParams(window.location.search);
+  const kind = params.get("dialog");
+  const storageKey = params.get("key");
+  if ((kind === "progress" || kind === "complete") && storageKey) {
+    return { kind: kind as DialogKind, storageKey };
+  }
+  return null;
+}
+
+function dialogStorageKey(kind: DialogKind, groupId: string) {
+  return `qb-dialog:${kind}:${groupId}`;
+}
+
+function dialogWindowLabel(kind: DialogKind, groupId: string) {
+  return `${kind}-${groupId}`.replace(/[^a-zA-Z0-9_\-:]/g, "_");
+}
+
+function writeDialogSnapshot(kind: DialogKind, group: BuildArtifactGroup, rows: Record<string, DownloadEvent>) {
+  const storageKey = dialogStorageKey(kind, group.id);
+  const snapshot: DialogSnapshot = { kind, group, rows };
+  localStorage.setItem(storageKey, JSON.stringify(snapshot));
+  try {
+    const channel = new BroadcastChannel(DIALOG_CHANNEL);
+    channel.postMessage({ key: storageKey });
+    channel.close();
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function readDialogSnapshot(storageKey: string) {
+  try {
+    const value = localStorage.getItem(storageKey);
+    return value ? (JSON.parse(value) as DialogSnapshot) : null;
+  } catch {
+    return null;
+  }
+}
+
+function firstDownloadedPath(group: BuildArtifactGroup, rows: Record<string, DownloadEvent>) {
+  return selectedArtifacts(group)
+    .map((artifact) => rows[artifact.id]?.path)
+    .find(Boolean);
+}
+
+function folderFromFilePath(path: string) {
+  return path.replace(/[\\/][^\\/]*$/, "");
 }
 
 function progressPercent(downloaded?: number, total?: number) {

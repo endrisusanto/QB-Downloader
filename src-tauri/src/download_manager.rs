@@ -1,6 +1,6 @@
 use crate::path_safety::output_path;
 use crate::qb_client::{append_qb_suffix, map_status};
-use crate::types::{DownloadEvent, DownloadRequest, ANDROID_QB_URL};
+use crate::types::{DownloadEvent, DownloadRequest, ANDROID_QB_URL, QB_SUFFIX};
 use reqwest::{header, Client, StatusCode};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -100,6 +100,8 @@ impl DownloadManager {
             let control = control.clone();
             let http = http.clone();
             let semaphore = semaphore.clone();
+            let failure_artifact = artifact.clone();
+            let failure_build_id = request.build_id.clone();
 
             tokio::spawn(async move {
                 let _permit = semaphore.acquire_owned().await.expect("semaphore open");
@@ -112,12 +114,12 @@ impl DownloadManager {
                         "download://failed",
                         DownloadEvent {
                             job_id,
-                            artifact_id: String::new(),
-                            build_id: String::new(),
-                            name: String::new(),
+                            artifact_id: failure_artifact.id,
+                            build_id: failure_build_id,
+                            name: failure_artifact.name,
                             status: "failed".to_string(),
                             downloaded: 0,
-                            total: None,
+                            total: failure_artifact.size,
                             path: None,
                             message: Some(err.to_string()),
                             resumable: false,
@@ -189,10 +191,7 @@ async fn download_one(
         .await
         .map(|metadata| metadata.len())
         .unwrap_or(0);
-    let url = artifact
-        .url
-        .clone()
-        .unwrap_or_else(|| fallback_download_url(&request.build_id, &artifact.name));
+    let url = artifact_download_url(&request.build_id, &artifact);
 
     emit_event(
         &app,
@@ -360,6 +359,14 @@ fn fallback_download_url(build_id: &str, name: &str) -> String {
     ))
 }
 
+fn artifact_download_url(build_id: &str, artifact: &crate::types::Artifact) -> String {
+    match artifact.url.as_deref() {
+        Some(url) if url.contains(QB_SUFFIX) => url.to_string(),
+        Some(url) => append_qb_suffix(url),
+        None => fallback_download_url(build_id, &artifact.name),
+    }
+}
+
 fn event(
     job_id: &str,
     build_id: &str,
@@ -398,6 +405,45 @@ mod tests {
         assert_eq!(
             fallback_download_url("QB 1", "AP file.tar.md5"),
             "https://android.qb.sec.samsung.net/download/QB%201/AP%20file.tar.md5?QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC"
+        );
+    }
+
+    #[test]
+    fn artifact_download_url_adds_qd_suffix_to_existing_url() {
+        let artifact = crate::types::Artifact {
+            id: "1".to_string(),
+            build_id: "110".to_string(),
+            name: "ALL.tar.md5".to_string(),
+            size: Some(10),
+            url: Some("https://android.qb.sec.samsung.net/download/110/ALL.tar.md5".to_string()),
+            kind: crate::types::ArtifactKind::All,
+            selected: true,
+        };
+
+        assert_eq!(
+            artifact_download_url("110", &artifact),
+            "https://android.qb.sec.samsung.net/download/110/ALL.tar.md5?QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC"
+        );
+    }
+
+    #[test]
+    fn artifact_download_url_keeps_existing_qd_suffix() {
+        let artifact = crate::types::Artifact {
+            id: "1".to_string(),
+            build_id: "110".to_string(),
+            name: "ALL.tar.md5".to_string(),
+            size: Some(10),
+            url: Some(
+                "https://android.qb.sec.samsung.net/download/110/ALL.tar.md5?QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC"
+                    .to_string(),
+            ),
+            kind: crate::types::ArtifactKind::All,
+            selected: true,
+        };
+
+        assert_eq!(
+            artifact_download_url("110", &artifact),
+            "https://android.qb.sec.samsung.net/download/110/ALL.tar.md5?QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC"
         );
     }
 }

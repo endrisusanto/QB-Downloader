@@ -17,6 +17,11 @@ body {
   min-height: 620px;
 }
 
+body:has(.dialog-window) {
+  min-width: 0;
+  min-height: 0;
+}
+
 button,
 input,
 textarea {
@@ -229,6 +234,10 @@ button {
   max-width: 440px;
 }
 
+.empty-state.compact {
+  min-height: 260px;
+}
+
 .group-list {
   display: grid;
   gap: 12px;
@@ -320,7 +329,7 @@ button {
 .artifact-row {
   min-height: 58px;
   display: grid;
-  grid-template-columns: 34px minmax(220px, 1.2fr) minmax(220px, 0.9fr) 104px;
+  grid-template-columns: 34px minmax(220px, 1.2fr) 112px minmax(220px, 0.9fr) 104px;
   gap: 12px;
   align-items: center;
   padding: 10px 14px;
@@ -346,9 +355,16 @@ button {
 }
 
 .artifact-name span,
-.progress-cell span {
+.progress-cell span,
+.size-cell {
   color: #667085;
   font-size: 13px;
+}
+
+.size-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .check-button {
@@ -445,6 +461,29 @@ button {
   border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 24px 80px rgba(15, 23, 42, 0.25);
+}
+
+.dialog-window {
+  min-height: 100vh;
+  display: grid;
+  padding: 18px;
+  background: #f5f7fb;
+}
+
+.dialog-window .progress-modal,
+.dialog-window .complete-modal {
+  width: 100%;
+  max-height: none;
+  box-shadow: none;
+}
+
+.dialog-window .progress-modal {
+  height: calc(100vh - 36px);
+}
+
+.dialog-window .complete-modal {
+  align-self: center;
+  justify-self: center;
 }
 
 .settings-modal {
