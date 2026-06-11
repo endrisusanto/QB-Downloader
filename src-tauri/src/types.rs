@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 pub const ANDROID_QB_URL: &str = "https://android.qb.sec.samsung.net";
+pub const QB_SUFFIX: &str = "QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC";
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]

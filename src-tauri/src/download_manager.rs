@@ -1,5 +1,5 @@
 use crate::path_safety::output_path;
-use crate::qb_client::map_status;
+use crate::qb_client::{append_qb_suffix, map_status};
 use crate::types::{DownloadEvent, DownloadRequest, ANDROID_QB_URL};
 use reqwest::{header, Client, StatusCode};
 use std::collections::HashMap;
@@ -353,11 +353,11 @@ fn partial_path(path: &PathBuf) -> PathBuf {
 }
 
 fn fallback_download_url(build_id: &str, name: &str) -> String {
-    format!(
+    append_qb_suffix(&format!(
         "{ANDROID_QB_URL}/download/{}/{}",
         urlencoding::encode(build_id),
         urlencoding::encode(name)
-    )
+    ))
 }
 
 fn event(
@@ -397,7 +397,7 @@ mod tests {
     fn fallback_download_url_encodes_parts() {
         assert_eq!(
             fallback_download_url("QB 1", "AP file.tar.md5"),
-            "https://android.qb.sec.samsung.net/download/QB%201/AP%20file.tar.md5"
+            "https://android.qb.sec.samsung.net/download/QB%201/AP%20file.tar.md5?QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC"
         );
     }
 }

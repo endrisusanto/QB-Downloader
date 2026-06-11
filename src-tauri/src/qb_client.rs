@@ -1,6 +1,6 @@
 use crate::artifact_parser::{parse_artifacts, parse_build_id, parse_version};
 use crate::types::{
-    BuildArtifactGroup, Credentials, TokenTestAttempt, TokenTestResult, ANDROID_QB_URL,
+    BuildArtifactGroup, Credentials, TokenTestAttempt, TokenTestResult, ANDROID_QB_URL, QB_SUFFIX,
 };
 use reqwest::{Client, StatusCode};
 use thiserror::Error;
@@ -89,7 +89,7 @@ impl QbClient {
         let mut selected_username = None;
 
         for username in usernames {
-            let path = format!("/ids?user_name={}", urlencoding::encode(&username));
+            let path = format!("/ids?user_name={username}");
             let credentials = Credentials {
                 username: username.clone(),
                 access_token: self.credentials.access_token.clone(),
@@ -127,7 +127,7 @@ impl QbClient {
     }
 
     async fn send_rest(&self, path: &str) -> Result<String, QbError> {
-        let url = format!("{ANDROID_QB_URL}/rest{path}");
+        let url = format!("{ANDROID_QB_URL}/rest{}", append_qb_suffix(path));
         let response = self
             .http
             .get(url)
@@ -152,6 +152,11 @@ impl QbClient {
             Ok(())
         }
     }
+}
+
+pub fn append_qb_suffix(path_or_url: &str) -> String {
+    let separator = if path_or_url.contains('?') { '&' } else { '?' };
+    format!("{path_or_url}{separator}{QB_SUFFIX}")
 }
 
 fn username_candidates(username: &str) -> Vec<String> {
@@ -195,6 +200,18 @@ mod tests {
         assert_eq!(
             username_candidates("corp\\endri.s"),
             vec!["corp\\endri.s".to_string(), "endri.s".to_string()]
+        );
+    }
+
+    #[test]
+    fn appends_original_qd_suffix_like_qd_exe() {
+        assert_eq!(
+            append_qb_suffix("/builds/123"),
+            "/builds/123?QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC"
+        );
+        assert_eq!(
+            append_qb_suffix("/ids?user_name=endri.s"),
+            "/ids?user_name=endri.s&QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC"
         );
     }
 }
