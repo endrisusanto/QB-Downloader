@@ -18,7 +18,17 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Component,
+  CSSProperties,
+  ErrorInfo,
+  FormEvent,
+  ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 type Credentials = {
   username: string;
@@ -117,7 +127,40 @@ const defaultSettings: SettingsState = {
   showCompleteDialog: true,
 };
 
-function App() {
+class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error(error, info.componentStack);
+  }
+
+  render() {
+    if (!this.state.error) {
+      return this.props.children;
+    }
+
+    return (
+      <main className="app-shell">
+        <section className="content-area">
+          <div className="empty-state compact app-error">
+            <img src="/quickbuild-logo.svg" alt="" />
+            <h1>App render error</h1>
+            <p>{this.state.error.message || "Unknown error"}</p>
+            <button className="primary-button" onClick={() => window.location.reload()}>
+              Reload
+            </button>
+          </div>
+        </section>
+      </main>
+    );
+  }
+}
+
+function AppContent() {
   const standaloneDialog = getStandaloneDialogConfig();
   if (standaloneDialog) {
     return <StandaloneDialogWindow kind={standaloneDialog.kind} storageKey={standaloneDialog.storageKey} />;
@@ -222,12 +265,12 @@ function App() {
         input,
         credentials,
       });
-      const prepared = prepareGroup(group, settings.selectedTypes);
+      const prepared = prepareGroup(normalizeGroup(group, input), settings.selectedTypes);
       setGroups((current) => upsertGroup(current, prepared));
       setExpanded((current) => ({ ...current, [prepared.id]: true }));
     } catch (error) {
       const failed: BuildArtifactGroup = {
-        id: crypto.randomUUID(),
+        id: createId(),
         input,
         status: "failed",
         artifacts: [],
@@ -262,7 +305,9 @@ function App() {
         inputs: clean,
         credentials,
       });
-      const prepared = results.map((group) => prepareGroup(group, settings.selectedTypes));
+      const prepared = results.map((group, index) =>
+        prepareGroup(normalizeGroup(group, clean[index] || "bulk"), settings.selectedTypes),
+      );
       setGroups((current) => prepared.reduce((acc, group) => upsertGroup(acc, group), current));
       setExpanded((current) => {
         const next = { ...current };
@@ -1060,6 +1105,57 @@ function normalizeInputs(inputs: string[]) {
   return [...new Set(inputs.map((line) => line.trim()).filter(Boolean))];
 }
 
+function normalizeGroup(raw: BuildArtifactGroup | null | undefined, fallbackInput: string): BuildArtifactGroup {
+  const source = raw && typeof raw === "object" ? raw : ({} as Partial<BuildArtifactGroup>);
+  const input = stringOr(source.input, fallbackInput);
+  const buildId = stringOr(source.buildId, "");
+
+  return {
+    id: stringOr(source.id, createId()),
+    input,
+    buildId: buildId || undefined,
+    status: stringOr(source.status, source.error ? "failed" : "ready"),
+    version: stringOr(source.version, "") || undefined,
+    artifacts: groupArtifacts(source as BuildArtifactGroup).map((artifact, index) =>
+      normalizeArtifact(artifact, buildId || input, index),
+    ),
+    error: stringOr(source.error, "") || undefined,
+  };
+}
+
+function normalizeArtifact(raw: Artifact, buildId: string, index: number): Artifact {
+  const source = raw && typeof raw === "object" ? raw : ({} as Partial<Artifact>);
+  const name = stringOr(source.name, `artifact-${index + 1}`);
+  const kind = normalizeArtifactKind(source.kind);
+  const rawSize = typeof source.size === "number" ? source.size : Number(source.size);
+
+  return {
+    id: stringOr(source.id, `${buildId}:${name}:${index}`),
+    buildId: stringOr(source.buildId, buildId),
+    name,
+    size: Number.isFinite(rawSize) && rawSize >= 0 ? rawSize : undefined,
+    url: stringOr(source.url, "") || undefined,
+    kind,
+    selected: Boolean(source.selected),
+  };
+}
+
+function normalizeArtifactKind(kind: unknown): ArtifactKind {
+  const allowed: ArtifactKind[] = ["all", "ap", "bl", "cp", "csc", "md5", "userdata", "home", "other"];
+  return allowed.includes(kind as ArtifactKind) ? (kind as ArtifactKind) : "other";
+}
+
+function stringOr(value: unknown, fallback: string) {
+  return typeof value === "string" ? value : fallback;
+}
+
+function createId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 function prepareGroup(group: BuildArtifactGroup, selectedTypes: string[]): BuildArtifactGroup {
   const enabled = new Set(selectedTypes);
   return {
@@ -1256,6 +1352,14 @@ function formatSpeed(row?: DownloadEvent) {
   if (row.status === "failed") return "Failed";
   if (row.status === "queued") return "Queued";
   return "Ready";
+}
+
+function App() {
+  return (
+    <AppErrorBoundary>
+      <AppContent />
+    </AppErrorBoundary>
+  );
 }
 
 export default App;
