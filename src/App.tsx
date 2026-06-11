@@ -1,7 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
+  Activity,
   Check,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   Download,
@@ -85,6 +87,8 @@ type SettingsState = {
   downloadTargetDir: string;
   maxConcurrent: number;
   selectedTypes: string[];
+  showProgressDialog: boolean;
+  showCompleteDialog: boolean;
 };
 
 const STORAGE_KEY = "quickbuild-download-manager-settings";
@@ -97,6 +101,8 @@ const defaultSettings: SettingsState = {
   downloadTargetDir: "",
   maxConcurrent: 3,
   selectedTypes: DEFAULT_TYPES,
+  showProgressDialog: false,
+  showCompleteDialog: true,
 };
 
 function App() {
@@ -109,11 +115,28 @@ function App() {
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkText, setBulkText] = useState("");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [progressGroupId, setProgressGroupId] = useState<string | null>(null);
+  const [completeGroupId, setCompleteGroupId] = useState<string | null>(null);
+  const completedNotifiedRef = useRef<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    if (!settings.showCompleteDialog) return;
+
+    for (const group of groups) {
+      if (!group.buildId || completedNotifiedRef.current.has(group.id)) continue;
+      const rows = group.artifacts.map((artifact) => downloadRows[artifact.id]).filter(Boolean);
+      if (rows.length > 0 && rows.every((row) => row.status === "completed")) {
+        completedNotifiedRef.current.add(group.id);
+        setCompleteGroupId(group.id);
+        break;
+      }
+    }
+  }, [downloadRows, groups, settings.showCompleteDialog]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
@@ -247,6 +270,10 @@ function App() {
     setGroups((current) =>
       current.map((item) => (item.id === group.id ? { ...item, status: `job:${jobId}` } : item)),
     );
+
+    if (settings.showProgressDialog) {
+      setProgressGroupId(group.id);
+    }
   }
 
   async function controlDownload(command: string, jobId?: string) {
@@ -286,6 +313,8 @@ function App() {
 
   const activeCount = Object.values(downloadRows).filter((row) => row.status === "downloading").length;
   const completedCount = Object.values(downloadRows).filter((row) => row.status === "completed").length;
+  const progressGroup = groups.find((group) => group.id === progressGroupId) || null;
+  const completeGroup = groups.find((group) => group.id === completeGroupId) || null;
 
   return (
     <main className="app-shell">
@@ -360,6 +389,7 @@ function App() {
               const groupRows = group.artifacts.map((artifact) => downloadRows[artifact.id]);
               const isRunning = groupRows.some((row) => row?.status === "downloading");
               const hasPaused = groupRows.some((row) => row?.status === "paused");
+              const hasDownloadRows = groupRows.some(Boolean);
               const cardPercent = groupProgress(group.artifacts, downloadRows);
 
               return (
@@ -388,6 +418,15 @@ function App() {
                     <div className="group-actions">
                       {jobId && (
                         <>
+                          {hasDownloadRows && (
+                            <button
+                              className="icon-button"
+                              title="Open progress"
+                              onClick={() => setProgressGroupId(group.id)}
+                            >
+                              <Activity size={16} />
+                            </button>
+                          )}
                           <button
                             className="icon-button"
                             title={hasPaused ? "Resume" : "Pause"}
@@ -510,7 +549,118 @@ function App() {
           </div>
         </div>
       )}
+
+      {progressGroup && (
+        <ProgressDialog
+          group={progressGroup}
+          rows={downloadRows}
+          onClose={() => setProgressGroupId(null)}
+        />
+      )}
+
+      {completeGroup && (
+        <CompleteDialog
+          group={completeGroup}
+          rows={downloadRows}
+          onClose={() => setCompleteGroupId(null)}
+          onOpenFolder={() => {
+            const firstPath = completeGroup.artifacts
+              .map((artifact) => downloadRows[artifact.id]?.path)
+              .find(Boolean);
+            if (firstPath) {
+              void invoke("open_folder", { path: firstPath.replace(/[\\/][^\\/]*$/, "") });
+            }
+          }}
+        />
+      )}
     </main>
+  );
+}
+
+function ProgressDialog({
+  group,
+  rows,
+  onClose,
+}: {
+  group: BuildArtifactGroup;
+  rows: Record<string, DownloadEvent>;
+  onClose: () => void;
+}) {
+  const percent = groupProgress(group.artifacts, rows);
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal progress-modal">
+        <div className="modal-header">
+          <div>
+            <h2>{group.buildId || group.input}</h2>
+            <span>{percent}% overall</span>
+          </div>
+          <button className="ghost-icon" onClick={onClose}>
+            <X size={18} />
+          </button>
+        </div>
+        <div className="progress-overview">
+          <div className="progress-bar large">
+            <div style={{ width: `${percent}%` }} />
+          </div>
+        </div>
+        <div className="progress-file-list">
+          {group.artifacts.map((artifact) => {
+            const row = rows[artifact.id];
+            const itemPercent = progressPercent(row?.downloaded, row?.total);
+            return (
+              <div className="progress-file" key={artifact.id}>
+                <div>
+                  <strong>{artifact.name}</strong>
+                  <span>
+                    {row?.status || "ready"} • {row ? `${formatBytes(row.downloaded)} / ${formatBytes(row.total)}` : formatBytes(artifact.size)}
+                  </span>
+                </div>
+                <div className="progress-bar">
+                  <div style={{ width: `${itemPercent}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CompleteDialog({
+  group,
+  rows,
+  onClose,
+  onOpenFolder,
+}: {
+  group: BuildArtifactGroup;
+  rows: Record<string, DownloadEvent>;
+  onClose: () => void;
+  onOpenFolder: () => void;
+}) {
+  const completed = group.artifacts.filter((artifact) => rows[artifact.id]?.status === "completed").length;
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal complete-modal">
+        <CheckCircle2 size={42} />
+        <h2>Download complete</h2>
+        <p>
+          {group.buildId || group.input} completed with {completed} file{completed === 1 ? "" : "s"}.
+        </p>
+        <div className="modal-actions">
+          <button className="secondary-button" onClick={onOpenFolder}>
+            <FolderOpen size={16} />
+            Open folder
+          </button>
+          <button className="primary-button" onClick={onClose}>
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -641,6 +791,22 @@ function SettingsModal({
               })
             }
           />
+        </label>
+        <label className="toggle-row">
+          <input
+            type="checkbox"
+            checked={value.showProgressDialog}
+            onChange={(event) => onChange({ ...value, showProgressDialog: event.target.checked })}
+          />
+          Show progress dialog when download starts
+        </label>
+        <label className="toggle-row">
+          <input
+            type="checkbox"
+            checked={value.showCompleteDialog}
+            onChange={(event) => onChange({ ...value, showCompleteDialog: event.target.checked })}
+          />
+          Show complete dialog when download finishes
         </label>
         <div className="type-grid">
           {TYPE_OPTIONS.map((type) => (

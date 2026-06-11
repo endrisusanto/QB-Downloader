@@ -382,6 +382,10 @@ button {
   background: #e8eef6;
 }
 
+.progress-bar.large {
+  height: 12px;
+}
+
 .progress-bar div {
   height: 100%;
   border-radius: inherit;
@@ -453,11 +457,22 @@ button {
   justify-content: space-between;
 }
 
+.modal-header > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
 .modal-header h2 {
   margin: 0;
   color: #172033;
   font-size: 20px;
   letter-spacing: 0;
+}
+
+.modal-header span {
+  color: #667085;
+  font-size: 13px;
 }
 
 .modal label {
@@ -483,6 +498,13 @@ button {
   padding: 0 11px;
 }
 
+.modal input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  accent-color: #2563eb;
+}
+
 .modal textarea {
   min-height: 220px;
   padding: 11px;
@@ -493,6 +515,14 @@ button {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 8px;
+}
+
+.toggle-row {
+  grid-template-columns: 18px 1fr;
+  align-items: center;
+  color: #314158;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .type-grid {
@@ -568,6 +598,76 @@ button {
 
 .test-result-list .failed span {
   color: #9f1239;
+}
+
+.progress-modal {
+  width: min(760px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.progress-overview {
+  display: grid;
+  gap: 8px;
+}
+
+.progress-file-list {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.progress-file {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(180px, 0.7fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid #e6edf6;
+  border-radius: 8px;
+  background: #f9fbfe;
+}
+
+.progress-file > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.progress-file strong {
+  overflow: hidden;
+  color: #172033;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress-file span {
+  color: #667085;
+  font-size: 13px;
+}
+
+.complete-modal {
+  width: min(440px, 100%);
+  justify-items: center;
+  text-align: center;
+}
+
+.complete-modal > svg {
+  color: #16a34a;
+}
+
+.complete-modal h2 {
+  margin: 0;
+  color: #172033;
+  font-size: 22px;
+}
+
+.complete-modal p {
+  margin: 0;
+  color: #667085;
 }
 
 .modal-actions {
