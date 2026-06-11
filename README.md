@@ -11,6 +11,8 @@ Rust/Tauri desktop download manager for QuickBuild artifacts.
 - Multi-file concurrent downloads.
 - Resumable downloads with `.part` files when the server supports HTTP Range.
 - Output folder format: `{downloadTargetDir}/{qb_id}/{artifact_file}`.
+- QuickBuild logo is used for the app UI, shortcut icon, and system tray icon.
+- Closing the main window hides the app to the system tray; use the tray menu to show or quit.
 
 ## Development
 

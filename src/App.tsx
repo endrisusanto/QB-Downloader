@@ -277,6 +277,10 @@ function App() {
   return (
     <main className="app-shell">
       <header className="topbar">
+        <div className="brand">
+          <img src="/quickbuild-logo.svg" alt="" />
+          <span>QB Downloader</span>
+        </div>
         <form className="quick-input" onSubmit={submitSearch}>
           <Download size={19} />
           <input
@@ -318,7 +322,7 @@ function App() {
       <section className="content-area">
         {groups.length === 0 && loadingInputs.size === 0 ? (
           <div className="empty-state">
-            <Download size={44} />
+            <img src="/quickbuild-logo.svg" alt="" />
             <h1>QuickBuild downloads</h1>
             <p>Paste a QB build ID or URL, press Enter, then download selected artifacts.</p>
           </div>

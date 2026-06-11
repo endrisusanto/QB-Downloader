@@ -39,11 +39,27 @@ button {
 .topbar {
   height: 72px;
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: auto 1fr auto auto;
   gap: 10px;
   align-items: center;
   padding: 14px 22px;
   border-bottom: 1px solid #e3e8f1;
+}
+
+.brand {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 178px;
+  color: #172033;
+  font-weight: 700;
+}
+
+.brand img {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
 }
 
 .quick-input {
@@ -190,8 +206,10 @@ button {
   text-align: center;
 }
 
-.empty-state svg {
-  color: #3478f6;
+.empty-state img {
+  width: 86px;
+  height: 86px;
+  object-fit: contain;
 }
 
 .empty-state h1 {
