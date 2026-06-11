@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Download,
   FolderOpen,
+  KeyRound,
   Pause,
   Play,
   RefreshCcw,
@@ -14,7 +15,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type Credentials = {
   username: string;
@@ -65,6 +66,18 @@ type DownloadStatus =
   | "completed"
   | "failed"
   | "cancelled";
+
+type TokenTestAttempt = {
+  username: string;
+  ok: boolean;
+  message: string;
+};
+
+type TokenTestResult = {
+  ok: boolean;
+  selectedUsername?: string;
+  attempts: TokenTestAttempt[];
+};
 
 type SettingsState = {
   username: string;
@@ -347,9 +360,14 @@ function App() {
               const groupRows = group.artifacts.map((artifact) => downloadRows[artifact.id]);
               const isRunning = groupRows.some((row) => row?.status === "downloading");
               const hasPaused = groupRows.some((row) => row?.status === "paused");
+              const cardPercent = groupProgress(group.artifacts, downloadRows);
 
               return (
-                <article className={`build-group ${group.error ? "failed" : ""}`} key={group.id}>
+                <article
+                  className={`build-group ${group.error ? "failed" : ""}`}
+                  key={group.id}
+                  style={{ "--card-progress": `${cardPercent}%` } as CSSProperties}
+                >
                   <div className="group-header">
                     <button
                       className="ghost-icon"
@@ -394,12 +412,12 @@ function App() {
                         </>
                       )}
                       <button
-                        className="primary-button"
+                        className="primary-button icon-only"
+                        title="Download selected artifacts"
                         disabled={Boolean(group.error) || selectedCount === 0 || isRunning}
                         onClick={() => startDownload(group)}
                       >
                         <Download size={16} />
-                        Download
                       </button>
                       <button
                         className="icon-button"
@@ -507,11 +525,44 @@ function SettingsModal({
   onClose: () => void;
   onPickFolder: () => void;
 }) {
+  const [testResult, setTestResult] = useState<TokenTestResult | null>(null);
+  const [testing, setTesting] = useState(false);
+
   function toggleType(type: string) {
     const selectedTypes = value.selectedTypes.includes(type)
       ? value.selectedTypes.filter((item) => item !== type)
       : [...value.selectedTypes, type];
     onChange({ ...value, selectedTypes });
+  }
+
+  async function testToken() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result = await invoke<TokenTestResult>("test_token", {
+        credentials: {
+          username: value.username,
+          accessToken: value.accessToken,
+        },
+      });
+      setTestResult(result);
+      if (result.ok && result.selectedUsername && result.selectedUsername !== value.username) {
+        onChange({ ...value, username: result.selectedUsername });
+      }
+    } catch (error) {
+      setTestResult({
+        ok: false,
+        attempts: [
+          {
+            username: value.username,
+            ok: false,
+            message: String(error),
+          },
+        ],
+      });
+    } finally {
+      setTesting(false);
+    }
   }
 
   return (
@@ -528,7 +579,7 @@ function SettingsModal({
           <input
             value={value.username}
             onChange={(event) => onChange({ ...value, username: event.target.value })}
-            placeholder="QB username"
+            placeholder="corp\\username or username"
           />
         </label>
         <label>
@@ -540,6 +591,33 @@ function SettingsModal({
             type="password"
           />
         </label>
+        <div className="token-test-row">
+          <button
+            className="secondary-button"
+            disabled={testing || !value.username.trim() || !value.accessToken.trim()}
+            onClick={testToken}
+          >
+            <KeyRound size={16} />
+            {testing ? "Testing..." : "Test token"}
+          </button>
+          {testResult && (
+            <span className={`test-summary ${testResult.ok ? "ok" : "failed"}`}>
+              {testResult.ok
+                ? `Token OK${testResult.selectedUsername ? ` as ${testResult.selectedUsername}` : ""}`
+                : "Token test failed"}
+            </span>
+          )}
+        </div>
+        {testResult && (
+          <div className="test-result-list">
+            {testResult.attempts.map((attempt) => (
+              <div className={attempt.ok ? "ok" : "failed"} key={attempt.username}>
+                <strong>{attempt.username || "(empty username)"}</strong>
+                <span>{attempt.message}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <label>
           Download folder
           <div className="folder-input">
@@ -655,6 +733,18 @@ function kindLabel(kind: ArtifactKind) {
 function progressPercent(downloaded?: number, total?: number) {
   if (!downloaded || !total) return 0;
   return Math.min(100, Math.round((downloaded / total) * 100));
+}
+
+function groupProgress(artifacts: Artifact[], rows: Record<string, DownloadEvent>) {
+  let downloaded = 0;
+  let total = 0;
+  for (const artifact of artifacts) {
+    const row = rows[artifact.id];
+    if (!row?.total) continue;
+    downloaded += Math.min(row.downloaded, row.total);
+    total += row.total;
+  }
+  return progressPercent(downloaded, total);
 }
 
 function formatBytes(value?: number) {

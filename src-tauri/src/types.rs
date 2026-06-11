@@ -85,3 +85,19 @@ pub struct DownloadEvent {
     pub message: Option<String>,
     pub resumable: bool,
 }
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenTestAttempt {
+    pub username: String,
+    pub ok: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenTestResult {
+    pub ok: bool,
+    pub selected_username: Option<String>,
+    pub attempts: Vec<TokenTestAttempt>,
+}

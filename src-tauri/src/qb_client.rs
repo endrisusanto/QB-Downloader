@@ -1,5 +1,7 @@
 use crate::artifact_parser::{parse_artifacts, parse_build_id, parse_version};
-use crate::types::{BuildArtifactGroup, Credentials, ANDROID_QB_URL};
+use crate::types::{
+    BuildArtifactGroup, Credentials, TokenTestAttempt, TokenTestResult, ANDROID_QB_URL,
+};
 use reqwest::{Client, StatusCode};
 use thiserror::Error;
 
@@ -79,6 +81,51 @@ impl QbClient {
         })
     }
 
+    pub async fn test_token(&self) -> Result<TokenTestResult, QbError> {
+        self.validate_credentials()?;
+
+        let usernames = username_candidates(&self.credentials.username);
+        let mut attempts = Vec::with_capacity(usernames.len());
+        let mut selected_username = None;
+
+        for username in usernames {
+            let path = format!("/ids?user_name={}", urlencoding::encode(&username));
+            let credentials = Credentials {
+                username: username.clone(),
+                access_token: self.credentials.access_token.clone(),
+            };
+            let client = QbClient::new(credentials);
+            match client.send_rest(&path).await {
+                Ok(body) => {
+                    let ok = !body.trim().is_empty();
+                    attempts.push(TokenTestAttempt {
+                        username: username.clone(),
+                        ok,
+                        message: if ok {
+                            "Token accepted.".to_string()
+                        } else {
+                            "Token accepted, but server returned an empty user id.".to_string()
+                        },
+                    });
+                    if ok && selected_username.is_none() {
+                        selected_username = Some(username);
+                    }
+                }
+                Err(err) => attempts.push(TokenTestAttempt {
+                    username,
+                    ok: false,
+                    message: err.to_string(),
+                }),
+            }
+        }
+
+        Ok(TokenTestResult {
+            ok: selected_username.is_some(),
+            selected_username,
+            attempts,
+        })
+    }
+
     async fn send_rest(&self, path: &str) -> Result<String, QbError> {
         let url = format!("{ANDROID_QB_URL}/rest{path}");
         let response = self
@@ -107,6 +154,22 @@ impl QbClient {
     }
 }
 
+fn username_candidates(username: &str) -> Vec<String> {
+    let trimmed = username.trim();
+    let mut candidates = vec![trimmed.to_string()];
+
+    if let Some((_, short)) = trimmed.split_once('\\') {
+        if !short.trim().is_empty() {
+            candidates.push(short.trim().to_string());
+        }
+    } else if !trimmed.is_empty() {
+        candidates.push(format!("corp\\{trimmed}"));
+    }
+
+    candidates.dedup();
+    candidates
+}
+
 pub fn map_status(status: StatusCode) -> Result<(), QbError> {
     match status {
         StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(()),
@@ -116,5 +179,22 @@ pub fn map_status(status: StatusCode) -> Result<(), QbError> {
         other => Err(QbError::Other(format!(
             "QuickBuild server returned HTTP {other}."
         ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn creates_username_candidates() {
+        assert_eq!(
+            username_candidates("endri.s"),
+            vec!["endri.s".to_string(), "corp\\endri.s".to_string()]
+        );
+        assert_eq!(
+            username_candidates("corp\\endri.s"),
+            vec!["corp\\endri.s".to_string(), "endri.s".to_string()]
+        );
     }
 }

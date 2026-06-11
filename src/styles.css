@@ -157,6 +157,11 @@ button {
   background: #dbe6f4;
 }
 
+.secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 .status-strip {
   display: grid;
   grid-template-columns: repeat(3, max-content) 1fr;
@@ -230,11 +235,28 @@ button {
 }
 
 .build-group {
+  position: relative;
   overflow: hidden;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 1px 4px rgba(20, 31, 48, 0.05);
+}
+
+.build-group::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 0;
+  width: var(--card-progress, 0%);
+  background: linear-gradient(90deg, rgba(37, 99, 235, 0.13), rgba(14, 165, 233, 0.06));
+  pointer-events: none;
+  transition: width 160ms ease;
+}
+
+.build-group > * {
+  position: relative;
+  z-index: 1;
 }
 
 .build-group.failed {
@@ -282,6 +304,12 @@ button {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.primary-button.icon-only {
+  min-width: 36px;
+  width: 36px;
+  padding: 0;
 }
 
 .artifact-table {
@@ -485,6 +513,61 @@ button {
 .type-chip.selected {
   color: #ffffff;
   background: #2563eb;
+}
+
+.token-test-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.test-summary {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.test-summary.ok {
+  color: #166534;
+}
+
+.test-summary.failed {
+  color: #9f1239;
+}
+
+.test-result-list {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.test-result-list div {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.4fr) 1fr;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.test-result-list strong {
+  overflow: hidden;
+  color: #172033;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.test-result-list span {
+  color: #64748b;
+}
+
+.test-result-list .ok span {
+  color: #166534;
+}
+
+.test-result-list .failed span {
+  color: #9f1239;
 }
 
 .modal-actions {

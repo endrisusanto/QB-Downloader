@@ -12,7 +12,7 @@ use tauri::{
     Manager, State, WindowEvent,
 };
 use tauri_plugin_dialog::DialogExt;
-use types::{BuildArtifactGroup, Credentials, DownloadRequest};
+use types::{BuildArtifactGroup, Credentials, DownloadRequest, TokenTestResult};
 
 #[derive(Clone)]
 struct AppState {
@@ -46,6 +46,14 @@ async fn fetch_bulk_build_artifacts(
     }
 
     Ok(groups)
+}
+
+#[tauri::command]
+async fn test_token(credentials: Credentials) -> Result<TokenTestResult, String> {
+    QbClient::new(credentials)
+        .test_token()
+        .await
+        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -149,6 +157,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             fetch_build_artifacts,
             fetch_bulk_build_artifacts,
+            test_token,
             start_download,
             pause_download,
             resume_download,
