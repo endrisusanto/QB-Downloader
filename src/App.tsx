@@ -570,7 +570,13 @@ function App() {
                               <div className="progress-bar">
                                 <div style={{ width: `${percent}%` }} />
                               </div>
-                              <span>{row ? `${formatBytes(row.downloaded)} / ${formatBytes(row.total)}` : "Ready"}</span>
+                              <span title={row?.message}>
+                                {row?.message
+                                  ? row.message
+                                  : row
+                                    ? `${formatBytes(row.downloaded)} / ${formatBytes(row.total)}`
+                                    : "Ready"}
+                              </span>
                             </div>
                             <span className={`pill ${row?.status || "ready"}`}>
                               {row?.status || "ready"}
@@ -767,7 +773,10 @@ function ProgressDialogContent({
                 <strong>{artifact.name}</strong>
                 <span>
                   {row?.status || "ready"} •{" "}
-                  {row ? `${formatBytes(row.downloaded)} / ${formatBytes(row.total)}` : formatBytes(artifact.size)}
+                  {row?.message ||
+                    (row
+                      ? `${formatBytes(row.downloaded)} / ${formatBytes(row.total)}`
+                      : formatBytes(artifact.size))}
                 </span>
               </div>
               <div className="progress-bar">
@@ -1003,7 +1012,11 @@ function loadSettings(): SettingsState {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) return defaultSettings;
-    return { ...defaultSettings, ...JSON.parse(stored) };
+    const settings = { ...defaultSettings, ...JSON.parse(stored) };
+    if (settings.username === "corp\\danar.kurnia") {
+      settings.username = "";
+    }
+    return settings;
   } catch {
     return defaultSettings;
   }
@@ -1025,7 +1038,7 @@ function prepareGroup(group: BuildArtifactGroup, selectedTypes: string[]): Build
       .filter((artifact) => enabled.has(kindLabel(artifact.kind)))
       .map((artifact) => ({
         ...artifact,
-        selected: true,
+        selected: false,
       })),
   };
 }

@@ -71,17 +71,29 @@ async fn start_download(
 
 #[tauri::command]
 async fn pause_download(state: State<'_, AppState>, job_id: String) -> Result<(), String> {
-    state.downloads.pause(&job_id).await.map_err(|err| err.to_string())
+    state
+        .downloads
+        .pause(&job_id)
+        .await
+        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
 async fn resume_download(state: State<'_, AppState>, job_id: String) -> Result<(), String> {
-    state.downloads.resume(&job_id).await.map_err(|err| err.to_string())
+    state
+        .downloads
+        .resume(&job_id)
+        .await
+        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
 async fn cancel_download(state: State<'_, AppState>, job_id: String) -> Result<(), String> {
-    state.downloads.cancel(&job_id).await.map_err(|err| err.to_string())
+    state
+        .downloads
+        .cancel(&job_id)
+        .await
+        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -120,6 +132,9 @@ pub fn run() {
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &quit])?;
             let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/icon.png"))?;
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_icon(icon.clone());
+            }
 
             TrayIconBuilder::with_id("main-tray")
                 .tooltip("QuickBuild Download Manager")

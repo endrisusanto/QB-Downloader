@@ -311,8 +311,15 @@ button {
 
 .group-actions {
   display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 8px;
+}
+
+.group-actions .icon-button,
+.group-actions .primary-button {
+  flex: 0 0 auto;
 }
 
 .primary-button.icon-only {
@@ -389,6 +396,12 @@ button {
   min-width: 0;
   display: grid;
   gap: 6px;
+}
+
+.progress-cell span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .progress-bar {

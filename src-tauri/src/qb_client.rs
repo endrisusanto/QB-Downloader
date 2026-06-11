@@ -131,7 +131,10 @@ impl QbClient {
         let response = self
             .http
             .get(url)
-            .basic_auth(&self.credentials.username, Some(&self.credentials.access_token))
+            .basic_auth(
+                &self.credentials.username,
+                Some(&self.credentials.access_token),
+            )
             .send()
             .await
             .map_err(|err| QbError::Network(err.to_string()))?;
@@ -167,8 +170,6 @@ fn username_candidates(username: &str) -> Vec<String> {
         if !short.trim().is_empty() {
             candidates.push(short.trim().to_string());
         }
-    } else if !trimmed.is_empty() {
-        candidates.push(format!("corp\\{trimmed}"));
     }
 
     candidates.dedup();
@@ -193,10 +194,7 @@ mod tests {
 
     #[test]
     fn creates_username_candidates() {
-        assert_eq!(
-            username_candidates("endri.s"),
-            vec!["endri.s".to_string(), "corp\\endri.s".to_string()]
-        );
+        assert_eq!(username_candidates("endri.s"), vec!["endri.s".to_string()]);
         assert_eq!(
             username_candidates("corp\\endri.s"),
             vec!["corp\\endri.s".to_string(), "endri.s".to_string()]

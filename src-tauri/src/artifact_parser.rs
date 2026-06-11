@@ -48,7 +48,11 @@ pub fn parse_version(build_response: &str) -> Option<String> {
     extract_xml_tag(build_response, "version").or_else(|| {
         serde_json::from_str::<Value>(build_response)
             .ok()
-            .and_then(|json| json.get("version").and_then(Value::as_str).map(str::to_string))
+            .and_then(|json| {
+                json.get("version")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
     })
 }
 
