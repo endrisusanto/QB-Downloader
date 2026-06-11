@@ -159,7 +159,7 @@ function App() {
 
   useEffect(() => {
     for (const group of groups) {
-      if (group.artifacts.some((artifact) => downloadRows[artifact.id])) {
+      if (groupArtifacts(group).some((artifact) => downloadRows[artifact.id])) {
         writeDialogSnapshot("progress", group, downloadRows);
         writeDialogSnapshot("complete", group, downloadRows);
       }
@@ -287,7 +287,7 @@ function App() {
       return;
     }
 
-    const selected = group.artifacts.filter((artifact) => artifact.selected);
+    const selected = selectedArtifacts(group);
     if (!selected.length) return;
 
     setDownloadRows((current) => omitArtifactRows(current, selected.map((artifact) => artifact.id)));
@@ -314,12 +314,12 @@ function App() {
   }
 
   function removeGroup(group: BuildArtifactGroup) {
-    const jobId = group.status.startsWith("job:") ? group.status.slice(4) : undefined;
+    const jobId = jobIdFromStatus(group.status);
     if (jobId) {
       void controlDownload("cancel_download", jobId);
     }
 
-    const artifactIds = group.artifacts.map((artifact) => artifact.id);
+    const artifactIds = groupArtifacts(group).map((artifact) => artifact.id);
     setGroups((current) => current.filter((item) => item.id !== group.id));
     setDownloadRows((current) => omitArtifactRows(current, artifactIds));
     setExpanded((current) => {
@@ -487,8 +487,9 @@ function App() {
 
             {groups.map((group) => {
               const isExpanded = expanded[group.id] ?? true;
-              const jobId = group.status.startsWith("job:") ? group.status.slice(4) : undefined;
-              const visibleArtifacts = jobId ? selectedArtifacts(group) : group.artifacts;
+              const jobId = jobIdFromStatus(group.status);
+              const artifacts = groupArtifacts(group);
+              const visibleArtifacts = jobId ? selectedArtifacts(group) : artifacts;
               const selectedCount = selectedArtifacts(group).length;
               const groupRows = visibleArtifacts.map((artifact) => downloadRows[artifact.id]);
               const isRunning = groupRows.some((row) => row?.status === "downloading");
@@ -514,7 +515,7 @@ function App() {
                       <span>
                         {group.error
                           ? group.error
-                          : `${selectedCount}/${group.artifacts.length} selected${
+                          : `${selectedCount}/${artifacts.length} selected${
                               group.version ? ` • ${group.version}` : ""
                             }`}
                       </span>
@@ -1063,7 +1064,7 @@ function prepareGroup(group: BuildArtifactGroup, selectedTypes: string[]): Build
   const enabled = new Set(selectedTypes);
   return {
     ...group,
-    artifacts: group.artifacts
+    artifacts: groupArtifacts(group)
       .filter((artifact) => enabled.has(kindLabel(artifact.kind)))
       .map((artifact) => ({
         ...artifact,
@@ -1077,6 +1078,14 @@ function upsertGroup(groups: BuildArtifactGroup[], group: BuildArtifactGroup) {
   return [group, ...groups.filter((item) => (item.buildId || item.input) !== key)];
 }
 
+function groupArtifacts(group: BuildArtifactGroup) {
+  return Array.isArray(group.artifacts) ? group.artifacts : [];
+}
+
+function jobIdFromStatus(status?: string) {
+  return typeof status === "string" && status.startsWith("job:") ? status.slice(4) : undefined;
+}
+
 function toggleArtifact(
   groupId: string,
   artifactId: string,
@@ -1087,7 +1096,7 @@ function toggleArtifact(
       group.id === groupId
         ? {
             ...group,
-            artifacts: group.artifacts.map((artifact) =>
+            artifacts: groupArtifacts(group).map((artifact) =>
               artifact.id === artifactId ? { ...artifact, selected: !artifact.selected } : artifact,
             ),
           }
@@ -1112,7 +1121,7 @@ function kindLabel(kind: ArtifactKind) {
 }
 
 function selectedArtifacts(group: BuildArtifactGroup) {
-  return group.artifacts.filter((artifact) => artifact.selected);
+  return groupArtifacts(group).filter((artifact) => artifact.selected);
 }
 
 function getStandaloneDialogConfig() {
@@ -1174,13 +1183,26 @@ function enrichDownloadEvent(payload: DownloadEvent, previous: DownloadEvent | u
 
 function omitArtifactRows(rows: Record<string, DownloadEvent>, artifactIds: string[]) {
   const remove = new Set(artifactIds);
-  return Object.fromEntries(Object.entries(rows).filter(([artifactId]) => !remove.has(artifactId)));
+  const next: Record<string, DownloadEvent> = {};
+  for (const [artifactId, row] of Object.entries(rows)) {
+    if (!remove.has(artifactId)) {
+      next[artifactId] = row;
+    }
+  }
+  return next;
 }
 
 function visibleRows(groups: BuildArtifactGroup[], rows: Record<string, DownloadEvent>) {
-  return groups.flatMap((group) =>
-    group.artifacts.map((artifact) => rows[artifact.id]).filter((row): row is DownloadEvent => Boolean(row)),
-  );
+  const visible: DownloadEvent[] = [];
+  for (const group of groups) {
+    for (const artifact of groupArtifacts(group)) {
+      const row = rows[artifact.id];
+      if (row) {
+        visible.push(row);
+      }
+    }
+  }
+  return visible;
 }
 
 function firstDownloadedPath(group: BuildArtifactGroup, rows: Record<string, DownloadEvent>) {
