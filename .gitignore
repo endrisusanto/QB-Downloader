@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Frontend build output
+dist/
+
+# Rust/Tauri build output
+src-tauri/target/
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Local release artifacts
+*.msi
+*.exe
+*.nsis.zip
+
+# Reverse-engineering source binary kept out of git by default
+QD.exe
