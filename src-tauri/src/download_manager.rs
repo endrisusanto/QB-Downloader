@@ -105,6 +105,25 @@ impl DownloadManager {
 
             tokio::spawn(async move {
                 let _permit = semaphore.acquire_owned().await.expect("semaphore open");
+                if control.cancelled.load(Ordering::Relaxed) {
+                    emit_event(
+                        &app,
+                        "download://cancelled",
+                        event(
+                            &job_id,
+                            &request.build_id,
+                            &artifact,
+                            "cancelled",
+                            0,
+                            failure_artifact.size,
+                            None,
+                            Some("Cancelled".to_string()),
+                            false,
+                        ),
+                    );
+                    return;
+                }
+
                 if let Err(err) = download_one(
                     app.clone(),
                     http,
@@ -254,7 +273,7 @@ async fn download_one(
         if control.cancelled.load(Ordering::Relaxed) {
             emit_event(
                 &app,
-                "download://failed",
+                "download://cancelled",
                 event(
                     &job_id,
                     &request.build_id,
@@ -271,6 +290,25 @@ async fn download_one(
         }
 
         while control.paused.load(Ordering::Relaxed) {
+            if control.cancelled.load(Ordering::Relaxed) {
+                emit_event(
+                    &app,
+                    "download://cancelled",
+                    event(
+                        &job_id,
+                        &request.build_id,
+                        &artifact,
+                        "cancelled",
+                        downloaded,
+                        total,
+                        Some(output.display().to_string()),
+                        Some("Cancelled".to_string()),
+                        resumable,
+                    ),
+                );
+                return Ok(());
+            }
+
             emit_event(
                 &app,
                 "download://paused",

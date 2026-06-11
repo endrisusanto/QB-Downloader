@@ -258,7 +258,7 @@ button {
   inset: 0 auto 0 0;
   z-index: 0;
   width: var(--card-progress, 0%);
-  background: linear-gradient(90deg, rgba(37, 99, 235, 0.13), rgba(14, 165, 233, 0.06));
+  background: linear-gradient(90deg, rgba(22, 163, 74, 0.16), rgba(34, 197, 94, 0.07));
   pointer-events: none;
   transition: width 160ms ease;
 }
@@ -286,7 +286,7 @@ button {
 }
 
 .group-title,
-.group-header > div {
+.group-header > div:not(.group-actions) {
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -418,7 +418,7 @@ button {
 .progress-bar div {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #2563eb, #0ea5e9);
+  background: linear-gradient(90deg, #16a34a, #22c55e);
   transition: width 120ms ease;
 }
 
@@ -724,8 +724,15 @@ button {
 
 .modal-actions {
   display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.complete-modal .modal-actions {
+  justify-content: center;
 }
 
 .spinner {

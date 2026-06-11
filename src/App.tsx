@@ -58,6 +58,8 @@ type DownloadEvent = {
   path?: string;
   message?: string;
   resumable: boolean;
+  speedBps?: number;
+  updatedAt?: number;
 };
 
 type DownloadStatus =
@@ -176,14 +178,19 @@ function App() {
         "download://paused",
         "download://completed",
         "download://failed",
+        "download://cancelled",
       ].map((eventName) =>
         listen<DownloadEvent>(eventName, (event) => {
           const payload = event.payload;
           if (!payload.artifactId) return;
-          setDownloadRows((current) => ({
-            ...current,
-            [payload.artifactId]: payload,
-          }));
+          const now = Date.now();
+          setDownloadRows((current) => {
+            const previous = current[payload.artifactId];
+            return {
+              ...current,
+              [payload.artifactId]: enrichDownloadEvent(payload, previous, now),
+            };
+          });
         }),
       ),
     );
@@ -283,6 +290,8 @@ function App() {
     const selected = group.artifacts.filter((artifact) => artifact.selected);
     if (!selected.length) return;
 
+    setDownloadRows((current) => omitArtifactRows(current, selected.map((artifact) => artifact.id)));
+
     const jobId = await invoke<string>("start_download", {
       group: {
         buildId: group.buildId,
@@ -302,6 +311,25 @@ function App() {
         if (!opened) setProgressGroupId(group.id);
       });
     }
+  }
+
+  function removeGroup(group: BuildArtifactGroup) {
+    const jobId = group.status.startsWith("job:") ? group.status.slice(4) : undefined;
+    if (jobId) {
+      void controlDownload("cancel_download", jobId);
+    }
+
+    const artifactIds = group.artifacts.map((artifact) => artifact.id);
+    setGroups((current) => current.filter((item) => item.id !== group.id));
+    setDownloadRows((current) => omitArtifactRows(current, artifactIds));
+    setExpanded((current) => {
+      const next = { ...current };
+      delete next[group.id];
+      return next;
+    });
+    completedNotifiedRef.current.delete(group.id);
+    if (progressGroupId === group.id) setProgressGroupId(null);
+    if (completeGroupId === group.id) setCompleteGroupId(null);
   }
 
   async function openDialogWindow(kind: DialogKind, group: BuildArtifactGroup) {
@@ -385,8 +413,9 @@ function App() {
     }
   }
 
-  const activeCount = Object.values(downloadRows).filter((row) => row.status === "downloading").length;
-  const completedCount = Object.values(downloadRows).filter((row) => row.status === "completed").length;
+  const visibleDownloadRows = visibleRows(groups, downloadRows);
+  const activeCount = visibleDownloadRows.filter((row) => row.status === "downloading").length;
+  const completedCount = visibleDownloadRows.filter((row) => row.status === "completed").length;
   const progressGroup = groups.find((group) => group.id === progressGroupId) || null;
   const completeGroup = groups.find((group) => group.id === completeGroupId) || null;
 
@@ -540,7 +569,7 @@ function App() {
                       <button
                         className="icon-button"
                         title="Remove"
-                        onClick={() => setGroups((current) => current.filter((item) => item.id !== group.id))}
+                        onClick={() => removeGroup(group)}
                       >
                         <Trash2 size={16} />
                       </button>
@@ -574,7 +603,7 @@ function App() {
                                 {row?.message
                                   ? row.message
                                   : row
-                                    ? `${formatBytes(row.downloaded)} / ${formatBytes(row.total)}`
+                                    ? `${formatBytes(row.downloaded)} / ${formatBytes(row.total)} • ${formatSpeed(row)}`
                                     : "Ready"}
                               </span>
                             </div>
@@ -775,7 +804,7 @@ function ProgressDialogContent({
                   {row?.status || "ready"} •{" "}
                   {row?.message ||
                     (row
-                      ? `${formatBytes(row.downloaded)} / ${formatBytes(row.total)}`
+                      ? `${formatBytes(row.downloaded)} / ${formatBytes(row.total)} • ${formatSpeed(row)}`
                       : formatBytes(artifact.size))}
                 </span>
               </div>
@@ -1126,6 +1155,34 @@ function readDialogSnapshot(storageKey: string) {
   }
 }
 
+function enrichDownloadEvent(payload: DownloadEvent, previous: DownloadEvent | undefined, now: number) {
+  if (payload.status !== "downloading") {
+    return { ...payload, speedBps: 0, updatedAt: now };
+  }
+
+  const elapsedSeconds = previous?.updatedAt ? (now - previous.updatedAt) / 1000 : 0;
+  const downloadedDelta = previous ? payload.downloaded - previous.downloaded : 0;
+  const speedBps =
+    elapsedSeconds > 0 && downloadedDelta > 0
+      ? downloadedDelta / elapsedSeconds
+      : previous?.status === "downloading"
+        ? previous.speedBps
+        : undefined;
+
+  return { ...payload, speedBps, updatedAt: now };
+}
+
+function omitArtifactRows(rows: Record<string, DownloadEvent>, artifactIds: string[]) {
+  const remove = new Set(artifactIds);
+  return Object.fromEntries(Object.entries(rows).filter(([artifactId]) => !remove.has(artifactId)));
+}
+
+function visibleRows(groups: BuildArtifactGroup[], rows: Record<string, DownloadEvent>) {
+  return groups.flatMap((group) =>
+    group.artifacts.map((artifact) => rows[artifact.id]).filter((row): row is DownloadEvent => Boolean(row)),
+  );
+}
+
 function firstDownloadedPath(group: BuildArtifactGroup, rows: Record<string, DownloadEvent>) {
   return selectedArtifacts(group)
     .map((artifact) => rows[artifact.id]?.path)
@@ -1154,7 +1211,8 @@ function groupProgress(artifacts: Artifact[], rows: Record<string, DownloadEvent
 }
 
 function formatBytes(value?: number) {
-  if (!value) return "unknown";
+  if (value === undefined) return "Unknown";
+  if (value === 0) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB"];
   let size = value;
   let unit = 0;
@@ -1163,6 +1221,19 @@ function formatBytes(value?: number) {
     unit += 1;
   }
   return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+}
+
+function formatSpeed(row?: DownloadEvent) {
+  if (!row) return "Ready";
+  if (row.status === "downloading") {
+    return row.speedBps ? `${formatBytes(row.speedBps)}/s` : "Calculating...";
+  }
+  if (row.status === "completed") return "Done";
+  if (row.status === "paused") return "Paused";
+  if (row.status === "cancelled") return "Cancelled";
+  if (row.status === "failed") return "Failed";
+  if (row.status === "queued") return "Queued";
+  return "Ready";
 }
 
 export default App;
