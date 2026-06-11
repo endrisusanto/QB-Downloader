@@ -105,9 +105,18 @@ fn collect_json_artifacts(build_id: &str, value: &Value, artifacts: &mut Vec<Art
                 .iter()
                 .find_map(|key| map.get(*key).and_then(Value::as_str));
             if let Some(name) = name {
-                let size = ["size", "fileSize", "length"]
-                    .iter()
-                    .find_map(|key| map.get(*key).and_then(Value::as_u64));
+                let size = [
+                    "size",
+                    "fileSize",
+                    "file_size",
+                    "sizeBytes",
+                    "size_bytes",
+                    "length",
+                    "contentLength",
+                    "content_length",
+                ]
+                .iter()
+                .find_map(|key| map.get(*key).and_then(parse_size_value));
                 let url = ["url", "downloadUrl", "href"]
                     .iter()
                     .find_map(|key| map.get(*key).and_then(Value::as_str))
@@ -120,6 +129,39 @@ fn collect_json_artifacts(build_id: &str, value: &Value, artifacts: &mut Vec<Art
         }
         _ => {}
     }
+}
+
+fn parse_size_value(value: &Value) -> Option<u64> {
+    if let Some(size) = value.as_u64() {
+        return (size > 0).then_some(size);
+    }
+
+    let text = value.as_str()?.trim();
+    if text.is_empty() || text == "0" {
+        return None;
+    }
+
+    let cleaned = text.replace(',', "");
+    if let Ok(size) = cleaned.parse::<u64>() {
+        return (size > 0).then_some(size);
+    }
+
+    let re = Regex::new(r"(?i)^\s*([0-9]+(?:\.[0-9]+)?)\s*([KMGT]?I?B?|BYTES?)\s*$").ok()?;
+    let captures = re.captures(&cleaned)?;
+    let value = captures.get(1)?.as_str().parse::<f64>().ok()?;
+    let unit = captures
+        .get(2)
+        .map(|m| m.as_str().to_ascii_uppercase())
+        .unwrap_or_else(|| "B".to_string());
+    let multiplier = match unit.as_str() {
+        "K" | "KB" | "KIB" => 1024_f64,
+        "M" | "MB" | "MIB" => 1024_f64.powi(2),
+        "G" | "GB" | "GIB" => 1024_f64.powi(3),
+        "T" | "TB" | "TIB" => 1024_f64.powi(4),
+        _ => 1_f64,
+    };
+    let bytes = (value * multiplier).round();
+    (bytes > 0_f64).then_some(bytes as u64)
 }
 
 fn make_artifact(build_id: &str, name: String, size: Option<u64>, url: Option<String>) -> Artifact {
@@ -167,5 +209,18 @@ mod tests {
         assert_eq!(detect_kind("AP_TEST.tar.md5"), ArtifactKind::Ap);
         assert_eq!(detect_kind("USERDATA_x.tar.md5"), ArtifactKind::Userdata);
         assert_eq!(detect_kind("HOME_CSC_x.tar.md5"), ArtifactKind::Home);
+    }
+
+    #[test]
+    fn parses_string_file_sizes() {
+        assert_eq!(
+            parse_size_value(&Value::String("16.2 GB".to_string())),
+            Some(17_394_617_549)
+        );
+        assert_eq!(
+            parse_size_value(&Value::String("1,024".to_string())),
+            Some(1024)
+        );
+        assert_eq!(parse_size_value(&Value::String("0".to_string())), None);
     }
 }

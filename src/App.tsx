@@ -10,11 +10,13 @@ import {
   Download,
   FolderOpen,
   KeyRound,
+  Moon,
   Pause,
   Play,
   RefreshCcw,
   RotateCcw,
   Settings,
+  Sun,
   Trash2,
   X,
 } from "lucide-react";
@@ -70,6 +72,12 @@ type DownloadEvent = {
   resumable: boolean;
   speedBps?: number;
   updatedAt?: number;
+  speedSamples?: SpeedSample[];
+};
+
+type SpeedSample = {
+  at: number;
+  downloaded: number;
 };
 
 type DownloadStatus =
@@ -102,6 +110,7 @@ type SettingsState = {
   selectedTypes: string[];
   showProgressDialog: boolean;
   showCompleteDialog: boolean;
+  darkMode: boolean;
 };
 
 type DialogKind = "progress" | "complete";
@@ -125,6 +134,7 @@ const defaultSettings: SettingsState = {
   selectedTypes: DEFAULT_TYPES,
   showProgressDialog: false,
   showCompleteDialog: true,
+  darkMode: false,
 };
 
 class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -229,6 +239,9 @@ function AppContent() {
           const now = Date.now();
           setDownloadRows((current) => {
             const previous = current[payload.artifactId];
+            if (shouldSkipDownloadUpdate(payload, previous, now)) {
+              return current;
+            }
             return {
               ...current,
               [payload.artifactId]: enrichDownloadEvent(payload, previous, now),
@@ -358,6 +371,19 @@ function AppContent() {
     }
   }
 
+  function setGroupSelection(groupId: string, selected: boolean) {
+    setGroups((current) =>
+      current.map((group) =>
+        group.id === groupId
+          ? {
+              ...group,
+              artifacts: groupArtifacts(group).map((artifact) => ({ ...artifact, selected })),
+            }
+          : group,
+      ),
+    );
+  }
+
   function removeGroup(group: BuildArtifactGroup) {
     const jobId = jobIdFromStatus(group.status);
     if (jobId) {
@@ -441,7 +467,7 @@ function AppContent() {
 
   function submitSearch(event: FormEvent) {
     event.preventDefault();
-    const inputs = normalizeInputs(query.split(/\r?\n/));
+    const inputs = normalizeInputs(splitBulkInput(query));
     setQuery("");
     if (inputs.length > 1) {
       void fetchBulk(inputs);
@@ -451,7 +477,7 @@ function AppContent() {
   }
 
   function onPaste(text: string) {
-    const inputs = normalizeInputs(text.split(/\r?\n/));
+    const inputs = normalizeInputs(splitBulkInput(text));
     if (inputs.length > 1) {
       setQuery("");
       void fetchBulk(inputs);
@@ -461,11 +487,159 @@ function AppContent() {
   const visibleDownloadRows = visibleRows(groups, downloadRows);
   const activeCount = visibleDownloadRows.filter((row) => row.status === "downloading").length;
   const completedCount = visibleDownloadRows.filter((row) => row.status === "completed").length;
+  const totalSize = groups.reduce(
+    (sum, group) => sum + groupArtifacts(group).reduce((groupSum, artifact) => groupSum + (artifact.size || 0), 0),
+    0,
+  );
+  const selectedTotal = groups.reduce((sum, group) => sum + selectedArtifacts(group).length, 0);
+  const averageSpeed = visibleDownloadRows.reduce((sum, row) => sum + (row.speedBps || 0), 0);
+  const inProgressGroups = groups.filter((group) =>
+    selectedArtifacts(group).some((artifact) => {
+      const status = downloadRows[artifact.id]?.status;
+      return status === "queued" || status === "downloading" || status === "paused";
+    }),
+  );
+  const readyGroups = groups.filter((group) => !inProgressGroups.some((active) => active.id === group.id));
   const progressGroup = groups.find((group) => group.id === progressGroupId) || null;
   const completeGroup = groups.find((group) => group.id === completeGroupId) || null;
 
+  function renderBuildGroup(group: BuildArtifactGroup) {
+    const isExpanded = expanded[group.id] ?? true;
+    const jobId = jobIdFromStatus(group.status);
+    const artifacts = groupArtifacts(group);
+    const visibleArtifacts = jobId ? selectedArtifacts(group) : artifacts;
+    const selectedCount = selectedArtifacts(group).length;
+    const groupRows = visibleArtifacts.map((artifact) => downloadRows[artifact.id]);
+    const isRunning = groupRows.some((row) => row?.status === "downloading");
+    const hasPaused = groupRows.some((row) => row?.status === "paused");
+    const hasDownloadRows = groupRows.some(Boolean);
+    const cardPercent = groupProgress(visibleArtifacts, downloadRows);
+
+    return (
+      <article
+        className={`build-group ${group.error ? "failed" : ""}`}
+        key={group.id}
+        style={{ "--card-progress": `${cardPercent}%` } as CSSProperties}
+      >
+        <div className="group-header">
+          <button
+            className="ghost-icon"
+            onClick={() => setExpanded((current) => ({ ...current, [group.id]: !isExpanded }))}
+          >
+            {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+          </button>
+          <div className="group-title">
+            <strong>{group.buildId || group.input}</strong>
+            <span>
+              {group.error
+                ? group.error
+                : `${selectedCount}/${artifacts.length} selected${group.version ? ` • ${group.version}` : ""}`}
+            </span>
+          </div>
+          <div className="group-actions">
+            {!jobId && artifacts.length > 0 && (
+              <div className="selection-actions">
+                <button className="secondary-button compact" onClick={() => setGroupSelection(group.id, true)}>
+                  <Check size={15} />
+                  Select all
+                </button>
+                <button className="secondary-button compact" onClick={() => setGroupSelection(group.id, false)}>
+                  Deselect
+                </button>
+              </div>
+            )}
+            {jobId && (
+              <>
+                {hasDownloadRows && (
+                  <button
+                    className="icon-button"
+                    title="Open progress"
+                    onClick={() => {
+                      void openDialogWindow("progress", group).then((opened) => {
+                        if (!opened) setProgressGroupId(group.id);
+                      });
+                    }}
+                  >
+                    <Activity size={16} />
+                  </button>
+                )}
+                <button
+                  className="icon-button"
+                  title={hasPaused ? "Resume" : "Pause"}
+                  onClick={() => controlDownload(hasPaused ? "resume_download" : "pause_download", jobId)}
+                >
+                  {hasPaused ? <Play size={16} /> : <Pause size={16} />}
+                </button>
+                <button className="icon-button" title="Retry" onClick={() => controlDownload("retry_download", jobId)}>
+                  <RefreshCcw size={16} />
+                </button>
+                <button
+                  className="icon-button danger"
+                  title="Cancel"
+                  onClick={() => controlDownload("cancel_download", jobId)}
+                >
+                  <X size={16} />
+                </button>
+              </>
+            )}
+            <button
+              className="primary-button download-selected"
+              title="Download selected artifacts"
+              disabled={Boolean(group.error) || selectedCount === 0 || isRunning}
+              onClick={() => startDownload(group)}
+            >
+              <Download size={16} />
+              <span>Download selected</span>
+            </button>
+            <button className="icon-button" title="Remove" onClick={() => removeGroup(group)}>
+              <Trash2 size={16} />
+            </button>
+          </div>
+        </div>
+
+        {isExpanded && visibleArtifacts.length > 0 && (
+          <div className="artifact-table">
+            {visibleArtifacts.map((artifact) => {
+              const row = downloadRows[artifact.id];
+              const percent = progressPercent(row?.downloaded, row?.total);
+              return (
+                <div className="artifact-row" key={artifact.id}>
+                  <button
+                    className={`check-button ${artifact.selected ? "checked" : ""}`}
+                    onClick={() => toggleArtifact(group.id, artifact.id, setGroups)}
+                    title={artifact.selected ? "Selected" : "Not selected"}
+                  >
+                    {artifact.selected && <Check size={14} />}
+                  </button>
+                  <div className="artifact-name">
+                    <strong>{artifact.name}</strong>
+                    <span>{kindLabel(artifact.kind)}</span>
+                  </div>
+                  <div className="size-cell">{formatBytes(artifact.size)}</div>
+                  <div className="progress-cell">
+                    <div className="progress-bar">
+                      <div style={{ width: `${percent}%` }} />
+                    </div>
+                    <span title={row?.message}>
+                      {row?.message
+                        ? row.message
+                        : row
+                          ? `${formatBytes(row.downloaded)} / ${formatBytes(row.total)} • ${formatSpeed(row)}`
+                          : "Ready"}
+                    </span>
+                  </div>
+                  <span className={`pill ${row?.status || "ready"}`}>{row?.status || "ready"}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </article>
+    );
+  }
+
   return (
-    <main className="app-shell">
+    <main className="app-shell" data-theme={settings.darkMode ? "dark" : "light"}>
       <header className="topbar">
         <div className="brand">
           <img src="/quickbuild-logo.svg" alt="" />
@@ -488,24 +662,38 @@ function AppContent() {
         <button className="icon-button" title="Settings" onClick={() => setSettingsOpen(true)}>
           <Settings size={18} />
         </button>
+        <button
+          className="icon-button"
+          title={settings.darkMode ? "Light mode" : "Dark mode"}
+          onClick={() => setSettings((current) => ({ ...current, darkMode: !current.darkMode }))}
+        >
+          {settings.darkMode ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
       </header>
 
-      <section className="status-strip">
-        <div>
+      <section className="dashboard-strip">
+        <div className="metric-card builds">
+          <span>Builds</span>
           <strong>{groups.length}</strong>
-          <span>builds</span>
+          <small>{selectedTotal} selected</small>
         </div>
-        <div>
+        <div className="metric-card active">
+          <span>Active</span>
           <strong>{activeCount}</strong>
-          <span>active</span>
+          <small>{formatSpeedValue(averageSpeed)}</small>
         </div>
-        <div>
+        <div className="metric-card done">
+          <span>Done</span>
           <strong>{completedCount}</strong>
-          <span>done</span>
+          <small>{visibleDownloadRows.length} tracked</small>
         </div>
-        <div className="target-path" title={settings.downloadTargetDir || "No folder selected"}>
-          <FolderOpen size={16} />
-          <span>{settings.downloadTargetDir || "Set download folder"}</span>
+        <div className="metric-card storage">
+          <span>Total size</span>
+          <strong>{formatBytes(totalSize || undefined)}</strong>
+          <small title={settings.downloadTargetDir || "No folder selected"}>
+            <FolderOpen size={14} />
+            {settings.downloadTargetDir || "Set download folder"}
+          </small>
         </div>
       </section>
 
@@ -517,153 +705,49 @@ function AppContent() {
             <p>Paste a QB build ID or URL, press Enter, then download selected artifacts.</p>
           </div>
         ) : (
-          <div className="group-list">
-            {[...loadingInputs].map((input) => (
-              <div className="build-group loading" key={`loading:${input}`}>
-                <div className="group-header">
-                  <span className="spinner" />
-                  <div>
-                    <strong>{input}</strong>
-                    <span>Fetching artifacts...</span>
+          <div className="accordion-stack">
+            <details className="task-accordion" open={loadingInputs.size > 0}>
+              <summary>
+                <span>Current fetch</span>
+                <strong>{loadingInputs.size}</strong>
+              </summary>
+              <div className="group-list">
+                {[...loadingInputs].map((input) => (
+                  <div className="build-group loading" key={`loading:${input}`}>
+                    <div className="group-header">
+                      <span className="spinner" />
+                      <div>
+                        <strong>{input}</strong>
+                        <span>Fetching artifacts...</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ))}
+                {loadingInputs.size === 0 && <div className="accordion-empty">No active fetch.</div>}
               </div>
-            ))}
+            </details>
 
-            {groups.map((group) => {
-              const isExpanded = expanded[group.id] ?? true;
-              const jobId = jobIdFromStatus(group.status);
-              const artifacts = groupArtifacts(group);
-              const visibleArtifacts = jobId ? selectedArtifacts(group) : artifacts;
-              const selectedCount = selectedArtifacts(group).length;
-              const groupRows = visibleArtifacts.map((artifact) => downloadRows[artifact.id]);
-              const isRunning = groupRows.some((row) => row?.status === "downloading");
-              const hasPaused = groupRows.some((row) => row?.status === "paused");
-              const hasDownloadRows = groupRows.some(Boolean);
-              const cardPercent = groupProgress(visibleArtifacts, downloadRows);
+            <details className="task-accordion" open={inProgressGroups.length > 0}>
+              <summary>
+                <span>In-progress downloads</span>
+                <strong>{inProgressGroups.length}</strong>
+              </summary>
+              <div className="group-list">
+                {inProgressGroups.map(renderBuildGroup)}
+                {inProgressGroups.length === 0 && <div className="accordion-empty">No running downloads.</div>}
+              </div>
+            </details>
 
-              return (
-                <article
-                  className={`build-group ${group.error ? "failed" : ""}`}
-                  key={group.id}
-                  style={{ "--card-progress": `${cardPercent}%` } as CSSProperties}
-                >
-                  <div className="group-header">
-                    <button
-                      className="ghost-icon"
-                      onClick={() => setExpanded((current) => ({ ...current, [group.id]: !isExpanded }))}
-                    >
-                      {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                    </button>
-                    <div className="group-title">
-                      <strong>{group.buildId || group.input}</strong>
-                      <span>
-                        {group.error
-                          ? group.error
-                          : `${selectedCount}/${artifacts.length} selected${
-                              group.version ? ` • ${group.version}` : ""
-                            }`}
-                      </span>
-                    </div>
-                    <div className="group-actions">
-                      {jobId && (
-                        <>
-                          {hasDownloadRows && (
-                            <button
-                              className="icon-button"
-                              title="Open progress"
-                              onClick={() => {
-                                void openDialogWindow("progress", group).then((opened) => {
-                                  if (!opened) setProgressGroupId(group.id);
-                                });
-                              }}
-                            >
-                              <Activity size={16} />
-                            </button>
-                          )}
-                          <button
-                            className="icon-button"
-                            title={hasPaused ? "Resume" : "Pause"}
-                            onClick={() => controlDownload(hasPaused ? "resume_download" : "pause_download", jobId)}
-                          >
-                            {hasPaused ? <Play size={16} /> : <Pause size={16} />}
-                          </button>
-                          <button
-                            className="icon-button"
-                            title="Retry"
-                            onClick={() => controlDownload("retry_download", jobId)}
-                          >
-                            <RefreshCcw size={16} />
-                          </button>
-                          <button
-                            className="icon-button danger"
-                            title="Cancel"
-                            onClick={() => controlDownload("cancel_download", jobId)}
-                          >
-                            <X size={16} />
-                          </button>
-                        </>
-                      )}
-                      <button
-                        className="primary-button icon-only"
-                        title="Download selected artifacts"
-                        disabled={Boolean(group.error) || selectedCount === 0 || isRunning}
-                        onClick={() => startDownload(group)}
-                      >
-                        <Download size={16} />
-                      </button>
-                      <button
-                        className="icon-button"
-                        title="Remove"
-                        onClick={() => removeGroup(group)}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {isExpanded && visibleArtifacts.length > 0 && (
-                    <div className="artifact-table">
-                      {visibleArtifacts.map((artifact) => {
-                        const row = downloadRows[artifact.id];
-                        const percent = progressPercent(row?.downloaded, row?.total);
-                        return (
-                          <div className="artifact-row" key={artifact.id}>
-                            <button
-                              className={`check-button ${artifact.selected ? "checked" : ""}`}
-                              onClick={() => toggleArtifact(group.id, artifact.id, setGroups)}
-                              title={artifact.selected ? "Selected" : "Not selected"}
-                            >
-                              {artifact.selected && <Check size={14} />}
-                            </button>
-                            <div className="artifact-name">
-                              <strong>{artifact.name}</strong>
-                              <span>{kindLabel(artifact.kind)}</span>
-                            </div>
-                            <div className="size-cell">{formatBytes(artifact.size)}</div>
-                            <div className="progress-cell">
-                              <div className="progress-bar">
-                                <div style={{ width: `${percent}%` }} />
-                              </div>
-                              <span title={row?.message}>
-                                {row?.message
-                                  ? row.message
-                                  : row
-                                    ? `${formatBytes(row.downloaded)} / ${formatBytes(row.total)} • ${formatSpeed(row)}`
-                                    : "Ready"}
-                              </span>
-                            </div>
-                            <span className={`pill ${row?.status || "ready"}`}>
-                              {row?.status || "ready"}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </article>
-              );
-            })}
+            <details className="task-accordion" open>
+              <summary>
+                <span>Fetched builds</span>
+                <strong>{readyGroups.length}</strong>
+              </summary>
+              <div className="group-list">
+                {readyGroups.map(renderBuildGroup)}
+                {readyGroups.length === 0 && <div className="accordion-empty">Fetched builds will appear here.</div>}
+              </div>
+            </details>
           </div>
         )}
       </section>
@@ -690,7 +774,7 @@ function AppContent() {
               autoFocus
               value={bulkText}
               onChange={(event) => setBulkText(event.target.value)}
-              placeholder="One build ID or URL per line"
+              placeholder="Build ID atau URL dipisahkan koma"
             />
             <div className="modal-actions">
               <button className="secondary-button" onClick={() => setBulkOpen(false)}>
@@ -701,7 +785,7 @@ function AppContent() {
                 onClick={() => {
                   setBulkOpen(false);
                   setBulkText("");
-                  void fetchBulk(bulkText.split(/\r?\n/));
+                  void fetchBulk(splitBulkInput(bulkText));
                 }}
               >
                 Fetch
@@ -738,6 +822,7 @@ function AppContent() {
 
 function StandaloneDialogWindow({ kind, storageKey }: { kind: DialogKind; storageKey: string }) {
   const [snapshot, setSnapshot] = useState<DialogSnapshot | null>(() => readDialogSnapshot(storageKey));
+  const darkMode = loadSettings().darkMode;
 
   useEffect(() => {
     const channel = new BroadcastChannel(DIALOG_CHANNEL);
@@ -763,7 +848,7 @@ function StandaloneDialogWindow({ kind, storageKey }: { kind: DialogKind; storag
 
   if (!snapshot) {
     return (
-      <main className="dialog-window">
+      <main className="dialog-window" data-theme={darkMode ? "dark" : "light"}>
         <div className="empty-state compact">
           <img src="/quickbuild-logo.svg" alt="" />
           <h1>Dialog data expired</h1>
@@ -773,7 +858,7 @@ function StandaloneDialogWindow({ kind, storageKey }: { kind: DialogKind; storag
   }
 
   return (
-    <main className="dialog-window">
+    <main className="dialog-window" data-theme={darkMode ? "dark" : "light"}>
       {kind === "progress" ? (
         <div className="modal progress-modal">
           <ProgressDialogContent group={snapshot.group} rows={snapshot.rows} onClose={closeWindow} />
@@ -821,6 +906,7 @@ function ProgressDialogContent({
 }) {
   const artifacts = selectedArtifacts(group);
   const percent = groupProgress(artifacts, rows);
+  const threadSlots = buildThreadSlots(artifacts, rows);
 
   return (
     <>
@@ -836,6 +922,16 @@ function ProgressDialogContent({
       <div className="progress-overview">
         <div className="progress-bar large">
           <div style={{ width: `${percent}%` }} />
+        </div>
+        <div className="thread-slot-grid">
+          {threadSlots.map((slot) => (
+            <div className={`thread-slot ${slot.status}`} key={slot.id}>
+              <strong>Thread {slot.index}</strong>
+              <span>{slot.status}</span>
+              <small title={slot.name}>{slot.name}</small>
+              <em>{slot.detail}</em>
+            </div>
+          ))}
         </div>
       </div>
       <div className="progress-file-list">
@@ -1062,6 +1158,14 @@ function SettingsModal({
           />
           Show complete dialog when download finishes
         </label>
+        <label className="toggle-row">
+          <input
+            type="checkbox"
+            checked={value.darkMode}
+            onChange={(event) => onChange({ ...value, darkMode: event.target.checked })}
+          />
+          Dark mode
+        </label>
         <div className="type-grid">
           {TYPE_OPTIONS.map((type) => (
             <button
@@ -1103,6 +1207,10 @@ function hasRequiredSettings(settings: SettingsState) {
 
 function normalizeInputs(inputs: string[]) {
   return [...new Set(inputs.map((line) => line.trim()).filter(Boolean))];
+}
+
+function splitBulkInput(value: string) {
+  return value.split(",");
 }
 
 function normalizeGroup(raw: BuildArtifactGroup | null | undefined, fallbackInput: string): BuildArtifactGroup {
@@ -1260,21 +1368,50 @@ function readDialogSnapshot(storageKey: string) {
   }
 }
 
-function enrichDownloadEvent(payload: DownloadEvent, previous: DownloadEvent | undefined, now: number) {
-  if (payload.status !== "downloading") {
-    return { ...payload, speedBps: 0, updatedAt: now };
+function shouldSkipDownloadUpdate(payload: DownloadEvent, previous: DownloadEvent | undefined, now: number) {
+  if (!previous || payload.status !== "downloading" || previous.status !== "downloading") {
+    return false;
   }
 
-  const elapsedSeconds = previous?.updatedAt ? (now - previous.updatedAt) / 1000 : 0;
-  const downloadedDelta = previous ? payload.downloaded - previous.downloaded : 0;
-  const speedBps =
-    elapsedSeconds > 0 && downloadedDelta > 0
-      ? downloadedDelta / elapsedSeconds
-      : previous?.status === "downloading"
-        ? previous.speedBps
-        : undefined;
+  const sameTotal = payload.total === previous.total;
+  const stillProgressing = payload.downloaded > previous.downloaded && payload.downloaded !== payload.total;
+  return sameTotal && stillProgressing && previous.updatedAt !== undefined && now - previous.updatedAt < 750;
+}
 
-  return { ...payload, speedBps, updatedAt: now };
+function enrichDownloadEvent(payload: DownloadEvent, previous: DownloadEvent | undefined, now: number) {
+  if (payload.status !== "downloading") {
+    return { ...payload, speedBps: 0, updatedAt: now, speedSamples: [] };
+  }
+
+  const previousSamples = previous?.speedSamples || [];
+  const samples = [...previousSamples, { at: now, downloaded: payload.downloaded }].filter(
+    (sample) => now - sample.at <= 5000,
+  );
+  const oldest = samples[0];
+  const elapsedSeconds = oldest ? (now - oldest.at) / 1000 : 0;
+  const downloadedDelta = oldest ? payload.downloaded - oldest.downloaded : 0;
+  const speedBps = elapsedSeconds > 0 && downloadedDelta > 0 ? downloadedDelta / elapsedSeconds : previous?.speedBps;
+
+  return { ...payload, speedBps, updatedAt: now, speedSamples: samples };
+}
+
+function buildThreadSlots(artifacts: Artifact[], rows: Record<string, DownloadEvent>) {
+  return artifacts.map((artifact, index) => {
+    const row = rows[artifact.id];
+    const status = row?.status || "ready";
+    const percent = progressPercent(row?.downloaded, row?.total);
+    const detail = row
+      ? `${formatBytes(row.downloaded)} / ${formatBytes(row.total)} • ${formatSpeed(row)}`
+      : formatBytes(artifact.size);
+    return {
+      id: artifact.id,
+      index: index + 1,
+      name: artifact.name,
+      status,
+      percent,
+      detail: status === "downloading" ? `${percent}% • ${detail}` : detail,
+    };
+  });
 }
 
 function omitArtifactRows(rows: Record<string, DownloadEvent>, artifactIds: string[]) {
@@ -1352,6 +1489,10 @@ function formatSpeed(row?: DownloadEvent) {
   if (row.status === "failed") return "Failed";
   if (row.status === "queued") return "Queued";
   return "Ready";
+}
+
+function formatSpeedValue(value: number) {
+  return value > 0 ? `${formatBytes(value)}/s` : "Idle";
 }
 
 function App() {

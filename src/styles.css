@@ -44,7 +44,7 @@ button {
 .topbar {
   height: 72px;
   display: grid;
-  grid-template-columns: auto 1fr auto auto;
+  grid-template-columns: auto 1fr auto auto auto;
   gap: 10px;
   align-items: center;
   padding: 14px 22px;
@@ -167,36 +167,155 @@ button {
   opacity: 0.48;
 }
 
-.status-strip {
+.dashboard-strip {
   display: grid;
-  grid-template-columns: repeat(3, max-content) 1fr;
-  gap: 18px;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 12px;
   align-items: center;
-  padding: 12px 24px;
-  color: #64748b;
+  padding: 14px 22px;
   border-bottom: 1px solid #e8edf5;
 }
 
-.status-strip > div {
+.metric-card {
+  position: relative;
+  min-width: 0;
+  min-height: 82px;
+  display: grid;
+  gap: 3px;
+  align-content: center;
+  overflow: hidden;
+  padding: 12px 14px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 8px 26px rgba(20, 31, 48, 0.07);
+}
+
+.metric-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.9;
+  background: var(--metric-bg);
+  animation: metric-sheen 5200ms ease-in-out infinite alternate;
+}
+
+.metric-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.metric-card span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.metric-card strong {
+  color: #0f172a;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.metric-card small {
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 7px;
-  min-width: 0;
-}
-
-.status-strip strong {
-  color: #172033;
-}
-
-.target-path {
-  justify-content: flex-end;
+  gap: 6px;
   overflow: hidden;
-}
-
-.target-path span {
-  overflow: hidden;
+  color: #475569;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.metric-card.builds {
+  --metric-bg: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(255, 255, 255, 0) 62%);
+}
+
+.metric-card.active {
+  --metric-bg: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(255, 255, 255, 0) 62%);
+}
+
+.metric-card.done {
+  --metric-bg: linear-gradient(135deg, rgba(168, 85, 247, 0.15), rgba(255, 255, 255, 0) 62%);
+}
+
+.metric-card.storage {
+  --metric-bg: linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(255, 255, 255, 0) 62%);
+}
+
+.accordion-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.task-accordion {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: 0 1px 4px rgba(20, 31, 48, 0.04);
+}
+
+.task-accordion summary {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  color: #172033;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 700;
+}
+
+.task-accordion summary::-webkit-details-marker {
+  display: none;
+}
+
+.task-accordion summary::before {
+  content: "›";
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  transform: rotate(0deg);
+  transition: transform 140ms ease;
+}
+
+.task-accordion[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.task-accordion summary span {
+  flex: 1 1 auto;
+}
+
+.task-accordion summary strong {
+  min-width: 30px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: #0f172a;
+  background: #edf2f8;
+  font-size: 12px;
+  text-align: center;
+}
+
+.task-accordion .group-list {
+  padding: 0 10px 10px;
+}
+
+.accordion-empty {
+  padding: 14px;
+  border: 1px dashed #d6deea;
+  border-radius: 8px;
+  color: #64748b;
+  background: #f8fafc;
+  min-width: 0;
 }
 
 .content-area {
@@ -312,8 +431,9 @@ button {
 .group-actions {
   display: flex;
   flex-direction: row;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
 }
 
@@ -326,6 +446,22 @@ button {
   min-width: 36px;
   width: 36px;
   padding: 0;
+}
+
+.primary-button.download-selected {
+  min-width: 146px;
+}
+
+.selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.secondary-button.compact {
+  height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
 }
 
 .artifact-table {
@@ -418,7 +554,9 @@ button {
 .progress-bar div {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #16a34a, #22c55e);
+  background: linear-gradient(90deg, #16a34a, #22c55e, #86efac, #22c55e, #16a34a);
+  background-size: 220% 100%;
+  animation: progress-flow 2200ms linear infinite;
   transition: width 120ms ease;
 }
 
@@ -663,6 +801,72 @@ button {
   gap: 8px;
 }
 
+.thread-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.thread-slot {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.thread-slot strong,
+.thread-slot small,
+.thread-slot em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-slot strong {
+  color: #172033;
+  font-size: 13px;
+}
+
+.thread-slot span {
+  width: max-content;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #506176;
+  background: #edf2f8;
+  font-size: 11px;
+  text-transform: capitalize;
+}
+
+.thread-slot.downloading span {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.thread-slot.paused span {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.thread-slot.failed span,
+.thread-slot.cancelled span {
+  color: #9f1239;
+  background: #ffe4e8;
+}
+
+.thread-slot small {
+  color: #334155;
+  font-size: 12px;
+}
+
+.thread-slot em {
+  color: #667085;
+  font-size: 12px;
+  font-style: normal;
+}
+
 .progress-file-list {
   min-height: 0;
   display: grid;
@@ -748,4 +952,194 @@ button {
   to {
     transform: rotate(360deg);
   }
+}
+
+@keyframes progress-flow {
+  to {
+    background-position: 220% 0;
+  }
+}
+
+@keyframes metric-sheen {
+  from {
+    transform: translateX(-8px);
+  }
+  to {
+    transform: translateX(8px);
+  }
+}
+
+[data-theme="dark"] {
+  color: #e5e7eb;
+  background: #0b0b0c;
+}
+
+[data-theme="dark"].app-shell,
+[data-theme="dark"].dialog-window {
+  background:
+    linear-gradient(180deg, #111113 0%, #0b0b0c 42%),
+    #0b0b0c;
+}
+
+[data-theme="dark"] .topbar,
+[data-theme="dark"] .dashboard-strip {
+  border-color: #27272a;
+}
+
+[data-theme="dark"] .brand,
+[data-theme="dark"] .metric-card strong,
+[data-theme="dark"] .task-accordion summary,
+[data-theme="dark"] .group-title strong,
+[data-theme="dark"] .group-header strong,
+[data-theme="dark"] .artifact-name strong,
+[data-theme="dark"] .modal-header h2,
+[data-theme="dark"] .modal label,
+[data-theme="dark"] .complete-modal h2,
+[data-theme="dark"] .thread-slot strong,
+[data-theme="dark"] .test-result-list strong {
+  color: #f4f4f5;
+}
+
+[data-theme="dark"] .metric-card span,
+[data-theme="dark"] .metric-card small,
+[data-theme="dark"] .group-title span,
+[data-theme="dark"] .group-header span,
+[data-theme="dark"] .artifact-name span,
+[data-theme="dark"] .progress-cell span,
+[data-theme="dark"] .size-cell,
+[data-theme="dark"] .modal-header span,
+[data-theme="dark"] .complete-modal p,
+[data-theme="dark"] .progress-file span,
+[data-theme="dark"] .thread-slot em,
+[data-theme="dark"] .empty-state {
+  color: #a1a1aa;
+}
+
+[data-theme="dark"] .quick-input,
+[data-theme="dark"] .metric-card,
+[data-theme="dark"] .task-accordion,
+[data-theme="dark"] .build-group,
+[data-theme="dark"] .modal,
+[data-theme="dark"] .progress-file,
+[data-theme="dark"] .thread-slot,
+[data-theme="dark"] .test-result-list,
+[data-theme="dark"] .accordion-empty {
+  border-color: #27272a;
+  background: #141416;
+  box-shadow: 0 18px 70px rgba(0, 0, 0, 0.36);
+}
+
+[data-theme="dark"] .metric-card.builds {
+  --metric-bg: linear-gradient(135deg, rgba(96, 165, 250, 0.18), rgba(20, 20, 22, 0) 62%);
+}
+
+[data-theme="dark"] .metric-card.active {
+  --metric-bg: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(20, 20, 22, 0) 62%);
+}
+
+[data-theme="dark"] .metric-card.done {
+  --metric-bg: linear-gradient(135deg, rgba(192, 132, 252, 0.18), rgba(20, 20, 22, 0) 62%);
+}
+
+[data-theme="dark"] .metric-card.storage {
+  --metric-bg: linear-gradient(135deg, rgba(251, 191, 36, 0.16), rgba(20, 20, 22, 0) 62%);
+}
+
+[data-theme="dark"] .task-accordion summary strong {
+  color: #e4e4e7;
+  background: #27272a;
+}
+
+[data-theme="dark"] .accordion-empty {
+  color: #a1a1aa;
+}
+
+[data-theme="dark"] .build-group::before {
+  background: linear-gradient(90deg, rgba(34, 197, 94, 0.16), rgba(34, 197, 94, 0.04));
+}
+
+[data-theme="dark"] .quick-input input,
+[data-theme="dark"] .modal input,
+[data-theme="dark"] .modal textarea {
+  border-color: #3f3f46;
+  color: #f4f4f5;
+  background: #0f0f10;
+}
+
+[data-theme="dark"] .quick-input svg {
+  color: #e5e7eb;
+}
+
+[data-theme="dark"] .icon-button,
+[data-theme="dark"] .secondary-button,
+[data-theme="dark"] .type-chip {
+  color: #d4d4d8;
+  background: #27272a;
+}
+
+[data-theme="dark"] .icon-button:hover,
+[data-theme="dark"] .secondary-button:hover,
+[data-theme="dark"] .ghost-icon:hover,
+[data-theme="dark"] .type-chip:hover {
+  color: #ffffff;
+  background: #3f3f46;
+}
+
+[data-theme="dark"] .primary-button,
+[data-theme="dark"] .type-chip.selected,
+[data-theme="dark"] .check-button.checked {
+  color: #09090b;
+  background: #f4f4f5;
+}
+
+[data-theme="dark"] .primary-button:hover {
+  background: #e4e4e7;
+}
+
+[data-theme="dark"] .ghost-icon {
+  color: #a1a1aa;
+}
+
+[data-theme="dark"] .artifact-table,
+[data-theme="dark"] .artifact-row {
+  border-color: #27272a;
+}
+
+[data-theme="dark"] .progress-bar {
+  background: #27272a;
+}
+
+[data-theme="dark"] .pill,
+[data-theme="dark"] .thread-slot span {
+  color: #d4d4d8;
+  background: #27272a;
+}
+
+[data-theme="dark"] .pill.downloading,
+[data-theme="dark"] .thread-slot.downloading span,
+[data-theme="dark"] .pill.completed {
+  color: #bbf7d0;
+  background: rgba(22, 163, 74, 0.24);
+}
+
+[data-theme="dark"] .pill.paused,
+[data-theme="dark"] .thread-slot.paused span {
+  color: #fde68a;
+  background: rgba(146, 64, 14, 0.28);
+}
+
+[data-theme="dark"] .pill.failed,
+[data-theme="dark"] .pill.cancelled,
+[data-theme="dark"] .thread-slot.failed span,
+[data-theme="dark"] .thread-slot.cancelled span {
+  color: #fecdd3;
+  background: rgba(159, 18, 57, 0.26);
+}
+
+[data-theme="dark"] .thread-slot small {
+  color: #e4e4e7;
+}
+
+[data-theme="dark"] .modal-backdrop {
+  background: rgba(0, 0, 0, 0.58);
 }
