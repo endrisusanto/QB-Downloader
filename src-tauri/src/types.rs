@@ -5,6 +5,42 @@ pub const QB_SUFFIX: &str = "QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC";
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct QuickBuildConfig {
+    pub base_url: String,
+    pub api_suffix: String,
+}
+
+impl Default for QuickBuildConfig {
+    fn default() -> Self {
+        Self {
+            base_url: ANDROID_QB_URL.to_string(),
+            api_suffix: QB_SUFFIX.to_string(),
+        }
+    }
+}
+
+impl QuickBuildConfig {
+    pub fn normalized(&self) -> Result<Self, String> {
+        let base_url = self.base_url.trim().trim_end_matches('/').to_string();
+        let parsed = reqwest::Url::parse(&base_url)
+            .map_err(|_| "QuickBuild URL must be a valid HTTP or HTTPS URL.".to_string())?;
+        if !matches!(parsed.scheme(), "http" | "https") {
+            return Err("QuickBuild URL must use HTTP or HTTPS.".to_string());
+        }
+
+        Ok(Self {
+            base_url,
+            api_suffix: self
+                .api_suffix
+                .trim()
+                .trim_start_matches(['?', '&'])
+                .to_string(),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Credentials {
     pub username: String,
     pub access_token: String,
@@ -70,6 +106,7 @@ pub struct DownloadRequest {
     pub credentials: Credentials,
     pub max_concurrent: usize,
     pub artifacts: Vec<Artifact>,
+    pub quick_build_config: QuickBuildConfig,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -85,6 +122,9 @@ pub struct DownloadEvent {
     pub path: Option<String>,
     pub message: Option<String>,
     pub resumable: bool,
+    pub attempt: u8,
+    pub max_attempts: u8,
+    pub next_retry_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -101,4 +141,31 @@ pub struct TokenTestResult {
     pub ok: bool,
     pub selected_username: Option<String>,
     pub attempts: Vec<TokenTestAttempt>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalizes_quickbuild_configuration() {
+        let config = QuickBuildConfig {
+            base_url: " https://example.test/qb/// ".to_string(),
+            api_suffix: "?token=abc".to_string(),
+        }
+        .normalized()
+        .unwrap();
+        assert_eq!(config.base_url, "https://example.test/qb");
+        assert_eq!(config.api_suffix, "token=abc");
+    }
+
+    #[test]
+    fn rejects_non_http_quickbuild_configuration() {
+        assert!(QuickBuildConfig {
+            base_url: "file:///tmp/qb".to_string(),
+            api_suffix: String::new(),
+        }
+        .normalized()
+        .is_err());
+    }
 }

@@ -1,6 +1,6 @@
 use crate::artifact_parser::{parse_artifacts, parse_build_id, parse_version};
 use crate::types::{
-    BuildArtifactGroup, Credentials, TokenTestAttempt, TokenTestResult, ANDROID_QB_URL, QB_SUFFIX,
+    BuildArtifactGroup, Credentials, QuickBuildConfig, TokenTestAttempt, TokenTestResult,
 };
 use reqwest::{Client, StatusCode};
 use thiserror::Error;
@@ -27,14 +27,16 @@ pub enum QbError {
 pub struct QbClient {
     http: Client,
     credentials: Credentials,
+    config: QuickBuildConfig,
 }
 
 impl QbClient {
-    pub fn new(credentials: Credentials) -> Self {
-        Self {
+    pub fn new(credentials: Credentials, config: QuickBuildConfig) -> Result<Self, QbError> {
+        Ok(Self {
             http: Client::new(),
             credentials,
-        }
+            config: config.normalized().map_err(QbError::Other)?,
+        })
     }
 
     pub async fn fetch_build_artifacts(&self, input: &str) -> Result<BuildArtifactGroup, QbError> {
@@ -70,6 +72,8 @@ impl QbClient {
             ));
         }
 
+        artifacts.sort_by_key(|artifact| artifact.name.to_ascii_lowercase());
+
         Ok(BuildArtifactGroup {
             id: uuid::Uuid::new_v4().to_string(),
             input: input.to_string(),
@@ -94,7 +98,7 @@ impl QbClient {
                 username: username.clone(),
                 access_token: self.credentials.access_token.clone(),
             };
-            let client = QbClient::new(credentials);
+            let client = QbClient::new(credentials, self.config.clone())?;
             match client.send_rest(&path).await {
                 Ok(body) => {
                     let ok = !body.trim().is_empty();
@@ -127,7 +131,11 @@ impl QbClient {
     }
 
     async fn send_rest(&self, path: &str) -> Result<String, QbError> {
-        let url = format!("{ANDROID_QB_URL}/rest{}", append_qb_suffix(path));
+        let url = format!(
+            "{}/rest{}",
+            self.config.base_url,
+            append_qb_suffix(path, &self.config.api_suffix)
+        );
         let response = self
             .http
             .get(url)
@@ -157,9 +165,13 @@ impl QbClient {
     }
 }
 
-pub fn append_qb_suffix(path_or_url: &str) -> String {
+pub fn append_qb_suffix(path_or_url: &str, suffix: &str) -> String {
+    let suffix = suffix.trim().trim_start_matches(['?', '&']);
+    if suffix.is_empty() || path_or_url.contains(suffix) {
+        return path_or_url.to_string();
+    }
     let separator = if path_or_url.contains('?') { '&' } else { '?' };
-    format!("{path_or_url}{separator}{QB_SUFFIX}")
+    format!("{path_or_url}{separator}{suffix}")
 }
 
 fn username_candidates(username: &str) -> Vec<String> {
@@ -204,12 +216,13 @@ mod tests {
     #[test]
     fn appends_original_qd_suffix_like_qd_exe() {
         assert_eq!(
-            append_qb_suffix("/builds/123"),
-            "/builds/123?QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC"
+            append_qb_suffix("/builds/123", "token"),
+            "/builds/123?token"
         );
         assert_eq!(
-            append_qb_suffix("/ids?user_name=endri.s"),
-            "/ids?user_name=endri.s&QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC"
+            append_qb_suffix("/ids?user_name=endri.s", "?token"),
+            "/ids?user_name=endri.s&token"
         );
+        assert_eq!(append_qb_suffix("/builds/123", ""), "/builds/123");
     }
 }

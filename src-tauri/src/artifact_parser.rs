@@ -23,29 +23,45 @@ pub fn parse_build_id(input: &str) -> Option<String> {
 
 pub fn detect_kind(name: &str) -> ArtifactKind {
     let upper = name.to_ascii_uppercase();
-    if upper.contains("USERDATA") {
+    if upper.starts_with("USERDATA_") {
         ArtifactKind::Userdata
-    } else if upper.contains("HOME_CSC") || upper.contains("HOME") {
+    } else if upper.starts_with("HOME_") {
         ArtifactKind::Home
-    } else if upper.contains("ALL") {
+    } else if upper.starts_with("ALL_") {
         ArtifactKind::All
-    } else if upper.contains("AP") {
+    } else if upper.starts_with("AP_") {
         ArtifactKind::Ap
-    } else if upper.contains("BL") {
+    } else if upper.starts_with("BL_") {
         ArtifactKind::Bl
-    } else if upper.contains("CP") {
+    } else if upper.starts_with("CP_") {
         ArtifactKind::Cp
-    } else if upper.contains("CSC") {
+    } else if upper.starts_with("CSC_") {
         ArtifactKind::Csc
-    } else if upper.ends_with(".MD5") || upper.contains("MD5") {
+    } else if upper.ends_with(".MD5") {
         ArtifactKind::Md5
     } else {
         ArtifactKind::Other
     }
 }
 
+pub fn clean_html_string(input: &str) -> String {
+    let decoded = input
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&apos;", "'")
+        .replace("&#39;", "'")
+        .replace("&#34;", "\"");
+
+    let re_tag = Regex::new(r"<[^>]*>").expect("valid regex");
+    let stripped = re_tag.replace_all(&decoded, "");
+
+    stripped.trim().to_string()
+}
+
 pub fn parse_version(build_response: &str) -> Option<String> {
-    extract_xml_tag(build_response, "version").or_else(|| {
+    let raw = extract_xml_tag(build_response, "version").or_else(|| {
         serde_json::from_str::<Value>(build_response)
             .ok()
             .and_then(|json| {
@@ -53,7 +69,8 @@ pub fn parse_version(build_response: &str) -> Option<String> {
                     .and_then(Value::as_str)
                     .map(str::to_string)
             })
-    })
+    })?;
+    Some(clean_html_string(&raw))
 }
 
 pub fn parse_artifacts(build_id: &str, response: &str) -> Vec<Artifact> {
@@ -61,7 +78,7 @@ pub fn parse_artifacts(build_id: &str, response: &str) -> Vec<Artifact> {
         let mut artifacts = Vec::new();
         collect_json_artifacts(build_id, &json, &mut artifacts);
         if !artifacts.is_empty() {
-            return artifacts;
+            return dedupe_artifacts(artifacts);
         }
     }
 
@@ -178,10 +195,12 @@ fn make_artifact(build_id: &str, name: String, size: Option<u64>, url: Option<St
 
 fn dedupe_artifacts(artifacts: Vec<Artifact>) -> Vec<Artifact> {
     let mut seen = std::collections::HashSet::new();
-    artifacts
+    let mut artifacts: Vec<_> = artifacts
         .into_iter()
         .filter(|artifact| seen.insert(artifact.name.clone()))
-        .collect()
+        .collect();
+    artifacts.sort_by_key(|artifact| artifact.name.to_ascii_lowercase());
+    artifacts
 }
 
 fn extract_xml_tag(text: &str, tag: &str) -> Option<String> {
@@ -209,6 +228,8 @@ mod tests {
         assert_eq!(detect_kind("AP_TEST.tar.md5"), ArtifactKind::Ap);
         assert_eq!(detect_kind("USERDATA_x.tar.md5"), ArtifactKind::Userdata);
         assert_eq!(detect_kind("HOME_CSC_x.tar.md5"), ArtifactKind::Home);
+        assert_eq!(detect_kind("PREFIX_AP_TEST.tar.md5"), ArtifactKind::Md5);
+        assert_eq!(detect_kind("ALL_TEST.zip"), ArtifactKind::All);
     }
 
     #[test]
@@ -222,5 +243,16 @@ mod tests {
             Some(1024)
         );
         assert_eq!(parse_size_value(&Value::String("0".to_string())), None);
+    }
+
+    #[test]
+    fn parses_version_with_html_tags() {
+        let response_xml = r#"<build>
+            <version>&lt;strong&gt;&lt;span style=color:#b342f5;&gt;[merge S110733366 V110733367]&lt;/strong&gt;&lt;span style=color:#000000;&gt; Automated SMR Server Build</version>
+        </build>"#;
+        assert_eq!(
+            parse_version(response_xml),
+            Some("[merge S110733366 V110733367] Automated SMR Server Build".to_string())
+        );
     }
 }

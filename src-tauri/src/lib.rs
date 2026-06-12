@@ -2,6 +2,7 @@ mod artifact_parser;
 mod download_manager;
 mod path_safety;
 mod qb_client;
+mod secure_storage;
 mod types;
 
 use download_manager::DownloadManager;
@@ -12,7 +13,7 @@ use tauri::{
     Manager, State, WindowEvent,
 };
 use tauri_plugin_dialog::DialogExt;
-use types::{BuildArtifactGroup, Credentials, DownloadRequest, TokenTestResult};
+use types::{BuildArtifactGroup, Credentials, DownloadRequest, QuickBuildConfig, TokenTestResult};
 
 #[derive(Clone)]
 struct AppState {
@@ -23,8 +24,10 @@ struct AppState {
 async fn fetch_build_artifacts(
     input: String,
     credentials: Credentials,
+    quick_build_config: QuickBuildConfig,
 ) -> Result<BuildArtifactGroup, String> {
-    QbClient::new(credentials)
+    QbClient::new(credentials, quick_build_config)
+        .map_err(|err| err.to_string())?
         .fetch_build_artifacts(&input)
         .await
         .map_err(|err| err.to_string())
@@ -34,8 +37,9 @@ async fn fetch_build_artifacts(
 async fn fetch_bulk_build_artifacts(
     inputs: Vec<String>,
     credentials: Credentials,
+    quick_build_config: QuickBuildConfig,
 ) -> Result<Vec<BuildArtifactGroup>, String> {
-    let client = QbClient::new(credentials);
+    let client = QbClient::new(credentials, quick_build_config).map_err(|err| err.to_string())?;
     let mut groups = Vec::with_capacity(inputs.len());
 
     for input in inputs {
@@ -49,8 +53,12 @@ async fn fetch_bulk_build_artifacts(
 }
 
 #[tauri::command]
-async fn test_token(credentials: Credentials) -> Result<TokenTestResult, String> {
-    QbClient::new(credentials)
+async fn test_token(
+    credentials: Credentials,
+    quick_build_config: QuickBuildConfig,
+) -> Result<TokenTestResult, String> {
+    QbClient::new(credentials, quick_build_config)
+        .map_err(|err| err.to_string())?
         .test_token()
         .await
         .map_err(|err| err.to_string())
@@ -65,24 +73,6 @@ async fn start_download(
     state
         .downloads
         .start(app, group)
-        .await
-        .map_err(|err| err.to_string())
-}
-
-#[tauri::command]
-async fn pause_download(state: State<'_, AppState>, job_id: String) -> Result<(), String> {
-    state
-        .downloads
-        .pause(&job_id)
-        .await
-        .map_err(|err| err.to_string())
-}
-
-#[tauri::command]
-async fn resume_download(state: State<'_, AppState>, job_id: String) -> Result<(), String> {
-    state
-        .downloads
-        .resume(&job_id)
         .await
         .map_err(|err| err.to_string())
 }
@@ -124,10 +114,26 @@ async fn open_folder(path: String) -> Result<(), String> {
     opener::open(path).map_err(|err| err.to_string())
 }
 
+#[tauri::command]
+async fn secure_vault_password() -> Result<String, String> {
+    tokio::task::spawn_blocking(secure_storage::get_or_create_vault_password)
+        .await
+        .map_err(|err| err.to_string())?
+        .map_err(|err| err.to_string())
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            let salt_path = app
+                .path()
+                .app_local_data_dir()
+                .map_err(|err| err.to_string())?
+                .join("stronghold-salt.txt");
+            app.handle()
+                .plugin(tauri_plugin_stronghold::Builder::with_argon2(&salt_path).build())?;
+
             let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &quit])?;
@@ -174,12 +180,11 @@ pub fn run() {
             fetch_bulk_build_artifacts,
             test_token,
             start_download,
-            pause_download,
-            resume_download,
             cancel_download,
             retry_download,
             pick_download_dir,
-            open_folder
+            open_folder,
+            secure_vault_password
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

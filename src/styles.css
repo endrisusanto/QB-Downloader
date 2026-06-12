@@ -251,6 +251,12 @@ button {
   gap: 12px;
 }
 
+.accordion-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .task-accordion {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
@@ -258,7 +264,8 @@ button {
   box-shadow: 0 1px 4px rgba(20, 31, 48, 0.04);
 }
 
-.task-accordion summary {
+.task-accordion summary,
+.accordion-heading {
   min-height: 46px;
   display: flex;
   align-items: center;
@@ -269,6 +276,31 @@ button {
   cursor: pointer;
   list-style: none;
   font-weight: 700;
+}
+
+.accordion-heading::before {
+  content: "›";
+  width: 18px;
+  color: #64748b;
+  transform: rotate(0deg);
+  transition: transform 140ms ease;
+}
+
+.task-accordion.open .accordion-heading::before {
+  transform: rotate(90deg);
+}
+
+.accordion-heading > span {
+  flex: 1 1 auto;
+}
+
+.accordion-heading > strong {
+  min-width: 30px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #edf2f8;
+  font-size: 12px;
+  text-align: center;
 }
 
 .task-accordion summary::-webkit-details-marker {
@@ -387,7 +419,8 @@ button {
   inset: 0 auto 0 0;
   z-index: 0;
   width: var(--card-progress, 0%);
-  background: linear-gradient(90deg, rgba(22, 163, 74, 0.16), rgba(34, 197, 94, 0.07));
+  background: linear-gradient(90deg, rgba(22, 163, 74, 0.26), rgba(34, 197, 94, 0.14));
+  border-right: 1px solid rgba(21, 128, 61, 0.28);
   pointer-events: none;
   transition: width 160ms ease;
 }
@@ -494,6 +527,10 @@ button {
   border-top: 0;
 }
 
+.artifact-row.active-artifact {
+  grid-template-columns: minmax(260px, 1.25fr) minmax(240px, 1fr) 104px;
+}
+
 .artifact-name {
   min-width: 0;
   display: flex;
@@ -548,7 +585,8 @@ button {
   height: 8px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e8eef6;
+  border: 1px solid #cbd5e1;
+  background: #dbe3ed;
 }
 
 .progress-bar.large {
@@ -558,8 +596,9 @@ button {
 .progress-bar div {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #16a34a, #22c55e, #86efac, #22c55e, #16a34a);
-  background-size: 220% 100%;
+  background: linear-gradient(90deg, #047857, #16a34a, #4ade80, #16a34a, #047857);
+  background-size: 240% 100%;
+  box-shadow: inset 0 0 0 1px rgba(4, 120, 87, 0.22);
   animation: progress-flow 2200ms linear infinite;
   transition: width 120ms ease;
 }
@@ -581,6 +620,12 @@ button {
   background: #dff4ff;
 }
 
+.pill.retrying,
+.thread-slot.retrying span {
+  color: #92400e;
+  background: #fef3c7;
+}
+
 .pill.completed {
   color: #166534;
   background: #dcfce7;
@@ -590,11 +635,6 @@ button {
 .pill.cancelled {
   color: #9f1239;
   background: #ffe4e8;
-}
-
-.pill.paused {
-  color: #92400e;
-  background: #fef3c7;
 }
 
 .modal-backdrop {
@@ -643,6 +683,21 @@ button {
 
 .settings-modal {
   width: min(620px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+}
+
+.settings-error {
+  padding: 10px 12px;
+  border: 1px solid #fecdd3;
+  border-radius: 8px;
+  color: #9f1239;
+  background: #fff1f2;
+  font-size: 13px;
+}
+
+.endpoint-reset {
+  justify-self: start;
 }
 
 .modal-header {
@@ -849,11 +904,6 @@ button {
   background: #dcfce7;
 }
 
-.thread-slot.paused span {
-  color: #92400e;
-  background: #fef3c7;
-}
-
 .thread-slot.failed span,
 .thread-slot.cancelled span {
   color: #9f1239;
@@ -1053,12 +1103,22 @@ button {
   background: #27272a;
 }
 
+[data-theme="dark"] .accordion-heading > strong {
+  color: #e4e4e7;
+  background: #27272a;
+}
+
+[data-theme="dark"] .accordion-heading {
+  color: #f4f4f5;
+}
+
 [data-theme="dark"] .accordion-empty {
   color: #a1a1aa;
 }
 
 [data-theme="dark"] .build-group::before {
-  background: linear-gradient(90deg, rgba(34, 197, 94, 0.16), rgba(34, 197, 94, 0.04));
+  background: linear-gradient(90deg, rgba(34, 197, 94, 0.34), rgba(34, 197, 94, 0.16));
+  border-right-color: rgba(74, 222, 128, 0.42);
 }
 
 [data-theme="dark"] .quick-input input,
@@ -1114,7 +1174,13 @@ button {
 }
 
 [data-theme="dark"] .progress-bar {
-  background: #27272a;
+  border-color: #52525b;
+  background: #202024;
+}
+
+[data-theme="dark"] .progress-bar div {
+  background: linear-gradient(90deg, #16a34a, #22c55e, #86efac, #22c55e, #16a34a);
+  box-shadow: inset 0 0 0 1px rgba(187, 247, 208, 0.18);
 }
 
 [data-theme="dark"] .pill,
@@ -1130,10 +1196,16 @@ button {
   background: rgba(22, 163, 74, 0.24);
 }
 
-[data-theme="dark"] .pill.paused,
-[data-theme="dark"] .thread-slot.paused span {
+[data-theme="dark"] .pill.retrying,
+[data-theme="dark"] .thread-slot.retrying span {
   color: #fde68a;
   background: rgba(146, 64, 14, 0.28);
+}
+
+[data-theme="dark"] .settings-error {
+  border-color: #881337;
+  color: #fecdd3;
+  background: rgba(159, 18, 57, 0.2);
 }
 
 [data-theme="dark"] .pill.failed,

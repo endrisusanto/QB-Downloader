@@ -1,0 +1,85 @@
+export type Credentials = { username: string; accessToken: string };
+export type QuickBuildConfig = { baseUrl: string; apiSuffix: string };
+
+export type ArtifactKind =
+  | "all"
+  | "ap"
+  | "bl"
+  | "cp"
+  | "csc"
+  | "md5"
+  | "userdata"
+  | "home"
+  | "other";
+
+export type Artifact = {
+  id: string;
+  buildId: string;
+  name: string;
+  size?: number;
+  url?: string;
+  kind: ArtifactKind;
+  selected: boolean;
+};
+
+export type BuildArtifactGroup = {
+  id: string;
+  input: string;
+  buildId?: string;
+  status: string;
+  version?: string;
+  artifacts: Artifact[];
+  error?: string;
+};
+
+export type DownloadStatus =
+  | "queued"
+  | "downloading"
+  | "retrying"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export type DownloadEvent = {
+  jobId: string;
+  artifactId: string;
+  buildId: string;
+  name: string;
+  status: DownloadStatus;
+  downloaded: number;
+  total?: number;
+  path?: string;
+  message?: string;
+  resumable: boolean;
+  attempt: number;
+  maxAttempts: number;
+  nextRetryMs?: number;
+};
+
+export type TokenTestResult = {
+  ok: boolean;
+  selectedUsername?: string;
+  attempts: { username: string; ok: boolean; message: string }[];
+};
+
+export type SettingsState = {
+  username: string;
+  accessToken: string;
+  apiSuffix: string;
+  quickBuildUrl: string;
+  downloadTargetDir: string;
+  maxConcurrent: number;
+  selectedTypes: string[];
+  showProgressDialog: boolean;
+  showCompleteDialog: boolean;
+  darkMode: boolean;
+};
+
+export type DialogKind = "progress" | "complete";
+export type DialogSnapshot = {
+  kind: DialogKind;
+  group: BuildArtifactGroup;
+  rows: Record<string, DownloadEvent>;
+};
+
+export type SectionKey = "fetched" | "progress" | "completed" | "failed";

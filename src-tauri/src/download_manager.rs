@@ -1,6 +1,6 @@
 use crate::path_safety::output_path;
 use crate::qb_client::{append_qb_suffix, map_status};
-use crate::types::{DownloadEvent, DownloadRequest, ANDROID_QB_URL, QB_SUFFIX};
+use crate::types::{DownloadEvent, DownloadRequest, QuickBuildConfig};
 use reqwest::{header, Client, Response, StatusCode};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -14,6 +14,9 @@ use tokio::io::AsyncWriteExt;
 use tokio::sync::{Mutex, Semaphore};
 use tokio::time::{sleep, Duration};
 
+const MAX_ATTEMPTS: u8 = 4;
+const RETRY_DELAYS_MS: [u64; 3] = [1_000, 2_000, 4_000];
+
 #[derive(Debug, Error)]
 pub enum DownloadError {
     #[error("Download job not found.")]
@@ -26,6 +29,8 @@ pub enum DownloadError {
     Io(String),
     #[error("Network error: {0}")]
     Network(String),
+    #[error("Invalid QuickBuild configuration: {0}")]
+    InvalidConfig(String),
 }
 
 #[derive(Clone, Default)]
@@ -35,7 +40,6 @@ pub struct DownloadManager {
 
 #[derive(Clone)]
 struct JobControl {
-    paused: Arc<AtomicBool>,
     cancelled: Arc<AtomicBool>,
     request: DownloadRequest,
 }
@@ -44,11 +48,15 @@ impl DownloadManager {
     pub async fn start(
         &self,
         app: tauri::AppHandle,
-        request: DownloadRequest,
+        mut request: DownloadRequest,
     ) -> Result<String, DownloadError> {
         if request.target_dir.trim().is_empty() {
             return Err(DownloadError::MissingTarget);
         }
+        request.quick_build_config = request
+            .quick_build_config
+            .normalized()
+            .map_err(DownloadError::InvalidConfig)?;
 
         let artifacts: Vec<_> = request
             .artifacts
@@ -62,7 +70,6 @@ impl DownloadManager {
 
         let job_id = uuid::Uuid::new_v4().to_string();
         let control = JobControl {
-            paused: Arc::new(AtomicBool::new(false)),
             cancelled: Arc::new(AtomicBool::new(false)),
             request: request.clone(),
         };
@@ -91,6 +98,9 @@ impl DownloadManager {
                     path: None,
                     message: None,
                     resumable: false,
+                    attempt: 0,
+                    max_attempts: MAX_ATTEMPTS,
+                    next_retry_ms: None,
                 },
             );
 
@@ -100,9 +110,6 @@ impl DownloadManager {
             let control = control.clone();
             let http = http.clone();
             let semaphore = semaphore.clone();
-            let failure_artifact = artifact.clone();
-            let failure_build_id = request.build_id.clone();
-
             tokio::spawn(async move {
                 let _permit = semaphore.acquire_owned().await.expect("semaphore open");
                 if control.cancelled.load(Ordering::Relaxed) {
@@ -115,60 +122,22 @@ impl DownloadManager {
                             &artifact,
                             "cancelled",
                             0,
-                            failure_artifact.size,
+                            artifact.size,
                             None,
                             Some("Cancelled".to_string()),
                             false,
+                            0,
+                            None,
                         ),
                     );
                     return;
                 }
 
-                if let Err(err) = download_one(
-                    app.clone(),
-                    http,
-                    job_id.clone(),
-                    request,
-                    control,
-                    artifact,
-                )
-                .await
-                {
-                    emit_event(
-                        &app,
-                        "download://failed",
-                        DownloadEvent {
-                            job_id,
-                            artifact_id: failure_artifact.id,
-                            build_id: failure_build_id,
-                            name: failure_artifact.name,
-                            status: "failed".to_string(),
-                            downloaded: 0,
-                            total: failure_artifact.size,
-                            path: None,
-                            message: Some(err.to_string()),
-                            resumable: false,
-                        },
-                    );
-                }
+                download_with_retry(app, http, job_id, request, control, artifact).await;
             });
         }
 
         Ok(job_id)
-    }
-
-    pub async fn pause(&self, job_id: &str) -> Result<(), DownloadError> {
-        let guard = self.jobs.lock().await;
-        let control = guard.get(job_id).ok_or(DownloadError::NotFound)?;
-        control.paused.store(true, Ordering::Relaxed);
-        Ok(())
-    }
-
-    pub async fn resume(&self, job_id: &str) -> Result<(), DownloadError> {
-        let guard = self.jobs.lock().await;
-        let control = guard.get(job_id).ok_or(DownloadError::NotFound)?;
-        control.paused.store(false, Ordering::Relaxed);
-        Ok(())
     }
 
     pub async fn cancel(&self, job_id: &str) -> Result<(), DownloadError> {
@@ -195,6 +164,127 @@ impl DownloadManager {
     }
 }
 
+async fn download_with_retry(
+    app: tauri::AppHandle,
+    http: Client,
+    job_id: String,
+    request: DownloadRequest,
+    control: JobControl,
+    artifact: crate::types::Artifact,
+) {
+    for attempt in 1..=MAX_ATTEMPTS {
+        let result = download_one(
+            app.clone(),
+            http.clone(),
+            job_id.clone(),
+            request.clone(),
+            control.clone(),
+            artifact.clone(),
+            attempt,
+        )
+        .await;
+
+        match result {
+            Ok(()) => return,
+            Err(_) if control.cancelled.load(Ordering::Relaxed) => {
+                let output = output_path(&request.target_dir, &request.build_id, &artifact.name);
+                let downloaded = tokio::fs::metadata(partial_path(&output))
+                    .await
+                    .map(|metadata| metadata.len())
+                    .unwrap_or(0);
+                emit_cancelled(
+                    &app,
+                    &job_id,
+                    &request,
+                    &artifact,
+                    downloaded,
+                    artifact.size,
+                    downloaded > 0,
+                    attempt,
+                );
+                return;
+            }
+            Err(err) if attempt < MAX_ATTEMPTS => {
+                let delay_ms = RETRY_DELAYS_MS[(attempt - 1) as usize];
+                let output = output_path(&request.target_dir, &request.build_id, &artifact.name);
+                let downloaded = tokio::fs::metadata(partial_path(&output))
+                    .await
+                    .map(|metadata| metadata.len())
+                    .unwrap_or(0);
+                emit_event(
+                    &app,
+                    "download://retrying",
+                    event(
+                        &job_id,
+                        &request.build_id,
+                        &artifact,
+                        "retrying",
+                        downloaded,
+                        artifact.size,
+                        Some(output.display().to_string()),
+                        Some(err.to_string()),
+                        downloaded > 0,
+                        attempt,
+                        Some(delay_ms),
+                    ),
+                );
+
+                if sleep_until_retry_or_cancel(&control, delay_ms).await {
+                    emit_cancelled(
+                        &app,
+                        &job_id,
+                        &request,
+                        &artifact,
+                        downloaded,
+                        artifact.size,
+                        downloaded > 0,
+                        attempt,
+                    );
+                    return;
+                }
+            }
+            Err(err) => {
+                let output = output_path(&request.target_dir, &request.build_id, &artifact.name);
+                let downloaded = tokio::fs::metadata(partial_path(&output))
+                    .await
+                    .map(|metadata| metadata.len())
+                    .unwrap_or(0);
+                emit_event(
+                    &app,
+                    "download://failed",
+                    event(
+                        &job_id,
+                        &request.build_id,
+                        &artifact,
+                        "failed",
+                        downloaded,
+                        artifact.size,
+                        Some(output.display().to_string()),
+                        Some(err.to_string()),
+                        downloaded > 0,
+                        attempt,
+                        None,
+                    ),
+                );
+                return;
+            }
+        }
+    }
+}
+
+async fn sleep_until_retry_or_cancel(control: &JobControl, delay_ms: u64) -> bool {
+    let mut elapsed = 0;
+    while elapsed < delay_ms {
+        if control.cancelled.load(Ordering::Relaxed) {
+            return true;
+        }
+        let step = (delay_ms - elapsed).min(100);
+        sleep(Duration::from_millis(step)).await;
+        elapsed += step;
+    }
+    control.cancelled.load(Ordering::Relaxed)
+}
+
 async fn download_one(
     app: tauri::AppHandle,
     http: Client,
@@ -202,6 +292,7 @@ async fn download_one(
     request: DownloadRequest,
     control: JobControl,
     artifact: crate::types::Artifact,
+    attempt: u8,
 ) -> Result<(), DownloadError> {
     let output = output_path(&request.target_dir, &request.build_id, &artifact.name);
     let parent = output
@@ -229,12 +320,14 @@ async fn download_one(
             Some(output.display().to_string()),
             None,
             existing > 0,
+            attempt,
+            None,
         ),
     );
 
     let response = send_download_request(
         &http,
-        artifact_download_urls(&request.build_id, &artifact),
+        artifact_download_urls(&request.build_id, &artifact, &request.quick_build_config),
         &request.credentials,
         existing,
     )
@@ -284,47 +377,11 @@ async fn download_one(
                     Some(output.display().to_string()),
                     Some("Cancelled".to_string()),
                     resumable,
+                    attempt,
+                    None,
                 ),
             );
             return Ok(());
-        }
-
-        while control.paused.load(Ordering::Relaxed) {
-            if control.cancelled.load(Ordering::Relaxed) {
-                emit_event(
-                    &app,
-                    "download://cancelled",
-                    event(
-                        &job_id,
-                        &request.build_id,
-                        &artifact,
-                        "cancelled",
-                        downloaded,
-                        total,
-                        Some(output.display().to_string()),
-                        Some("Cancelled".to_string()),
-                        resumable,
-                    ),
-                );
-                return Ok(());
-            }
-
-            emit_event(
-                &app,
-                "download://paused",
-                event(
-                    &job_id,
-                    &request.build_id,
-                    &artifact,
-                    "paused",
-                    downloaded,
-                    total,
-                    Some(output.display().to_string()),
-                    None,
-                    resumable,
-                ),
-            );
-            sleep(Duration::from_millis(250)).await;
         }
 
         file.write_all(&chunk)
@@ -345,6 +402,8 @@ async fn download_one(
                 Some(output.display().to_string()),
                 None,
                 resumable,
+                attempt,
+                None,
             ),
         );
     }
@@ -371,6 +430,8 @@ async fn download_one(
             Some(output.display().to_string()),
             None,
             resumable,
+            attempt,
+            None,
         ),
     );
 
@@ -387,39 +448,47 @@ fn partial_path(path: &PathBuf) -> PathBuf {
     partial
 }
 
-fn direct_download_url(build_id: &str, name: &str) -> String {
-    append_qb_suffix(&format!(
-        "{ANDROID_QB_URL}/download/{}/{}",
-        urlencoding::encode(build_id),
-        urlencoding::encode(name)
-    ))
+fn direct_download_url(build_id: &str, name: &str, config: &QuickBuildConfig) -> String {
+    append_qb_suffix(
+        &format!(
+            "{}/download/{}/{}",
+            config.base_url,
+            urlencoding::encode(build_id),
+            urlencoding::encode(name)
+        ),
+        &config.api_suffix,
+    )
 }
 
-fn ads5_download_url(build_id: &str, name: &str) -> String {
-    append_qb_suffix(&format!(
-        "{ANDROID_QB_URL}/rest/ads5/download/{}?filename={}",
-        urlencoding::encode(build_id),
-        urlencoding::encode(name)
-    ))
+fn ads5_download_url(build_id: &str, name: &str, config: &QuickBuildConfig) -> String {
+    append_qb_suffix(
+        &format!(
+            "{}/rest/ads5/download/{}?filename={}",
+            config.base_url,
+            urlencoding::encode(build_id),
+            urlencoding::encode(name)
+        ),
+        &config.api_suffix,
+    )
 }
 
-fn artifact_download_urls(build_id: &str, artifact: &crate::types::Artifact) -> Vec<String> {
+fn artifact_download_urls(
+    build_id: &str,
+    artifact: &crate::types::Artifact,
+    config: &QuickBuildConfig,
+) -> Vec<String> {
     let mut urls = Vec::new();
     if let Some(url) = artifact.url.as_deref() {
-        urls.push(with_qb_suffix(url));
+        urls.push(with_qb_suffix(url, &config.api_suffix));
     }
-    urls.push(ads5_download_url(build_id, &artifact.name));
-    urls.push(direct_download_url(build_id, &artifact.name));
+    urls.push(ads5_download_url(build_id, &artifact.name, config));
+    urls.push(direct_download_url(build_id, &artifact.name, config));
     urls.dedup();
     urls
 }
 
-fn with_qb_suffix(url: &str) -> String {
-    if url.contains(QB_SUFFIX) {
-        url.to_string()
-    } else {
-        append_qb_suffix(url)
-    }
+fn with_qb_suffix(url: &str, suffix: &str) -> String {
+    append_qb_suffix(url, suffix)
 }
 
 async fn send_download_request(
@@ -479,6 +548,8 @@ fn event(
     path: Option<String>,
     message: Option<String>,
     resumable: bool,
+    attempt: u8,
+    next_retry_ms: Option<u64>,
 ) -> DownloadEvent {
     DownloadEvent {
         job_id: job_id.to_string(),
@@ -491,7 +562,40 @@ fn event(
         path,
         message,
         resumable,
+        attempt,
+        max_attempts: MAX_ATTEMPTS,
+        next_retry_ms,
     }
+}
+
+fn emit_cancelled(
+    app: &tauri::AppHandle,
+    job_id: &str,
+    request: &DownloadRequest,
+    artifact: &crate::types::Artifact,
+    downloaded: u64,
+    total: Option<u64>,
+    resumable: bool,
+    attempt: u8,
+) {
+    let output = output_path(&request.target_dir, &request.build_id, &artifact.name);
+    emit_event(
+        app,
+        "download://cancelled",
+        event(
+            job_id,
+            &request.build_id,
+            artifact,
+            "cancelled",
+            downloaded,
+            total,
+            Some(output.display().to_string()),
+            Some("Cancelled".to_string()),
+            resumable,
+            attempt,
+            None,
+        ),
+    );
 }
 
 fn emit_event(app: &tauri::AppHandle, name: &str, payload: DownloadEvent) {
@@ -504,16 +608,18 @@ mod tests {
 
     #[test]
     fn direct_download_url_encodes_parts() {
+        let config = QuickBuildConfig::default();
         assert_eq!(
-            direct_download_url("QB 1", "AP file.tar.md5"),
+            direct_download_url("QB 1", "AP file.tar.md5", &config),
             "https://android.qb.sec.samsung.net/download/QB%201/AP%20file.tar.md5?QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC"
         );
     }
 
     #[test]
     fn ads5_download_url_encodes_filename_query() {
+        let config = QuickBuildConfig::default();
         assert_eq!(
-            ads5_download_url("QB 1", "AP file.tar.md5"),
+            ads5_download_url("QB 1", "AP file.tar.md5", &config),
             "https://android.qb.sec.samsung.net/rest/ads5/download/QB%201?filename=AP%20file.tar.md5&QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC"
         );
     }
@@ -531,7 +637,7 @@ mod tests {
         };
 
         assert_eq!(
-            artifact_download_urls("110", &artifact)[0],
+            artifact_download_urls("110", &artifact, &QuickBuildConfig::default())[0],
             "https://android.qb.sec.samsung.net/download/110/ALL.tar.md5?QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC"
         );
     }
@@ -552,8 +658,26 @@ mod tests {
         };
 
         assert_eq!(
-            artifact_download_urls("110", &artifact)[0],
+            artifact_download_urls("110", &artifact, &QuickBuildConfig::default())[0],
             "https://android.qb.sec.samsung.net/download/110/ALL.tar.md5?QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC"
         );
+    }
+
+    #[test]
+    fn download_urls_use_job_configuration() {
+        let config = QuickBuildConfig {
+            base_url: "https://quickbuild.example.test".to_string(),
+            api_suffix: "secret=1".to_string(),
+        };
+        assert_eq!(
+            direct_download_url("12", "ALL_file.zip", &config),
+            "https://quickbuild.example.test/download/12/ALL_file.zip?secret=1"
+        );
+    }
+
+    #[test]
+    fn retry_schedule_has_three_exponential_delays() {
+        assert_eq!(RETRY_DELAYS_MS, [1_000, 2_000, 4_000]);
+        assert_eq!(MAX_ATTEMPTS, 4);
     }
 }
