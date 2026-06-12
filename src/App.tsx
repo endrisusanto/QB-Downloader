@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { LogicalSize } from "@tauri-apps/api/dpi";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Download, Moon, RotateCcw, Settings, Sun } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -100,6 +101,20 @@ function StandaloneDialog({ kind, storageKey }: { kind: DialogKind; storageKey: 
   const [snapshot, setSnapshot] = useState(() => readDialogSnapshot(storageKey));
   const darkMode = (() => { try { return Boolean(JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}").darkMode); } catch { return false; } })();
   useEffect(() => { const channel = new BroadcastChannel(DIALOG_CHANNEL); channel.onmessage = (event) => { if (event.data?.key === storageKey) setSnapshot(readDialogSnapshot(storageKey)); }; return () => channel.close(); }, [storageKey]);
+  useEffect(() => {
+    if (kind !== "progress" || !snapshot) return;
+    const element = document.querySelector<HTMLElement>(".compact-progress-modal");
+    if (!element) return;
+    const currentWindow = WebviewWindow.getCurrent();
+    const resize = () => {
+      const height = Math.min(700, Math.max(220, Math.ceil(element.scrollHeight + 36)));
+      void currentWindow.setSize(new LogicalSize(680, height));
+    };
+    resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [kind, snapshot]);
   if (!snapshot) return <main className="dialog-window"><div className="empty-state compact"><h1>Dialog data expired</h1></div></main>;
   const close = () => WebviewWindow.getCurrent().close();
   return <main className="dialog-window" data-theme={darkMode ? "dark" : "light"}>{kind === "progress" ? <ProgressDialog group={snapshot.group} rows={snapshot.rows} slotSpeeds={snapshot.slotSpeeds || {}} onClose={close} embedded /> : <CompleteDialog group={snapshot.group} rows={snapshot.rows} onClose={close} onOpenFolder={() => openCompletedFolder(snapshot.group, snapshot.rows)} embedded />}</main>;
@@ -111,7 +126,7 @@ async function openDialogWindow(kind: DialogKind, group: BuildArtifactGroup, row
     const label = dialogWindowLabel(kind, group.id);
     const existing = await WebviewWindow.getByLabel(label);
     if (existing) { await existing.setFocus(); return true; }
-    new WebviewWindow(label, { url: `index.html?dialog=${kind}&key=${encodeURIComponent(dialogStorageKey(kind, group.id))}`, title: kind === "progress" ? `Download progress - ${group.buildId || group.input}` : `Download complete - ${group.buildId || group.input}`, width: kind === "progress" ? 680 : 460, height: kind === "progress" ? 480 : 320, center: true, resizable: true, decorations: true });
+    new WebviewWindow(label, { url: `index.html?dialog=${kind}&key=${encodeURIComponent(dialogStorageKey(kind, group.id))}`, title: kind === "progress" ? `Download progress - ${group.buildId || group.input}` : `Download complete - ${group.buildId || group.input}`, width: kind === "progress" ? 680 : 460, height: kind === "progress" ? 300 : 320, center: true, resizable: true, decorations: true });
     return true;
   } catch (error) { console.error(error); return false; }
 }

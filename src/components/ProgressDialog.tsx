@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 import type { BuildArtifactGroup, DownloadEvent } from "../types";
-import { formatBytes, formatSpeed, groupProgress, progressState, selectedArtifacts } from "../utils";
+import { formatBytes, formatSpeed, groupProgress, progressState, selectedArtifacts, statusLabel } from "../utils";
 import { ProgressBar } from "./ProgressBar";
 
 export function ProgressDialog({ group, rows, slotSpeeds, onClose, embedded = false }: {
@@ -34,7 +34,7 @@ export function ProgressDialog({ group, rows, slotSpeeds, onClose, embedded = fa
                 <strong title={artifact.name}>{artifact.name}</strong>
                 <span>{detail}</span>
               </div>
-              <span className={`pill ${row?.status || "queued"}`}>{row?.status || "queued"}</span>
+              <span className={`pill ${row?.status || "queued"}`}>{statusLabel(row)}</span>
               <div className="thread-speed"><strong>{formatSpeed(slotSpeeds[artifact.id] || 0)}</strong><span>avg 5s</span></div>
               <div className="thread-progress"><ProgressBar progress={progress} /><span>{progress.mode === "indeterminate" ? "Streaming" : `${progress.percent}%`}</span></div>
             </div>

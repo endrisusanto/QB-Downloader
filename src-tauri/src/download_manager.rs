@@ -187,7 +187,7 @@ async fn download_with_retry(
         match result {
             Ok(()) => return,
             Err(_) if control.cancelled.load(Ordering::Relaxed) => {
-                let output = output_path(&request.target_dir, &request.build_id, &artifact.name);
+                let output = output_path(&request.target_dir, &artifact.name);
                 let downloaded = tokio::fs::metadata(partial_path(&output))
                     .await
                     .map(|metadata| metadata.len())
@@ -206,7 +206,7 @@ async fn download_with_retry(
             }
             Err(err) if attempt < MAX_ATTEMPTS => {
                 let delay_ms = RETRY_DELAYS_MS[(attempt - 1) as usize];
-                let output = output_path(&request.target_dir, &request.build_id, &artifact.name);
+                let output = output_path(&request.target_dir, &artifact.name);
                 let downloaded = tokio::fs::metadata(partial_path(&output))
                     .await
                     .map(|metadata| metadata.len())
@@ -244,7 +244,7 @@ async fn download_with_retry(
                 }
             }
             Err(err) => {
-                let output = output_path(&request.target_dir, &request.build_id, &artifact.name);
+                let output = output_path(&request.target_dir, &artifact.name);
                 let downloaded = tokio::fs::metadata(partial_path(&output))
                     .await
                     .map(|metadata| metadata.len())
@@ -294,7 +294,7 @@ async fn download_one(
     artifact: crate::types::Artifact,
     attempt: u8,
 ) -> Result<(), DownloadError> {
-    let output = output_path(&request.target_dir, &request.build_id, &artifact.name);
+    let output = output_path(&request.target_dir, &artifact.name);
     let parent = output
         .parent()
         .ok_or_else(|| DownloadError::Io("Invalid output path.".to_string()))?;
@@ -601,7 +601,7 @@ fn emit_cancelled(
     resumable: bool,
     attempt: u8,
 ) {
-    let output = output_path(&request.target_dir, &request.build_id, &artifact.name);
+    let output = output_path(&request.target_dir, &artifact.name);
     emit_event(
         app,
         "download://cancelled",

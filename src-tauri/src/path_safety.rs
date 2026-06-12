@@ -17,9 +17,8 @@ pub fn safe_component(input: &str) -> String {
     }
 }
 
-pub fn output_path(target_dir: &str, build_id: &str, filename: &str) -> PathBuf {
+pub fn output_path(target_dir: &str, filename: &str) -> PathBuf {
     let base = Path::new(target_dir);
-    let build = safe_component(build_id);
     let file = Path::new(filename)
         .components()
         .filter_map(|component| match component {
@@ -28,7 +27,7 @@ pub fn output_path(target_dir: &str, build_id: &str, filename: &str) -> PathBuf 
         })
         .last()
         .unwrap_or_else(|| safe_component(filename));
-    base.join(build).join(file)
+    base.join(file)
 }
 
 #[cfg(test)]
@@ -37,7 +36,7 @@ mod tests {
 
     #[test]
     fn sanitizes_output_path() {
-        let path = output_path("/tmp/base", "../123", "../AP test.tar.md5");
-        assert_eq!(path, Path::new("/tmp/base/123/AP_test.tar.md5"));
+        let path = output_path("/tmp/base", "../AP test.tar.md5");
+        assert_eq!(path, Path::new("/tmp/base/AP_test.tar.md5"));
     }
 }

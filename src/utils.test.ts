@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { calculateAverageThreadSpeed, classifyGroups, calculateRollingSpeed } from "./hooks/useDownload";
 import type { BuildArtifactGroup, DownloadEvent } from "./types";
-import { areAllBuildsExpanded, migrateFilters, normalizeGroup, progressState, sanitizePreferences, splitBulkInput, visibleArtifacts } from "./utils";
+import { areAllBuildsExpanded, migrateFilters, normalizeGroup, progressState, sanitizePreferences, splitBulkInput, statusLabel, visibleArtifacts } from "./utils";
 
 const group: BuildArtifactGroup = {
   id: "g1",
@@ -64,6 +64,11 @@ describe("progress and visibility", () => {
   it("clamps determinate progress to zero through one hundred", () => {
     expect(progressState({ status: "downloading", downloaded: 25, total: 100 }).percent).toBe(25);
     expect(progressState({ status: "downloading", downloaded: 150, total: 100 }).percent).toBe(100);
+  });
+
+  it("adds determinate percentage to the downloading badge", () => {
+    expect(statusLabel({ status: "downloading", downloaded: 25, total: 100 })).toBe("downloading 25%");
+    expect(statusLabel({ status: "downloading", downloaded: 25 })).toBe("downloading");
   });
 
   it("hides unchecked artifacts without changing selection", () => {

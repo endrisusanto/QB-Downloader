@@ -112,6 +112,15 @@ export function progressState(row?: Pick<DownloadEvent, "status" | "downloaded" 
   return { mode: "determinate", percent: 0 };
 }
 
+export function statusLabel(row?: Pick<DownloadEvent, "status" | "downloaded" | "total">) {
+  if (!row) return "ready";
+  const progress = progressState(row);
+  if (row.status === "downloading" && progress.mode !== "indeterminate") {
+    return `downloading ${progress.percent}%`;
+  }
+  return row.status;
+}
+
 export function groupProgress(artifacts: Artifact[], rows: Record<string, DownloadEvent>): ProgressState {
   if (!artifacts.length) return { mode: "determinate", percent: 0 };
   const values = artifacts.map((artifact) => progressState(rows[artifact.id]));

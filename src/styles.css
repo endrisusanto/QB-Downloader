@@ -33,15 +33,19 @@ button {
 }
 
 .app-shell {
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
   display: grid;
   grid-template-rows: auto auto 1fr;
+  overflow: hidden;
   background:
     linear-gradient(180deg, #ffffff 0%, #f5f7fb 34%),
     #f5f7fb;
 }
 
 .topbar {
+  position: relative;
+  z-index: 12;
   height: 72px;
   display: grid;
   grid-template-columns: auto 1fr auto auto auto;
@@ -168,12 +172,17 @@ button {
 }
 
 .dashboard-strip {
+  position: sticky;
+  top: 0;
+  z-index: 11;
   display: grid;
   grid-template-columns: repeat(4, minmax(150px, 1fr));
   gap: 12px;
   align-items: center;
   padding: 14px 22px;
   border-bottom: 1px solid #e8edf5;
+  background: rgba(247, 249, 252, 0.96);
+  backdrop-filter: blur(10px);
 }
 
 .metric-card {
@@ -197,7 +206,6 @@ button {
   inset: 0;
   opacity: 0.9;
   background: var(--metric-bg);
-  animation: metric-sheen 5200ms ease-in-out infinite alternate;
 }
 
 .metric-card > * {
@@ -687,6 +695,7 @@ button {
 .dialog-window {
   min-height: 100vh;
   display: grid;
+  align-content: start;
   padding: 18px;
   background: #f5f7fb;
 }
@@ -699,7 +708,8 @@ button {
 }
 
 .dialog-window .progress-modal {
-  height: calc(100vh - 36px);
+  height: auto;
+  max-height: calc(100vh - 36px);
 }
 
 .dialog-window .complete-modal {
@@ -896,7 +906,7 @@ button {
 .compact-progress-modal {
   width: min(660px, 100%);
   max-height: min(600px, calc(100vh - 36px));
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
   gap: 10px;
   padding: 14px;
 }
@@ -1153,15 +1163,6 @@ button {
   }
 }
 
-@keyframes metric-sheen {
-  from {
-    transform: translateX(-8px);
-  }
-  to {
-    transform: translateX(8px);
-  }
-}
-
 [data-theme="dark"] {
   color: #e5e7eb;
   background: #0b0b0c;
@@ -1177,6 +1178,10 @@ button {
 [data-theme="dark"] .topbar,
 [data-theme="dark"] .dashboard-strip {
   border-color: #27272a;
+}
+
+[data-theme="dark"] .dashboard-strip {
+  background: rgba(11, 11, 12, 0.96);
 }
 
 [data-theme="dark"] .brand,
