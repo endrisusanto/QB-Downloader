@@ -14,10 +14,14 @@ type StartOptions = {
 export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispatch<React.SetStateAction<BuildArtifactGroup[]>>) {
   const [rows, setRows] = useState<Record<string, DownloadEvent>>({});
   const [totalSpeed, setTotalSpeed] = useState(0);
+  const [averageThreadSpeed, setAverageThreadSpeed] = useState(0);
+  const [slotSpeeds, setSlotSpeeds] = useState<Record<string, number>>({});
   const latestRows = useRef(rows);
   const rawDownloaded = useRef<Record<string, number>>({});
   const totalBytes = useRef(0);
   const byteSamples = useRef<{ at: number; bytes: number }[]>([]);
+  const slotTotals = useRef<Record<string, number>>({});
+  const slotSamples = useRef<Record<string, { at: number; bytes: number }[]>>({});
   latestRows.current = rows;
 
   useEffect(() => {
@@ -25,10 +29,18 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
       ["queued", "progress", "retrying", "completed", "failed", "cancelled"].map((name) =>
         listen<DownloadEvent>(`download://${name}`, ({ payload }) => {
           if (!payload.artifactId) return;
+          const now = Date.now();
           const previous = rawDownloaded.current[payload.artifactId] || 0;
-          if (payload.downloaded > previous) totalBytes.current += payload.downloaded - previous;
+          const delta = Math.max(0, payload.downloaded - previous);
+          if (delta > 0) {
+            totalBytes.current += delta;
+            slotTotals.current[payload.artifactId] = (slotTotals.current[payload.artifactId] || 0) + delta;
+          }
           rawDownloaded.current[payload.artifactId] = payload.downloaded;
-          byteSamples.current.push({ at: Date.now(), bytes: totalBytes.current });
+          byteSamples.current.push({ at: now, bytes: totalBytes.current });
+          const samples = slotSamples.current[payload.artifactId] || [];
+          samples.push({ at: now, bytes: slotTotals.current[payload.artifactId] || 0 });
+          slotSamples.current[payload.artifactId] = samples;
           setRows((current) => ({ ...current, [payload.artifactId]: payload }));
         }),
       ),
@@ -43,6 +55,14 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
       const samples = byteSamples.current.filter((sample) => sample.at >= cutoff);
       byteSamples.current = samples;
       setTotalSpeed(calculateRollingSpeed(samples, now));
+      const nextSlotSpeeds: Record<string, number> = {};
+      for (const [artifactId, artifactSamples] of Object.entries(slotSamples.current)) {
+        const recent = artifactSamples.filter((sample) => sample.at >= cutoff);
+        slotSamples.current[artifactId] = recent;
+        nextSlotSpeeds[artifactId] = calculateRollingSpeed(recent, now);
+      }
+      setSlotSpeeds(nextSlotSpeeds);
+      setAverageThreadSpeed(calculateAverageThreadSpeed(nextSlotSpeeds, latestRows.current));
     }, 1_000);
     return () => window.clearInterval(timer);
   }, []);
@@ -82,7 +102,7 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
   }, [setGroups]);
 
   const categories = useMemo(() => classifyGroups(groups, rows), [groups, rows]);
-  return { rows, setRows, totalSpeed, start, cancel, retry, categories };
+  return { rows, setRows, totalSpeed, averageThreadSpeed, slotSpeeds, start, cancel, retry, categories };
 }
 
 export function calculateRollingSpeed(samples: { at: number; bytes: number }[], now: number) {
@@ -91,6 +111,16 @@ export function calculateRollingSpeed(samples: { at: number; bytes: number }[], 
   const last = samples[samples.length - 1];
   const elapsed = Math.max(1, last.at - first.at) / 1000;
   return Math.max(0, (last.bytes - first.bytes) / elapsed);
+}
+
+export function calculateAverageThreadSpeed(
+  slotSpeeds: Record<string, number>,
+  rows: Record<string, Pick<DownloadEvent, "status">>,
+) {
+  const active = Object.entries(slotSpeeds)
+    .filter(([artifactId, speed]) => speed > 0 && rows[artifactId]?.status === "downloading")
+    .map(([, speed]) => speed);
+  return active.length ? active.reduce((sum, speed) => sum + speed, 0) / active.length : 0;
 }
 
 export function classifyGroups(groups: BuildArtifactGroup[], rows: Record<string, DownloadEvent>) {

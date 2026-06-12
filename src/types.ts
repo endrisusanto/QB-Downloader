@@ -72,14 +72,19 @@ export type SettingsState = {
   selectedTypes: string[];
   showProgressDialog: boolean;
   showCompleteDialog: boolean;
+  hideUncheckedArtifacts: boolean;
   darkMode: boolean;
 };
+
+export type ProgressMode = "determinate" | "indeterminate" | "completed";
+export type ProgressState = { mode: ProgressMode; percent: number };
 
 export type DialogKind = "progress" | "complete";
 export type DialogSnapshot = {
   kind: DialogKind;
   group: BuildArtifactGroup;
   rows: Record<string, DownloadEvent>;
+  slotSpeeds: Record<string, number>;
 };
 
 export type SectionKey = "fetched" | "progress" | "completed" | "failed";

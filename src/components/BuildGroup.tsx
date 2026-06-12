@@ -1,10 +1,12 @@
 import { Activity, Check, ChevronDown, ChevronRight, Download, RefreshCcw, Trash2, X } from "lucide-react";
 import type { CSSProperties } from "react";
 import type { BuildArtifactGroup, DownloadEvent } from "../types";
-import { formatBytes, groupProgress, jobIdFromStatus, kindLabel, progressPercent, selectedArtifacts } from "../utils";
+import { formatBytes, groupProgress, kindLabel, progressState, selectedArtifacts, visibleArtifacts as getVisibleArtifacts } from "../utils";
+import { ProgressBar } from "./ProgressBar";
 
-export function BuildGroup({ group, rows, expanded, onToggleExpanded, onToggleArtifact, onToggleAll, onDownload, onCancel, onRetry, onRemove, onProgress }: {
+export function BuildGroup({ group, rows, expanded, hideUncheckedArtifacts, onToggleExpanded, onToggleArtifact, onToggleAll, onDownload, onCancel, onRetry, onRemove, onProgress }: {
   group: BuildArtifactGroup; rows: Record<string, DownloadEvent>; expanded: boolean;
+  hideUncheckedArtifacts: boolean;
   onToggleExpanded: () => void; onToggleArtifact: (id: string) => void; onToggleAll: (selected: boolean) => void;
   onDownload: () => void; onCancel: () => void; onRetry: () => void; onRemove: () => void; onProgress: () => void;
 }) {
@@ -15,9 +17,10 @@ export function BuildGroup({ group, rows, expanded, onToggleExpanded, onToggleAr
   const failed = statuses.includes("failed");
   const hasRows = statuses.some(Boolean);
   const allSelected = artifacts.length > 0 && selected.length === artifacts.length;
-  const visibleArtifacts = artifacts;
+  const visibleArtifacts = getVisibleArtifacts(group, hideUncheckedArtifacts);
+  const cardProgress = groupProgress(visibleArtifacts, rows);
   return (
-    <article className={`build-group ${group.error || failed ? "failed" : ""}`} style={{ "--card-progress": `${groupProgress(visibleArtifacts, rows)}%` } as CSSProperties}>
+    <article className={`build-group progress-${cardProgress.mode} ${group.error || failed ? "failed" : ""}`} style={{ "--card-progress": `${cardProgress.percent}%` } as CSSProperties}>
       <div className="group-header">
         <button className="ghost-icon" title={expanded ? "Collapse build" : "Expand build"} onClick={onToggleExpanded}>{expanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}</button>
         <div className="group-title"><strong>{group.buildId || group.input}</strong><span>{group.error || `${selected.length}/${artifacts.length} selected${group.version ? ` - ${group.version}` : ""}`}</span></div>
@@ -30,7 +33,7 @@ export function BuildGroup({ group, rows, expanded, onToggleExpanded, onToggleAr
           <button className="icon-button" title="Delete build" onClick={onRemove}><Trash2 size={16} /></button>
         </div>
       </div>
-      {expanded && visibleArtifacts.length > 0 && <div className="artifact-table">{visibleArtifacts.map((artifact) => { const row = rows[artifact.id]; return <div className={`artifact-row ${active ? "active-artifact" : ""}`} key={artifact.id}>{!active && <button className={`check-button ${artifact.selected ? "checked" : ""}`} title={artifact.selected ? "Selected" : "Not selected"} onClick={() => onToggleArtifact(artifact.id)}>{artifact.selected && <Check size={14} />}</button>}<div className="artifact-name"><strong>{artifact.name}</strong><span>{kindLabel(artifact.kind)}</span></div><div className="progress-cell"><div className="progress-bar"><div style={{ width: `${progressPercent(row?.downloaded, row?.total)}%` }} /></div><span title={row?.message}>{row?.message || (row ? `${formatBytes(row.downloaded)} / ${formatBytes(row.total)}` : "Ready")}</span></div><span className={`pill ${row?.status || "ready"}`}>{row?.status || "ready"}</span></div>; })}</div>}
+      {expanded && visibleArtifacts.length > 0 && <div className="artifact-table">{visibleArtifacts.map((artifact) => { const row = rows[artifact.id]; return <div className={`artifact-row ${active ? "active-artifact" : ""}`} key={artifact.id}>{!active && <button className={`check-button ${artifact.selected ? "checked" : ""}`} title={artifact.selected ? "Selected" : "Not selected"} onClick={() => onToggleArtifact(artifact.id)}>{artifact.selected && <Check size={14} />}</button>}<div className="artifact-name"><strong>{artifact.name}</strong><span>{kindLabel(artifact.kind)}</span></div><div className="progress-cell"><ProgressBar progress={progressState(row)} /><span title={row?.message}>{row?.message || (row ? `${formatBytes(row.downloaded)} / ${formatBytes(row.total)}` : "Ready")}</span></div><span className={`pill ${row?.status || "ready"}`}>{row?.status || "ready"}</span></div>; })}</div>}
     </article>
   );
 }

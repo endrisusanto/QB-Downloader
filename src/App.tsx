@@ -15,7 +15,7 @@ import { countSelected, useBuilds } from "./hooks/useBuilds";
 import { useDownload } from "./hooks/useDownload";
 import { useSettings } from "./hooks/useSettings";
 import type { BuildArtifactGroup, DialogKind, SectionKey } from "./types";
-import { folderFromFilePath, selectedArtifacts } from "./utils";
+import { areAllBuildsExpanded, folderFromFilePath, selectedArtifacts } from "./utils";
 
 function AppContent() {
   const standalone = standaloneDialogConfig();
@@ -43,16 +43,16 @@ function AppContent() {
     for (const group of builds.groups) {
       if (buildExpanded[group.id] === undefined) setBuildExpanded((current) => ({ ...current, [group.id]: globalExpanded }));
       if (selectedArtifacts(group).some((artifact) => downloads.rows[artifact.id])) {
-        writeDialogSnapshot("progress", group, downloads.rows);
-        writeDialogSnapshot("complete", group, downloads.rows);
+        writeDialogSnapshot("progress", group, downloads.rows, downloads.slotSpeeds);
+        writeDialogSnapshot("complete", group, downloads.rows, downloads.slotSpeeds);
       }
       const selected = selectedArtifacts(group);
       if (settings.showCompleteDialog && selected.length && selected.every((artifact) => downloads.rows[artifact.id]?.status === "completed") && !notified.current.has(group.id)) {
         notified.current.add(group.id);
-        void openDialogWindow("complete", group, downloads.rows).then((opened) => { if (!opened) setCompleteGroup(group); });
+        void openDialogWindow("complete", group, downloads.rows, downloads.slotSpeeds).then((opened) => { if (!opened) setCompleteGroup(group); });
       }
     }
-  }, [buildExpanded, builds.groups, downloads.rows, globalExpanded, settings.showCompleteDialog]);
+  }, [buildExpanded, builds.groups, downloads.rows, downloads.slotSpeeds, globalExpanded, settings.showCompleteDialog]);
 
   if (settingsLoading) return <main className="app-shell"><div className="empty-state"><span className="spinner" /><h1>Unlocking secure settings</h1></div></main>;
 
@@ -63,27 +63,34 @@ function AppContent() {
   async function start(group: BuildArtifactGroup) {
     if (!settings.downloadTargetDir) { setSettingsOpen(true); return; }
     await downloads.start(group, { targetDir: settings.downloadTargetDir, maxConcurrent: settings.maxConcurrent, credentials, quickBuildConfig: config });
-    if (settings.showProgressDialog) void openDialogWindow("progress", group, downloads.rows).then((opened) => { if (!opened) setProgressGroup(group); });
+    if (settings.showProgressDialog) void openDialogWindow("progress", group, downloads.rows, downloads.slotSpeeds).then((opened) => { if (!opened) setProgressGroup(group); });
   }
   async function remove(group: BuildArtifactGroup) {
     if (downloads.categories.progress.some((item) => item.id === group.id)) await downloads.cancel(group);
     builds.removeGroup(group.id);
     notified.current.delete(group.id);
   }
-  function expandAll(expanded: boolean) {
-    setGlobalExpanded(expanded);
-    setSections({ fetched: expanded, progress: expanded, completed: expanded, failed: expanded });
-    setBuildExpanded(Object.fromEntries(builds.groups.map((group) => [group.id, expanded])));
-  }
   const categoryRecord = downloads.categories;
+  function toggleAllBuilds() {
+    const allExpanded = areAllBuildsExpanded(builds.groups.map((group) => group.id), buildExpanded);
+    const next = !allExpanded;
+    setGlobalExpanded(next);
+    setBuildExpanded(Object.fromEntries(builds.groups.map((group) => [group.id, next])));
+  }
+  function toggleCategoryBuilds(key: SectionKey) {
+    const groups = categoryRecord[key];
+    const allExpanded = areAllBuildsExpanded(groups.map((group) => group.id), buildExpanded);
+    const next = !allExpanded;
+    setBuildExpanded((current) => ({ ...current, ...Object.fromEntries(groups.map((group) => [group.id, next])) }));
+  }
   return (
     <main className="app-shell" data-theme={settings.darkMode ? "dark" : "light"}>
       <header className="topbar"><div className="brand"><img src="/quickbuild-logo.svg" alt="" /><span>QB Downloader</span></div><form className="quick-input" onSubmit={(event: FormEvent) => { event.preventDefault(); void submit(query); setQuery(""); }}><Download size={19} /><input ref={inputRef} value={query} onChange={(event) => setQuery(event.target.value)} onPaste={(event) => { const text = event.clipboardData.getData("text"); if (/[,\s].*\S/.test(text)) { event.preventDefault(); void submit(text); } }} placeholder="Build ID or URL" spellCheck={false} /></form><button className="icon-button" title="Bulk entry" onClick={() => setBulkOpen(true)}><RotateCcw size={18} /></button><button className="icon-button" title="Settings" onClick={() => setSettingsOpen(true)}><Settings size={18} /></button><button className="icon-button" title={settings.darkMode ? "Light mode" : "Dark mode"} onClick={() => { const next = { ...settings, darkMode: !settings.darkMode }; patchSettings({ darkMode: next.darkMode }); void saveSettings(next); }}>{settings.darkMode ? <Sun size={18} /> : <Moon size={18} />}</button></header>
-      <Dashboard builds={builds.groups.length} selected={countSelected(builds.groups)} active={categoryRecord.progress.length} completed={categoryRecord.completed.length} failed={categoryRecord.failed.length} totalSpeed={downloads.totalSpeed} folder={settings.downloadTargetDir} />
-      <section className="content-area">{builds.groups.length === 0 && builds.loadingInputs.size === 0 ? <div className="empty-state"><img src="/quickbuild-logo.svg" alt="" /><h1>QuickBuild downloads</h1><p>Paste a build ID or URL to fetch artifacts.</p></div> : <TaskAccordions categories={categoryRecord} loadingInputs={builds.loadingInputs} rows={downloads.rows} sections={sections} buildExpanded={buildExpanded} onSection={(key) => setSections((current) => ({ ...current, [key]: !current[key] }))} onExpandAll={expandAll} onBuildExpanded={(id) => setBuildExpanded((current) => ({ ...current, [id]: !(current[id] ?? globalExpanded) }))} onToggleArtifact={builds.toggleArtifact} onToggleGroup={builds.setGroupSelection} onToggleFetched={(selected) => builds.setGroupsSelection(categoryRecord.fetched, selected)} onDownload={(group) => void start(group)} onDownloadFetched={() => void Promise.all(categoryRecord.fetched.filter((group) => selectedArtifacts(group).length).map(start))} onCancel={(group) => void downloads.cancel(group)} onRetry={(group) => void downloads.retry(group)} onRemove={(group) => void remove(group)} onProgress={(group) => void openDialogWindow("progress", group, downloads.rows).then((opened) => { if (!opened) setProgressGroup(group); })} />}</section>
+      <Dashboard builds={builds.groups.length} selected={countSelected(builds.groups)} active={categoryRecord.progress.length} completed={categoryRecord.completed.length} failed={categoryRecord.failed.length} totalSpeed={downloads.totalSpeed} averageThreadSpeed={downloads.averageThreadSpeed} folder={settings.downloadTargetDir} />
+      <section className="content-area">{builds.groups.length === 0 && builds.loadingInputs.size === 0 ? <div className="empty-state"><img src="/quickbuild-logo.svg" alt="" /><h1>QuickBuild downloads</h1><p>Paste a build ID or URL to fetch artifacts.</p></div> : <TaskAccordions categories={categoryRecord} loadingInputs={builds.loadingInputs} rows={downloads.rows} sections={sections} buildExpanded={buildExpanded} hideUncheckedArtifacts={settings.hideUncheckedArtifacts} onSection={(key) => setSections((current) => ({ ...current, [key]: !current[key] }))} onToggleAllBuilds={toggleAllBuilds} onToggleCategoryBuilds={toggleCategoryBuilds} onBuildExpanded={(id) => setBuildExpanded((current) => ({ ...current, [id]: !(current[id] ?? globalExpanded) }))} onToggleArtifact={builds.toggleArtifact} onToggleGroup={builds.setGroupSelection} onToggleFetched={(selected) => builds.setGroupsSelection(categoryRecord.fetched, selected)} onDownload={(group) => void start(group)} onDownloadFetched={() => void Promise.all(categoryRecord.fetched.filter((group) => selectedArtifacts(group).length).map(start))} onCancel={(group) => void downloads.cancel(group)} onRetry={(group) => void downloads.retry(group)} onRemove={(group) => void remove(group)} onProgress={(group) => void openDialogWindow("progress", group, downloads.rows, downloads.slotSpeeds).then((opened) => { if (!opened) setProgressGroup(group); })} />}</section>
       {settingsOpen && <SettingsModal value={settings} secureError={settingsError} onSave={saveSettings} onClose={() => setSettingsOpen(false)} onPickFolder={() => invoke<string | null>("pick_download_dir")} />}
       {bulkOpen && <BulkEntryModal onClose={() => setBulkOpen(false)} onSubmit={(value) => void submit(value)} />}
-      {progressGroup && <ProgressDialog group={progressGroup} rows={downloads.rows} onClose={() => setProgressGroup(null)} />}
+      {progressGroup && <ProgressDialog group={progressGroup} rows={downloads.rows} slotSpeeds={downloads.slotSpeeds} onClose={() => setProgressGroup(null)} />}
       {completeGroup && <CompleteDialog group={completeGroup} rows={downloads.rows} onClose={() => setCompleteGroup(null)} onOpenFolder={() => openCompletedFolder(completeGroup, downloads.rows)} />}
     </main>
   );
@@ -95,16 +102,16 @@ function StandaloneDialog({ kind, storageKey }: { kind: DialogKind; storageKey: 
   useEffect(() => { const channel = new BroadcastChannel(DIALOG_CHANNEL); channel.onmessage = (event) => { if (event.data?.key === storageKey) setSnapshot(readDialogSnapshot(storageKey)); }; return () => channel.close(); }, [storageKey]);
   if (!snapshot) return <main className="dialog-window"><div className="empty-state compact"><h1>Dialog data expired</h1></div></main>;
   const close = () => WebviewWindow.getCurrent().close();
-  return <main className="dialog-window" data-theme={darkMode ? "dark" : "light"}>{kind === "progress" ? <ProgressDialog group={snapshot.group} rows={snapshot.rows} onClose={close} embedded /> : <CompleteDialog group={snapshot.group} rows={snapshot.rows} onClose={close} onOpenFolder={() => openCompletedFolder(snapshot.group, snapshot.rows)} embedded />}</main>;
+  return <main className="dialog-window" data-theme={darkMode ? "dark" : "light"}>{kind === "progress" ? <ProgressDialog group={snapshot.group} rows={snapshot.rows} slotSpeeds={snapshot.slotSpeeds || {}} onClose={close} embedded /> : <CompleteDialog group={snapshot.group} rows={snapshot.rows} onClose={close} onOpenFolder={() => openCompletedFolder(snapshot.group, snapshot.rows)} embedded />}</main>;
 }
 
-async function openDialogWindow(kind: DialogKind, group: BuildArtifactGroup, rows: ReturnType<typeof useDownload>["rows"]) {
-  writeDialogSnapshot(kind, group, rows);
+async function openDialogWindow(kind: DialogKind, group: BuildArtifactGroup, rows: ReturnType<typeof useDownload>["rows"], slotSpeeds: Record<string, number> = {}) {
+  writeDialogSnapshot(kind, group, rows, slotSpeeds);
   try {
     const label = dialogWindowLabel(kind, group.id);
     const existing = await WebviewWindow.getByLabel(label);
     if (existing) { await existing.setFocus(); return true; }
-    new WebviewWindow(label, { url: `index.html?dialog=${kind}&key=${encodeURIComponent(dialogStorageKey(kind, group.id))}`, title: kind === "progress" ? `Download progress - ${group.buildId || group.input}` : `Download complete - ${group.buildId || group.input}`, width: kind === "progress" ? 780 : 460, height: kind === "progress" ? 620 : 320, center: true, resizable: true, decorations: true });
+    new WebviewWindow(label, { url: `index.html?dialog=${kind}&key=${encodeURIComponent(dialogStorageKey(kind, group.id))}`, title: kind === "progress" ? `Download progress - ${group.buildId || group.input}` : `Download complete - ${group.buildId || group.input}`, width: kind === "progress" ? 680 : 460, height: kind === "progress" ? 480 : 320, center: true, resizable: true, decorations: true });
     return true;
   } catch (error) { console.error(error); return false; }
 }

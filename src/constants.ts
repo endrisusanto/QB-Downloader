@@ -16,5 +16,6 @@ export const defaultSettings: SettingsState = {
   selectedTypes: FILTER_OPTIONS,
   showProgressDialog: false,
   showCompleteDialog: true,
+  hideUncheckedArtifacts: false,
   darkMode: false,
 };

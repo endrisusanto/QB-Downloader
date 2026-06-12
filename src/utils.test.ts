@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { classifyGroups, calculateRollingSpeed } from "./hooks/useDownload";
+import { calculateAverageThreadSpeed, classifyGroups, calculateRollingSpeed } from "./hooks/useDownload";
 import type { BuildArtifactGroup, DownloadEvent } from "./types";
-import { migrateFilters, normalizeGroup, sanitizePreferences, splitBulkInput } from "./utils";
+import { areAllBuildsExpanded, migrateFilters, normalizeGroup, progressState, sanitizePreferences, splitBulkInput, visibleArtifacts } from "./utils";
 
 const group: BuildArtifactGroup = {
   id: "g1",
@@ -26,6 +26,7 @@ describe("input and settings migration", () => {
   it("migrates legacy filters and strips secrets from preferences", () => {
     expect(migrateFilters(["ALL", "AP", "md5"])).toEqual(["ALL_", "AP_", "md5"]);
     expect(sanitizePreferences({ username: "secret", accessToken: "token" })).not.toHaveProperty("username");
+    expect(sanitizePreferences({}).hideUncheckedArtifacts).toBe(false);
   });
 
   it("sorts artifacts by name case-insensitively", () => {
@@ -43,5 +44,37 @@ describe("download state", () => {
     const samples = [{ at: 1_000, bytes: 0 }, { at: 3_000, bytes: 4_000 }, { at: 5_000, bytes: 8_000 }];
     expect(calculateRollingSpeed(samples, 5_000)).toBe(2_000);
     expect(calculateRollingSpeed(samples, 10_000)).toBe(0);
+  });
+
+  it("averages only downloading slots that are receiving bytes", () => {
+    expect(calculateAverageThreadSpeed(
+      { a: 1_000, b: 3_000, c: 9_000 },
+      { a: row("a", "downloading"), b: row("b", "downloading"), c: row("c", "retrying") },
+    )).toBe(2_000);
+  });
+});
+
+describe("progress and visibility", () => {
+  it("uses indeterminate mode only for active unknown-size downloads", () => {
+    expect(progressState({ status: "downloading", downloaded: 10 })).toEqual({ mode: "indeterminate", percent: 0 });
+    expect(progressState({ status: "retrying", downloaded: 10 })).toEqual({ mode: "determinate", percent: 0 });
+    expect(progressState({ status: "completed", downloaded: 10 })).toEqual({ mode: "completed", percent: 100 });
+  });
+
+  it("clamps determinate progress to zero through one hundred", () => {
+    expect(progressState({ status: "downloading", downloaded: 25, total: 100 }).percent).toBe(25);
+    expect(progressState({ status: "downloading", downloaded: 150, total: 100 }).percent).toBe(100);
+  });
+
+  it("hides unchecked artifacts without changing selection", () => {
+    expect(visibleArtifacts(group, true).map((artifact) => artifact.id)).toEqual(["a", "b"]);
+    const mixed = { ...group, artifacts: group.artifacts.map((artifact, index) => ({ ...artifact, selected: index === 0 })) };
+    expect(visibleArtifacts(mixed, true).map((artifact) => artifact.id)).toEqual(["a"]);
+    expect(mixed.artifacts[1].selected).toBe(false);
+  });
+
+  it("treats mixed accordion state as expand next", () => {
+    expect(areAllBuildsExpanded(["a", "b"], { a: true, b: false })).toBe(false);
+    expect(areAllBuildsExpanded(["a", "b"], { a: true, b: true })).toBe(true);
   });
 });

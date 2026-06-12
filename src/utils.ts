@@ -1,5 +1,5 @@
 import { defaultSettings } from "./constants";
-import type { Artifact, ArtifactKind, BuildArtifactGroup, DownloadEvent, SettingsState } from "./types";
+import type { Artifact, ArtifactKind, BuildArtifactGroup, DownloadEvent, ProgressState, SettingsState } from "./types";
 
 const LEGACY_FILTERS: Record<string, string> = {
   ALL: "ALL_",
@@ -28,6 +28,7 @@ export function sanitizePreferences(raw: Partial<SettingsState> = {}) {
     selectedTypes: migrateFilters(raw.selectedTypes),
     showProgressDialog: Boolean(raw.showProgressDialog),
     showCompleteDialog: raw.showCompleteDialog !== false,
+    hideUncheckedArtifacts: Boolean(raw.hideUncheckedArtifacts),
     darkMode: Boolean(raw.darkMode),
   };
 }
@@ -87,19 +88,39 @@ export function selectedArtifacts(group: BuildArtifactGroup) {
   return group.artifacts.filter((artifact) => artifact.selected);
 }
 
+export function visibleArtifacts(group: BuildArtifactGroup, hideUnchecked: boolean) {
+  return hideUnchecked ? selectedArtifacts(group) : group.artifacts;
+}
+
+export function areAllBuildsExpanded(groupIds: string[], expanded: Record<string, boolean>) {
+  return groupIds.length > 0 && groupIds.every((id) => expanded[id] ?? true);
+}
+
 export function jobIdFromStatus(status?: string) {
   return status?.startsWith("job:") ? status.slice(4) : undefined;
 }
 
-export function progressPercent(downloaded = 0, total?: number) {
-  if (!total) return downloaded > 0 ? 1 : 0;
-  return Math.min(100, Math.round((downloaded / total) * 100));
+export function progressState(row?: Pick<DownloadEvent, "status" | "downloaded" | "total">): ProgressState {
+  if (row?.status === "completed") return { mode: "completed", percent: 100 };
+  if (row?.total && row.total > 0) {
+    return {
+      mode: "determinate",
+      percent: Math.max(0, Math.min(100, Math.round((row.downloaded / row.total) * 100))),
+    };
+  }
+  if (row?.status === "downloading") return { mode: "indeterminate", percent: 0 };
+  return { mode: "determinate", percent: 0 };
 }
 
-export function groupProgress(artifacts: Artifact[], rows: Record<string, DownloadEvent>) {
-  if (!artifacts.length) return 0;
-  const values = artifacts.map((artifact) => progressPercent(rows[artifact.id]?.downloaded, rows[artifact.id]?.total));
-  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+export function groupProgress(artifacts: Artifact[], rows: Record<string, DownloadEvent>): ProgressState {
+  if (!artifacts.length) return { mode: "determinate", percent: 0 };
+  const values = artifacts.map((artifact) => progressState(rows[artifact.id]));
+  if (values.every((value) => value.mode === "completed")) return { mode: "completed", percent: 100 };
+  if (values.some((value) => value.mode === "indeterminate")) return { mode: "indeterminate", percent: 0 };
+  return {
+    mode: "determinate",
+    percent: Math.round(values.reduce((sum, value) => sum + value.percent, 0) / values.length),
+  };
 }
 
 export function formatBytes(value?: number) {

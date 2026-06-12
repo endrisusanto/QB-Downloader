@@ -1,7 +1,7 @@
 use crate::path_safety::output_path;
 use crate::qb_client::{append_qb_suffix, map_status};
 use crate::types::{DownloadEvent, DownloadRequest, QuickBuildConfig};
-use reqwest::{header, Client, Response, StatusCode};
+use reqwest::{header, header::HeaderMap, Client, Response, StatusCode};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{
@@ -344,10 +344,12 @@ async fn download_one(
         0
     };
 
-    let total = response
-        .content_length()
-        .map(|length| length + downloaded)
-        .or(artifact.size);
+    let total = response_total(
+        response.headers(),
+        response.content_length(),
+        downloaded,
+        artifact.size,
+    );
 
     let mut file = tokio::fs::OpenOptions::new()
         .create(true)
@@ -446,6 +448,27 @@ fn partial_path(path: &PathBuf) -> PathBuf {
         .unwrap_or("download");
     partial.set_file_name(format!("{file_name}.part"));
     partial
+}
+
+fn response_total(
+    headers: &HeaderMap,
+    content_length: Option<u64>,
+    downloaded: u64,
+    artifact_size: Option<u64>,
+) -> Option<u64> {
+    content_range_total(headers)
+        .or_else(|| content_length.map(|length| length.saturating_add(downloaded)))
+        .or(artifact_size)
+}
+
+fn content_range_total(headers: &HeaderMap) -> Option<u64> {
+    let value = headers.get(header::CONTENT_RANGE)?.to_str().ok()?;
+    let (_, total) = value.rsplit_once('/')?;
+    if total == "*" {
+        None
+    } else {
+        total.parse().ok()
+    }
 }
 
 fn direct_download_url(build_id: &str, name: &str, config: &QuickBuildConfig) -> String {
@@ -605,6 +628,7 @@ fn emit_event(app: &tauri::AppHandle, name: &str, payload: DownloadEvent) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use reqwest::header::HeaderValue;
 
     #[test]
     fn direct_download_url_encodes_parts() {
@@ -679,5 +703,38 @@ mod tests {
     fn retry_schedule_has_three_exponential_delays() {
         assert_eq!(RETRY_DELAYS_MS, [1_000, 2_000, 4_000]);
         assert_eq!(MAX_ATTEMPTS, 4);
+    }
+
+    #[test]
+    fn response_total_prefers_content_range() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_RANGE,
+            HeaderValue::from_static("bytes 100-199/1000"),
+        );
+        assert_eq!(
+            response_total(&headers, Some(100), 100, Some(900)),
+            Some(1000)
+        );
+    }
+
+    #[test]
+    fn response_total_uses_content_length_then_artifact_metadata() {
+        let headers = HeaderMap::new();
+        assert_eq!(
+            response_total(&headers, Some(250), 100, Some(900)),
+            Some(350)
+        );
+        assert_eq!(response_total(&headers, None, 0, Some(900)), Some(900));
+        assert_eq!(response_total(&headers, None, 0, None), None);
+    }
+
+    #[test]
+    fn response_total_ignores_unknown_or_malformed_content_range() {
+        let mut headers = HeaderMap::new();
+        headers.insert(header::CONTENT_RANGE, HeaderValue::from_static("bytes */*"));
+        assert_eq!(response_total(&headers, Some(250), 0, None), Some(250));
+        headers.insert(header::CONTENT_RANGE, HeaderValue::from_static("invalid"));
+        assert_eq!(response_total(&headers, None, 0, Some(900)), Some(900));
     }
 }

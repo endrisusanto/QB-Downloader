@@ -343,6 +343,12 @@ button {
   gap: 8px;
 }
 
+.icon-button.compact-icon {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+}
+
 .accordion-summary-actions > strong {
   flex: 0 0 auto;
 }
@@ -423,6 +429,15 @@ button {
   border-right: 1px solid rgba(21, 128, 61, 0.28);
   pointer-events: none;
   transition: width 160ms ease;
+}
+
+.build-group.progress-indeterminate::before {
+  width: 36%;
+  animation: card-progress-indeterminate 1400ms ease-in-out infinite;
+}
+
+.build-group.progress-completed::before {
+  width: 100%;
 }
 
 .build-group > * {
@@ -603,6 +618,17 @@ button {
   transition: width 120ms ease;
 }
 
+.progress-bar.indeterminate div {
+  width: 34%;
+  min-width: 72px;
+  animation: progress-indeterminate 1200ms ease-in-out infinite;
+  transition: none;
+}
+
+.progress-bar.completed div {
+  width: 100%;
+}
+
 .pill {
   justify-self: end;
   min-width: 88px;
@@ -685,6 +711,18 @@ button {
   width: min(620px, 100%);
   max-height: calc(100vh - 48px);
   overflow: auto;
+}
+
+.secret-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  align-items: center;
+  gap: 6px;
+}
+
+.secret-input .ghost-icon {
+  width: 38px;
+  min-width: 38px;
 }
 
 .settings-error {
@@ -855,6 +893,89 @@ button {
   grid-template-rows: auto auto minmax(0, 1fr);
 }
 
+.compact-progress-modal {
+  width: min(660px, 100%);
+  max-height: min(600px, calc(100vh - 36px));
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 14px;
+}
+
+.compact-thread-list {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  overflow: auto;
+}
+
+.compact-thread-row {
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: 26px minmax(150px, 1fr) 88px minmax(88px, auto) minmax(120px, 0.65fr);
+  gap: 9px;
+  align-items: center;
+  padding: 7px 9px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  background: #fbfdff;
+}
+
+.thread-index {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: #166534;
+  background: #dcfce7;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.thread-file,
+.thread-speed,
+.thread-progress {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.thread-file strong,
+.thread-file span,
+.thread-speed strong,
+.thread-speed span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-file strong,
+.thread-speed strong {
+  color: #172033;
+  font-size: 12px;
+}
+
+.thread-file span,
+.thread-speed span,
+.thread-progress > span {
+  color: #667085;
+  font-size: 11px;
+}
+
+.thread-speed {
+  text-align: right;
+}
+
+.thread-progress > span {
+  text-align: right;
+}
+
+.compact-thread-row .pill {
+  min-width: 82px;
+  padding: 4px 7px;
+}
+
 .progress-overview {
   display: grid;
   gap: 8px;
@@ -1014,6 +1135,24 @@ button {
   }
 }
 
+@keyframes progress-indeterminate {
+  0% {
+    transform: translateX(-115%);
+  }
+  100% {
+    transform: translateX(295%);
+  }
+}
+
+@keyframes card-progress-indeterminate {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(310%);
+  }
+}
+
 @keyframes metric-sheen {
   from {
     transform: translateX(-8px);
@@ -1080,6 +1219,27 @@ button {
   border-color: #27272a;
   background: #141416;
   box-shadow: 0 18px 70px rgba(0, 0, 0, 0.36);
+}
+
+[data-theme="dark"] .compact-thread-row {
+  border-color: #27272a;
+  background: #141416;
+}
+
+[data-theme="dark"] .thread-file strong,
+[data-theme="dark"] .thread-speed strong {
+  color: #f4f4f5;
+}
+
+[data-theme="dark"] .thread-file span,
+[data-theme="dark"] .thread-speed span,
+[data-theme="dark"] .thread-progress > span {
+  color: #a1a1aa;
+}
+
+[data-theme="dark"] .thread-index {
+  color: #bbf7d0;
+  background: rgba(22, 163, 74, 0.24);
 }
 
 [data-theme="dark"] .metric-card.builds {
