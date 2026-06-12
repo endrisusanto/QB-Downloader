@@ -305,6 +305,16 @@ button {
   text-align: center;
 }
 
+.accordion-summary-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.accordion-summary-actions > strong {
+  flex: 0 0 auto;
+}
+
 .task-accordion .group-list {
   padding: 0 10px 10px;
 }
@@ -448,10 +458,6 @@ button {
   padding: 0;
 }
 
-.primary-button.download-selected {
-  min-width: 146px;
-}
-
 .selection-actions {
   display: flex;
   align-items: center;
@@ -464,6 +470,11 @@ button {
   font-size: 12px;
 }
 
+.selection-toggle.selected {
+  color: #ffffff;
+  background: #334155;
+}
+
 .artifact-table {
   display: grid;
   border-top: 1px solid #edf1f7;
@@ -472,7 +483,7 @@ button {
 .artifact-row {
   min-height: 58px;
   display: grid;
-  grid-template-columns: 34px minmax(220px, 1.2fr) 112px minmax(220px, 0.9fr) 104px;
+  grid-template-columns: 34px minmax(260px, 1.25fr) minmax(240px, 1fr) 104px;
   gap: 12px;
   align-items: center;
   padding: 10px 14px;
@@ -498,16 +509,9 @@ button {
 }
 
 .artifact-name span,
-.progress-cell span,
-.size-cell {
+.progress-cell span {
   color: #667085;
   font-size: 13px;
-}
-
-.size-cell {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .check-button {
@@ -1006,7 +1010,6 @@ button {
 [data-theme="dark"] .group-header span,
 [data-theme="dark"] .artifact-name span,
 [data-theme="dark"] .progress-cell span,
-[data-theme="dark"] .size-cell,
 [data-theme="dark"] .modal-header span,
 [data-theme="dark"] .complete-modal p,
 [data-theme="dark"] .progress-file span,
@@ -1083,6 +1086,11 @@ button {
 [data-theme="dark"] .type-chip:hover {
   color: #ffffff;
   background: #3f3f46;
+}
+
+[data-theme="dark"] .selection-toggle.selected {
+  color: #09090b;
+  background: #e4e4e7;
 }
 
 [data-theme="dark"] .primary-button,

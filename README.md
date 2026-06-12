@@ -45,7 +45,7 @@ Initialize the repository remote once:
 git remote add origin https://github.com/endrisusanto/QB-Downloader.git
 ```
 
-Bump version, commit, tag, and push:
+Bump version, auto-commit workspace changes, sync, tag, and push:
 
 ```bash
 ./script.sh patch
@@ -65,4 +65,13 @@ The script updates:
 - `src-tauri/Cargo.toml`
 - `src-tauri/tauri.conf.json`
 
-Then it creates commit `chore(release): vX.Y.Z`, tag `vX.Y.Z`, and pushes branch plus tag.
+Before releasing, the script commits all tracked and untracked workspace changes, fetches
+`origin`, and rebases the current branch on its remote branch. It then creates commit
+`chore(release): vX.Y.Z`, tag `vX.Y.Z`, and pushes the branch plus tag together.
+
+The automatic workspace commit message defaults to `chore: auto commit before release`.
+Override it when needed:
+
+```bash
+AUTO_COMMIT_MESSAGE="feat: update downloader UI" ./script.sh patch
+```

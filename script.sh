@@ -6,19 +6,33 @@ cd "$ROOT_DIR"
 
 BUMP="${1:-patch}"
 REMOTE_URL="https://github.com/endrisusanto/QB-Downloader.git"
+AUTO_COMMIT_MESSAGE="${AUTO_COMMIT_MESSAGE:-chore: auto commit before release}"
 
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "This folder is not a git repository. Run: git init"
   exit 1
 fi
 
-if ! git diff --quiet || ! git diff --cached --quiet; then
-  echo "Working tree has uncommitted changes. Commit or stash them before releasing."
+if ! git remote get-url origin >/dev/null 2>&1; then
+  git remote add origin "$REMOTE_URL"
+fi
+
+BRANCH="$(git branch --show-current)"
+if [[ -z "$BRANCH" ]]; then
+  echo "Can not release from a detached HEAD. Check out a branch first."
   exit 1
 fi
 
-if ! git remote get-url origin >/dev/null 2>&1; then
-  git remote add origin "$REMOTE_URL"
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "Auto-committing current workspace changes..."
+  git add -A
+  git commit -m "$AUTO_COMMIT_MESSAGE"
+fi
+
+echo "Syncing $BRANCH with origin..."
+git fetch origin
+if git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
+  git pull --rebase origin "$BRANCH"
 fi
 
 NEW_VERSION="$(node - "$BUMP" <<'NODE'
@@ -100,7 +114,6 @@ cargo check --manifest-path src-tauri/Cargo.toml
 git add package.json package-lock.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json
 git commit -m "chore(release): ${TAG}"
 git tag -a "$TAG" -m "$TAG"
-git push origin HEAD
-git push origin "$TAG"
+git push origin "HEAD:$BRANCH" "$TAG"
 
 echo "Released $TAG"

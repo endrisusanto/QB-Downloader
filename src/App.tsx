@@ -384,6 +384,28 @@ function AppContent() {
     );
   }
 
+  function setGroupsSelection(targetGroups: BuildArtifactGroup[], selected: boolean) {
+    const targetIds = new Set(targetGroups.map((group) => group.id));
+    setGroups((current) =>
+      current.map((group) =>
+        targetIds.has(group.id)
+          ? {
+              ...group,
+              artifacts: groupArtifacts(group).map((artifact) => ({ ...artifact, selected })),
+            }
+          : group,
+      ),
+    );
+  }
+
+  async function downloadSelectedGroups(targetGroups: BuildArtifactGroup[]) {
+    for (const group of targetGroups) {
+      if (selectedArtifacts(group).length > 0) {
+        await startDownload(group);
+      }
+    }
+  }
+
   function removeGroup(group: BuildArtifactGroup) {
     const jobId = jobIdFromStatus(group.status);
     if (jobId) {
@@ -487,19 +509,31 @@ function AppContent() {
   const visibleDownloadRows = visibleRows(groups, downloadRows);
   const activeCount = visibleDownloadRows.filter((row) => row.status === "downloading").length;
   const completedCount = visibleDownloadRows.filter((row) => row.status === "completed").length;
-  const totalSize = groups.reduce(
-    (sum, group) => sum + groupArtifacts(group).reduce((groupSum, artifact) => groupSum + (artifact.size || 0), 0),
-    0,
-  );
   const selectedTotal = groups.reduce((sum, group) => sum + selectedArtifacts(group).length, 0);
-  const averageSpeed = visibleDownloadRows.reduce((sum, row) => sum + (row.speedBps || 0), 0);
+  const activeSpeeds = visibleDownloadRows
+    .filter((row) => row.status === "downloading" && (row.speedBps || 0) > 0)
+    .map((row) => row.speedBps || 0);
+  const averageSpeed = activeSpeeds.length
+    ? activeSpeeds.reduce((sum, speed) => sum + speed, 0) / activeSpeeds.length
+    : 0;
   const inProgressGroups = groups.filter((group) =>
     selectedArtifacts(group).some((artifact) => {
       const status = downloadRows[artifact.id]?.status;
       return status === "queued" || status === "downloading" || status === "paused";
     }),
   );
-  const readyGroups = groups.filter((group) => !inProgressGroups.some((active) => active.id === group.id));
+  const completedGroups = groups.filter((group) => {
+    const selected = selectedArtifacts(group);
+    return selected.length > 0 && selected.every((artifact) => downloadRows[artifact.id]?.status === "completed");
+  });
+  const readyGroups = groups.filter(
+    (group) =>
+      !inProgressGroups.some((active) => active.id === group.id) &&
+      !completedGroups.some((completed) => completed.id === group.id),
+  );
+  const fetchedArtifacts = readyGroups.flatMap(groupArtifacts);
+  const allFetchedSelected = fetchedArtifacts.length > 0 && fetchedArtifacts.every((artifact) => artifact.selected);
+  const fetchedSelectedCount = readyGroups.reduce((sum, group) => sum + selectedArtifacts(group).length, 0);
   const progressGroup = groups.find((group) => group.id === progressGroupId) || null;
   const completeGroup = groups.find((group) => group.id === completeGroupId) || null;
 
@@ -509,6 +543,7 @@ function AppContent() {
     const artifacts = groupArtifacts(group);
     const visibleArtifacts = jobId ? selectedArtifacts(group) : artifacts;
     const selectedCount = selectedArtifacts(group).length;
+    const allSelected = artifacts.length > 0 && selectedCount === artifacts.length;
     const groupRows = visibleArtifacts.map((artifact) => downloadRows[artifact.id]);
     const isRunning = groupRows.some((row) => row?.status === "downloading");
     const hasPaused = groupRows.some((row) => row?.status === "paused");
@@ -539,12 +574,13 @@ function AppContent() {
           <div className="group-actions">
             {!jobId && artifacts.length > 0 && (
               <div className="selection-actions">
-                <button className="secondary-button compact" onClick={() => setGroupSelection(group.id, true)}>
+                <button
+                  className={`secondary-button compact selection-toggle ${allSelected ? "selected" : ""}`}
+                  aria-pressed={allSelected}
+                  onClick={() => setGroupSelection(group.id, !allSelected)}
+                >
                   <Check size={15} />
-                  Select all
-                </button>
-                <button className="secondary-button compact" onClick={() => setGroupSelection(group.id, false)}>
-                  Deselect
+                  {allSelected ? "Deselect all" : "Select all"}
                 </button>
               </div>
             )}
@@ -583,13 +619,12 @@ function AppContent() {
               </>
             )}
             <button
-              className="primary-button download-selected"
+              className="primary-button icon-only"
               title="Download selected artifacts"
               disabled={Boolean(group.error) || selectedCount === 0 || isRunning}
               onClick={() => startDownload(group)}
             >
               <Download size={16} />
-              <span>Download selected</span>
             </button>
             <button className="icon-button" title="Remove" onClick={() => removeGroup(group)}>
               <Trash2 size={16} />
@@ -615,7 +650,6 @@ function AppContent() {
                     <strong>{artifact.name}</strong>
                     <span>{kindLabel(artifact.kind)}</span>
                   </div>
-                  <div className="size-cell">{formatBytes(artifact.size)}</div>
                   <div className="progress-cell">
                     <div className="progress-bar">
                       <div style={{ width: `${percent}%` }} />
@@ -688,8 +722,8 @@ function AppContent() {
           <small>{visibleDownloadRows.length} tracked</small>
         </div>
         <div className="metric-card storage">
-          <span>Total size</span>
-          <strong>{formatBytes(totalSize || undefined)}</strong>
+          <span>Average speed</span>
+          <strong>{formatSpeedValue(averageSpeed)}</strong>
           <small title={settings.downloadTargetDir || "No folder selected"}>
             <FolderOpen size={14} />
             {settings.downloadTargetDir || "Set download folder"}
@@ -706,10 +740,29 @@ function AppContent() {
           </div>
         ) : (
           <div className="accordion-stack">
-            <details className="task-accordion" open={loadingInputs.size > 0}>
+            <details className="task-accordion" open>
               <summary>
-                <span>Current fetch</span>
-                <strong>{loadingInputs.size}</strong>
+                <span>Fetched builds</span>
+                <div className="accordion-summary-actions" onClick={(event) => event.stopPropagation()}>
+                  <button
+                    className={`secondary-button compact selection-toggle ${allFetchedSelected ? "selected" : ""}`}
+                    aria-pressed={allFetchedSelected}
+                    disabled={fetchedArtifacts.length === 0}
+                    onClick={() => setGroupsSelection(readyGroups, !allFetchedSelected)}
+                  >
+                    <Check size={15} />
+                    {allFetchedSelected ? "Deselect all" : "Select all"}
+                  </button>
+                  <button
+                    className="primary-button icon-only"
+                    title="Download all selected fetched builds"
+                    disabled={fetchedSelectedCount === 0}
+                    onClick={() => void downloadSelectedGroups(readyGroups)}
+                  >
+                    <Download size={16} />
+                  </button>
+                  <strong>{readyGroups.length + loadingInputs.size}</strong>
+                </div>
               </summary>
               <div className="group-list">
                 {[...loadingInputs].map((input) => (
@@ -723,7 +776,10 @@ function AppContent() {
                     </div>
                   </div>
                 ))}
-                {loadingInputs.size === 0 && <div className="accordion-empty">No active fetch.</div>}
+                {readyGroups.map(renderBuildGroup)}
+                {readyGroups.length === 0 && loadingInputs.size === 0 && (
+                  <div className="accordion-empty">Fetched builds will appear here.</div>
+                )}
               </div>
             </details>
 
@@ -740,12 +796,12 @@ function AppContent() {
 
             <details className="task-accordion" open>
               <summary>
-                <span>Fetched builds</span>
-                <strong>{readyGroups.length}</strong>
+                <span>Download completed</span>
+                <strong>{completedGroups.length}</strong>
               </summary>
               <div className="group-list">
-                {readyGroups.map(renderBuildGroup)}
-                {readyGroups.length === 0 && <div className="accordion-empty">Fetched builds will appear here.</div>}
+                {completedGroups.map(renderBuildGroup)}
+                {completedGroups.length === 0 && <div className="accordion-empty">No completed downloads.</div>}
               </div>
             </details>
           </div>
