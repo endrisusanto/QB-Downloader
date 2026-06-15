@@ -931,6 +931,35 @@ button {
   background: #fbfdff;
 }
 
+.compact-thread-row.completed {
+  border-color: #15803d;
+  background: #16a34a;
+}
+
+.compact-thread-row.completed .thread-index,
+.compact-thread-row.completed .pill.completed {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.compact-thread-row.completed .thread-file strong,
+.compact-thread-row.completed .thread-file span,
+.compact-thread-row.completed .thread-speed strong,
+.compact-thread-row.completed .thread-speed span,
+.compact-thread-row.completed .thread-progress > span {
+  color: #ffffff;
+}
+
+.compact-thread-row.completed .progress-bar {
+  border-color: rgba(255, 255, 255, 0.38);
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.compact-thread-row.completed .progress-bar div {
+  background: #dcfce7;
+  box-shadow: none;
+}
+
 .thread-index {
   width: 24px;
   height: 24px;
@@ -1229,6 +1258,25 @@ button {
 [data-theme="dark"] .compact-thread-row {
   border-color: #27272a;
   background: #141416;
+}
+
+[data-theme="dark"] .compact-thread-row.completed {
+  border-color: #22c55e;
+  background: #15803d;
+}
+
+[data-theme="dark"] .compact-thread-row.completed .thread-index,
+[data-theme="dark"] .compact-thread-row.completed .pill.completed {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+[data-theme="dark"] .compact-thread-row.completed .thread-file strong,
+[data-theme="dark"] .compact-thread-row.completed .thread-file span,
+[data-theme="dark"] .compact-thread-row.completed .thread-speed strong,
+[data-theme="dark"] .compact-thread-row.completed .thread-speed span,
+[data-theme="dark"] .compact-thread-row.completed .thread-progress > span {
+  color: #ffffff;
 }
 
 [data-theme="dark"] .thread-file strong,
