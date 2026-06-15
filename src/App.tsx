@@ -37,16 +37,40 @@ function AppContent() {
   const [completeGroup, setCompleteGroup] = useState<BuildArtifactGroup | null>(null);
   const notified = useRef(new Set<string>());
   const inputRef = useRef<HTMLInputElement>(null);
+  const activeSubscriptionsRef = useRef<Set<string>>(new Set());
 
-  useEffect(() => { if (!settingsLoading && (!settings.username || !settings.accessToken || settingsError)) setSettingsOpen(true); }, [settingsLoading, settings.username, settings.accessToken, settingsError]);
+  useEffect(() => {
+    if (!settingsLoading && (!settings.username || !settings.accessToken || settingsError)) setSettingsOpen(true);
+  }, [settingsLoading, settings.username, settings.accessToken, settingsError]);
+  
   useEffect(() => { inputRef.current?.focus(); }, []);
+
+  useEffect(() => {
+    const channel = new BroadcastChannel(DIALOG_CHANNEL);
+    channel.onmessage = (event) => {
+      if (event.data?.type === "subscribe") {
+        activeSubscriptionsRef.current.add(event.data.key);
+      } else if (event.data?.type === "unsubscribe") {
+        activeSubscriptionsRef.current.delete(event.data.key);
+      }
+    };
+    return () => channel.close();
+  }, []);
+
   useEffect(() => {
     for (const group of builds.groups) {
       if (buildExpanded[group.id] === undefined) setBuildExpanded((current) => ({ ...current, [group.id]: globalExpanded }));
-      if (selectedArtifacts(group).some((artifact) => downloads.rows[artifact.id])) {
+      
+      const progressKey = dialogStorageKey("progress", group.id);
+      if (activeSubscriptionsRef.current.has(progressKey)) {
         writeDialogSnapshot("progress", group, downloads.rows, downloads.slotSpeeds);
+      }
+      
+      const completeKey = dialogStorageKey("complete", group.id);
+      if (activeSubscriptionsRef.current.has(completeKey)) {
         writeDialogSnapshot("complete", group, downloads.rows, downloads.slotSpeeds);
       }
+
       const selected = selectedArtifacts(group);
       if (settings.showCompleteDialog && selected.length && selected.every((artifact) => downloads.rows[artifact.id]?.status === "completed") && !notified.current.has(group.id)) {
         notified.current.add(group.id);
@@ -54,6 +78,7 @@ function AppContent() {
       }
     }
   }, [buildExpanded, builds.groups, downloads.rows, downloads.slotSpeeds, globalExpanded, settings.showCompleteDialog]);
+
 
   if (settingsLoading) return <main className="app-shell"><div className="empty-state"><span className="spinner" /><h1>Unlocking secure settings</h1></div></main>;
 
@@ -100,7 +125,18 @@ function AppContent() {
 function StandaloneDialog({ kind, storageKey }: { kind: DialogKind; storageKey: string }) {
   const [snapshot, setSnapshot] = useState(() => readDialogSnapshot(storageKey));
   const darkMode = (() => { try { return Boolean(JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}").darkMode); } catch { return false; } })();
-  useEffect(() => { const channel = new BroadcastChannel(DIALOG_CHANNEL); channel.onmessage = (event) => { if (event.data?.key === storageKey) setSnapshot(readDialogSnapshot(storageKey)); }; return () => channel.close(); }, [storageKey]);
+  
+  useEffect(() => {
+    const channel = new BroadcastChannel(DIALOG_CHANNEL);
+    channel.postMessage({ type: "subscribe", key: storageKey });
+    channel.onmessage = (event) => {
+      if (event.data?.key === storageKey) setSnapshot(readDialogSnapshot(storageKey));
+    };
+    return () => {
+      channel.postMessage({ type: "unsubscribe", key: storageKey });
+      channel.close();
+    };
+  }, [storageKey]);
   useEffect(() => {
     if (kind !== "progress" || !snapshot) return;
     const element = document.querySelector<HTMLElement>(".compact-progress-modal");

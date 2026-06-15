@@ -92,6 +92,29 @@ QuickBuild server capabilities can vary:
 - When size is unavailable, QB Downloader shows an indeterminate progress animation and the downloaded byte count.
 - Pause/resume controls are intentionally not provided. Cancellation and retained partial files are used instead.
 
+### Test HTTP Range and multipart support
+
+Windows users can run the included interactive PowerShell probe:
+
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File .\tools\Test-QBRangeSupport.ps1
+```
+
+Enter a direct artifact download URL, username, and access token. The script contains the current default QuickBuild API suffix and appends it automatically when the URL does not already contain it. The token is requested as a masked `SecureString` and is not written to disk. The TUI validates:
+
+- a one-byte range request
+- a non-zero offset range
+- two concurrent range requests
+- stable `ETag` values when the server supplies them
+
+The final verdict is:
+
+- `SUPPORTED`: candidate for adaptive multipart
+- `PARTIAL`: use single-stream resume only
+- `UNSUPPORTED`: do not enable Range resume or multipart
+
+Temporary test parts are removed automatically.
+
 ## Project structure
 
 ```text

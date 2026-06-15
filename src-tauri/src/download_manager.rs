@@ -360,6 +360,9 @@ async fn download_one(
         .await
         .map_err(|err| DownloadError::Io(err.to_string()))?;
 
+    let mut last_emit = std::time::Instant::now();
+    let emit_interval = std::time::Duration::from_millis(300);
+
     let mut stream = response.bytes_stream();
     while let Some(chunk) = futures_util::TryStreamExt::try_next(&mut stream)
         .await
@@ -391,23 +394,27 @@ async fn download_one(
             .map_err(|err| DownloadError::Io(err.to_string()))?;
         downloaded += chunk.len() as u64;
 
-        emit_event(
-            &app,
-            "download://progress",
-            event(
-                &job_id,
-                &request.build_id,
-                &artifact,
-                "downloading",
-                downloaded,
-                total,
-                Some(output.display().to_string()),
-                None,
-                resumable,
-                attempt,
-                None,
-            ),
-        );
+        let now = std::time::Instant::now();
+        if now.duration_since(last_emit) >= emit_interval || downloaded == total.unwrap_or(0) {
+            emit_event(
+                &app,
+                "download://progress",
+                event(
+                    &job_id,
+                    &request.build_id,
+                    &artifact,
+                    "downloading",
+                    downloaded,
+                    total,
+                    Some(output.display().to_string()),
+                    None,
+                    resumable,
+                    attempt,
+                    None,
+                ),
+            );
+            last_emit = now;
+        }
     }
 
     file.flush()
