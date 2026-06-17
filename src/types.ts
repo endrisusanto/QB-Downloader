@@ -56,6 +56,21 @@ export type DownloadEvent = {
   nextRetryMs?: number;
 };
 
+export type DownloadHistoryEntry = {
+  id: string;
+  artifactId: string;
+  buildId: string;
+  name: string;
+  status: DownloadStatus;
+  downloaded: number;
+  total?: number;
+  path?: string;
+  message?: string;
+  jobId: string;
+  startedAt: string;
+  updatedAt: string;
+};
+
 export type TokenTestResult = {
   ok: boolean;
   selectedUsername?: string;

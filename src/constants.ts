@@ -1,6 +1,7 @@
 import type { SettingsState } from "./types";
 
 export const STORAGE_KEY = "quickbuild-download-manager-settings";
+export const DOWNLOAD_HISTORY_KEY = "quickbuild-download-manager-history";
 export const DIALOG_CHANNEL = "quickbuild-download-dialogs";
 export const DEFAULT_QB_URL = "https://android.qb.sec.samsung.net";
 export const DEFAULT_API_SUFFIX = "QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC";
