@@ -11,7 +11,7 @@ import { ProgressDialog } from "./components/ProgressDialog";
 import { SettingsModal } from "./components/SettingsModal";
 import { TaskAccordions } from "./components/TaskAccordions";
 import { DIALOG_CHANNEL, STORAGE_KEY } from "./constants";
-import { dialogStorageKey, dialogWindowLabel, readDialogSnapshot, standaloneDialogConfig, writeDialogSnapshot } from "./dialogStore";
+import { dialogStorageKey, dialogWindowLabel, readDialogSnapshot, scheduleDialogSnapshot, standaloneDialogConfig, writeDialogSnapshot } from "./dialogStore";
 import { countSelected, useBuilds } from "./hooks/useBuilds";
 import { useDownload } from "./hooks/useDownload";
 import { useSettings } from "./hooks/useSettings";
@@ -63,12 +63,12 @@ function AppContent() {
       
       const progressKey = dialogStorageKey("progress", group.id);
       if (activeSubscriptionsRef.current.has(progressKey)) {
-        writeDialogSnapshot("progress", group, downloads.rows, downloads.slotSpeeds);
+        scheduleDialogSnapshot("progress", group, downloads.rows, downloads.slotSpeeds);
       }
       
       const completeKey = dialogStorageKey("complete", group.id);
       if (activeSubscriptionsRef.current.has(completeKey)) {
-        writeDialogSnapshot("complete", group, downloads.rows, downloads.slotSpeeds);
+        scheduleDialogSnapshot("complete", group, downloads.rows, downloads.slotSpeeds);
       }
 
       const selected = selectedArtifacts(group);

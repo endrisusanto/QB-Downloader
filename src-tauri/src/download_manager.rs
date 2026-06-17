@@ -5,7 +5,7 @@ use reqwest::{header, header::HeaderMap, Client, Response, StatusCode};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
     Arc,
 };
 use tauri::Emitter;
@@ -33,9 +33,19 @@ pub enum DownloadError {
     InvalidConfig(String),
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct DownloadManager {
     jobs: Arc<Mutex<HashMap<String, JobControl>>>,
+    http: Client,
+}
+
+impl Default for DownloadManager {
+    fn default() -> Self {
+        Self {
+            jobs: Arc::new(Mutex::new(HashMap::new())),
+            http: Client::new(),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -81,7 +91,8 @@ impl DownloadManager {
 
         let concurrent = request.max_concurrent.max(1);
         let semaphore = Arc::new(Semaphore::new(concurrent));
-        let http = Client::new();
+        let http = self.http.clone();
+        let remaining = Arc::new(AtomicUsize::new(artifacts.len()));
 
         for artifact in artifacts {
             emit_event(
@@ -110,6 +121,8 @@ impl DownloadManager {
             let control = control.clone();
             let http = http.clone();
             let semaphore = semaphore.clone();
+            let jobs = self.jobs.clone();
+            let remaining = remaining.clone();
             tokio::spawn(async move {
                 let _permit = semaphore.acquire_owned().await.expect("semaphore open");
                 if control.cancelled.load(Ordering::Relaxed) {
@@ -130,10 +143,13 @@ impl DownloadManager {
                             None,
                         ),
                     );
-                    return;
+                } else {
+                    download_with_retry(app, http, job_id.clone(), request, control, artifact).await;
                 }
 
-                download_with_retry(app, http, job_id, request, control, artifact).await;
+                if remaining.fetch_sub(1, Ordering::AcqRel) == 1 {
+                    jobs.lock().await.remove(&job_id);
+                }
             });
         }
 
@@ -361,7 +377,7 @@ async fn download_one(
         .map_err(|err| DownloadError::Io(err.to_string()))?;
 
     let mut last_emit = std::time::Instant::now();
-    let emit_interval = std::time::Duration::from_millis(300);
+    let emit_interval = std::time::Duration::from_millis(800);
 
     let mut stream = response.bytes_stream();
     while let Some(chunk) = futures_util::TryStreamExt::try_next(&mut stream)

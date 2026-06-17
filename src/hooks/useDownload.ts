@@ -26,6 +26,9 @@ type ActiveJob = {
 };
 
 const TERMINAL_STATUSES = new Set<DownloadEvent["status"]>(["completed", "failed", "cancelled"]);
+const HISTORY_FLUSH_MS = 1_500;
+let downloadHistoryCache: DownloadHistoryEntry[] | null = null;
+let historyFlushTimer: number | null = null;
 
 export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispatch<React.SetStateAction<BuildArtifactGroup[]>>) {
   const [rows, setRows] = useState<Record<string, DownloadEvent>>({});
@@ -94,7 +97,7 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
             cancelledQueueIds.current.delete(item.queueId);
             const event = eventFromQueueItem(item, wasCancelled ? "cancelled" : "failed", wasCancelled ? "Cancelled while starting" : String(error));
             setRows((current) => ({ ...current, [item.artifact.id]: event }));
-            persistDownloadHistory(event);
+            persistDownloadHistory(event, true);
           } finally {
             delete startingJobs.current[item.queueId];
           }
@@ -126,7 +129,7 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
           samples.push({ at: now, bytes: slotTotals.current[payload.artifactId] || 0 });
           slotSamples.current[payload.artifactId] = samples;
           setRows((current) => ({ ...current, [payload.artifactId]: payload }));
-          persistDownloadHistory(payload);
+          persistDownloadHistory(payload, TERMINAL_STATUSES.has(payload.status));
 
           if (TERMINAL_STATUSES.has(payload.status)) {
             const job = activeJobs.current[payload.jobId];
@@ -159,6 +162,14 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
       setAverageThreadSpeed(calculateAverageThreadSpeed(nextSlotSpeeds, latestRows.current));
     }, 1_000);
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener("beforeunload", flushDownloadHistory);
+    return () => {
+      window.removeEventListener("beforeunload", flushDownloadHistory);
+      flushDownloadHistory();
+    };
   }, []);
 
   const enqueue = useCallback((group: BuildArtifactGroup, artifacts: Artifact[], options: StartOptions) => {
@@ -202,7 +213,7 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
         for (const item of cancelledQueued) {
           const cancelled = eventFromQueueItem(item, "cancelled", "Cancelled while queued");
           next[item.artifact.id] = cancelled;
-          persistDownloadHistory(cancelled);
+          persistDownloadHistory(cancelled, true);
         }
         return next;
       });
@@ -286,11 +297,11 @@ function eventFromQueueItem(item: QueueItem, status: DownloadEvent["status"], me
   };
 }
 
-function persistDownloadHistory(event: DownloadEvent) {
+function persistDownloadHistory(event: DownloadEvent, immediate = false) {
   if (typeof localStorage === "undefined") return;
   const now = new Date().toISOString();
   const id = `${event.jobId}:${event.artifactId}`;
-  const current = readDownloadHistory();
+  const current = getDownloadHistoryCache();
   const existingIndex = current.findIndex((item) => item.id === id);
   const existing = existingIndex >= 0 ? current[existingIndex] : undefined;
   const entry: DownloadHistoryEntry = {
@@ -310,7 +321,35 @@ function persistDownloadHistory(event: DownloadEvent) {
   const next = existingIndex >= 0
     ? current.map((item, index) => (index === existingIndex ? entry : item))
     : [entry, ...current];
-  localStorage.setItem(DOWNLOAD_HISTORY_KEY, JSON.stringify(next.slice(0, 1000)));
+  downloadHistoryCache = next.slice(0, 1000);
+  scheduleHistoryFlush(immediate);
+}
+
+function getDownloadHistoryCache() {
+  if (!downloadHistoryCache) downloadHistoryCache = readDownloadHistory();
+  return downloadHistoryCache;
+}
+
+function scheduleHistoryFlush(immediate: boolean) {
+  if (historyFlushTimer != null) {
+    window.clearTimeout(historyFlushTimer);
+    historyFlushTimer = null;
+  }
+  if (immediate) {
+    flushDownloadHistory();
+  } else {
+    historyFlushTimer = window.setTimeout(flushDownloadHistory, HISTORY_FLUSH_MS);
+  }
+}
+
+function flushDownloadHistory() {
+  if (historyFlushTimer != null) {
+    window.clearTimeout(historyFlushTimer);
+    historyFlushTimer = null;
+  }
+  if (downloadHistoryCache) {
+    localStorage.setItem(DOWNLOAD_HISTORY_KEY, JSON.stringify(downloadHistoryCache));
+  }
 }
 
 function readDownloadHistory(): DownloadHistoryEntry[] {
