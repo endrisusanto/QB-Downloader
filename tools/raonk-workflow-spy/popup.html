@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>RAONK Spy</title>
+    <style>
+      body { width: 420px; margin: 0; font: 12px system-ui, sans-serif; color: #111827; background: #f8fafc; }
+      header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px; background: #111827; color: white; }
+      main { padding: 10px; display: grid; gap: 8px; }
+      button { border: 1px solid #cbd5e1; border-radius: 6px; background: white; padding: 6px 8px; cursor: pointer; }
+      button.primary { border-color: #15803d; background: #16a34a; color: white; }
+      .actions { display: flex; gap: 6px; }
+      #events { max-height: 420px; overflow: auto; display: grid; gap: 6px; }
+      .event { border: 1px solid #e2e8f0; border-radius: 6px; background: white; padding: 7px; }
+      .event strong { display: block; color: #0f172a; }
+      .event small { color: #64748b; }
+      pre { white-space: pre-wrap; word-break: break-word; margin: 5px 0 0; color: #334155; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong>RAONK Workflow Spy</strong>
+      <span id="count">0 events</span>
+    </header>
+    <main>
+      <div class="actions">
+        <button class="primary" id="refresh">Refresh</button>
+        <button id="toggle-recording">Pause</button>
+        <button id="export">Export JSON</button>
+        <button id="clear">Clear</button>
+      </div>
+      <div id="events"></div>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

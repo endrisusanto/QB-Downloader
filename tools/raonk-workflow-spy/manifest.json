@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "RAONK Workflow Spy",
+  "version": "0.1.0",
+  "description": "Capture RAON K download workflow calls, payloads, and network hints for local reverse engineering.",
+  "permissions": ["storage", "webRequest", "tabs", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["inject.js"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "action": {
+    "default_title": "RAONK Spy",
+    "default_popup": "popup.html"
+  }
+}

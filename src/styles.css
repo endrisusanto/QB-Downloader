@@ -445,7 +445,7 @@ button {
 }
 
 .build-group.progress-completed::before {
-  width: 100%;
+  display: none;
 }
 
 .build-group > * {
@@ -1435,4 +1435,101 @@ button {
 
 [data-theme="dark"] .modal-backdrop {
   background: rgba(0, 0, 0, 0.58);
+}
+
+/* Progress Completed Card Custom Styles */
+.build-group.progress-completed {
+  border-color: #15803d;
+  background: #16a34a;
+}
+
+.build-group.progress-completed .group-title strong,
+.build-group.progress-completed .group-header strong,
+.build-group.progress-completed .artifact-name strong {
+  color: #ffffff;
+}
+
+.build-group.progress-completed .group-title span,
+.build-group.progress-completed .group-header span,
+.build-group.progress-completed .artifact-name span,
+.build-group.progress-completed .progress-cell span {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.build-group.progress-completed .ghost-icon {
+  color: #ffffff;
+}
+
+.build-group.progress-completed .ghost-icon:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.build-group.progress-completed .icon-button,
+.build-group.progress-completed .secondary-button {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.build-group.progress-completed .icon-button:hover,
+.build-group.progress-completed .secondary-button:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.build-group.progress-completed .primary-button {
+  color: #16a34a;
+  background: #ffffff;
+}
+
+.build-group.progress-completed .primary-button:hover {
+  background: #f0fdf4;
+}
+
+.build-group.progress-completed .check-button {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: transparent;
+  color: #ffffff;
+}
+
+.build-group.progress-completed .check-button.checked {
+  border-color: #ffffff;
+  background: #ffffff;
+  color: #16a34a;
+}
+
+.build-group.progress-completed .artifact-table {
+  border-top-color: rgba(255, 255, 255, 0.2);
+}
+
+.build-group.progress-completed .artifact-row {
+  border-top-color: rgba(255, 255, 255, 0.12);
+}
+
+.build-group.progress-completed .progress-bar {
+  border-color: rgba(255, 255, 255, 0.38);
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.build-group.progress-completed .progress-bar div {
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.build-group.progress-completed .pill {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* Dark theme overrides for completed card */
+[data-theme="dark"] .build-group.progress-completed {
+  border-color: #22c55e;
+  background: #15803d;
+}
+
+[data-theme="dark"] .build-group.progress-completed .primary-button {
+  color: #15803d;
+}
+
+[data-theme="dark"] .build-group.progress-completed .check-button.checked {
+  color: #15803d;
 }
