@@ -145,12 +145,22 @@ function StandaloneDialog({ kind, storageKey }: { kind: DialogKind; storageKey: 
     const element = document.querySelector<HTMLElement>(".compact-progress-modal");
     if (!element) return;
     const currentWindow = WebviewWindow.getCurrent();
-    const resize = () => {
-      const height = Math.min(960, Math.max(440, Math.ceil(element.scrollHeight)));
-      void currentWindow.setSize(new LogicalSize(850, height));
+    const resize = async () => {
+      try {
+        const scaleFactor = await currentWindow.scaleFactor();
+        const inner = await currentWindow.innerSize();
+        const outer = await currentWindow.outerSize();
+        const decorationHeight = Math.max(0, Math.round((outer.height - inner.height) / scaleFactor));
+        const height = Math.min(960, Math.max(440, Math.ceil(element.scrollHeight) + decorationHeight));
+        void currentWindow.setSize(new LogicalSize(850, height));
+      } catch (e) {
+        console.error("Failed to resize window", e);
+        const height = Math.min(960, Math.max(440, Math.ceil(element.scrollHeight) + 36));
+        void currentWindow.setSize(new LogicalSize(850, height));
+      }
     };
-    resize();
-    const observer = new ResizeObserver(resize);
+    void resize();
+    const observer = new ResizeObserver(() => { void resize(); });
     observer.observe(element);
     return () => observer.disconnect();
   }, [kind, snapshot]);

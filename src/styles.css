@@ -17,9 +17,11 @@ body {
   min-height: 620px;
 }
 
+html:has(.dialog-window),
 body:has(.dialog-window) {
   min-width: 0;
   min-height: 0;
+  overflow: hidden !important;
 }
 
 button,
