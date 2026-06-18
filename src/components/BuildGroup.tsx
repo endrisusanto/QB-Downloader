@@ -1,15 +1,16 @@
 import { Activity, Check, ChevronDown, ChevronRight, Download, Filter, RefreshCcw, Trash2, X } from "lucide-react";
 import type { CSSProperties } from "react";
-import type { BuildArtifactGroup, DownloadEvent } from "../types";
+import type { Artifact, BuildArtifactGroup, DownloadEvent } from "../types";
 import { formatBytes, groupProgress, kindLabel, progressState, selectedArtifacts, statusLabel, visibleArtifacts as getVisibleArtifacts } from "../utils";
 import { ProgressBar } from "./ProgressBar";
 
-export function BuildGroup({ group, rows, expanded, hideUncheckedArtifacts, onToggleExpanded, onToggleArtifact, onToggleAll, onDownload, onCancel, onRetry, onRemove, onProgress, onConfigureFilters }: {
+export function BuildGroup({ group, rows, expanded, hideUncheckedArtifacts, onToggleExpanded, onToggleArtifact, onToggleAll, onDownload, onCancel, onRetry, onRemove, onProgress, onConfigureFilters, onDownloadArtifact }: {
   group: BuildArtifactGroup; rows: Record<string, DownloadEvent>; expanded: boolean;
   hideUncheckedArtifacts: boolean;
   onToggleExpanded: () => void; onToggleArtifact: (id: string) => void; onToggleAll: (selected: boolean) => void;
   onDownload: () => void; onCancel: () => void; onRetry: () => void; onRemove: () => void; onProgress: () => void;
   onConfigureFilters?: () => void;
+  onDownloadArtifact?: (artifact: Artifact) => void;
 }) {
   const artifacts = group.artifacts;
   const selected = selectedArtifacts(group);
@@ -49,7 +50,53 @@ export function BuildGroup({ group, rows, expanded, hideUncheckedArtifacts, onTo
           <button className="icon-button" title="Delete build" onClick={onRemove}><Trash2 size={16} /></button>
         </div>
       </div>
-      {expanded && visibleArtifacts.length > 0 && <div className="artifact-table">{visibleArtifacts.map((artifact) => { const row = rows[artifact.id]; return <div className={`artifact-row ${active ? "active-artifact" : ""}`} key={artifact.id}>{!active && <button className={`check-button ${artifact.selected ? "checked" : ""}`} title={artifact.selected ? "Selected" : "Not selected"} onClick={() => onToggleArtifact(artifact.id)}>{artifact.selected && <Check size={14} />}</button>}<div className="artifact-name"><strong>{artifact.name}</strong><span>{kindLabel(artifact.kind)}</span></div><div className="progress-cell"><ProgressBar progress={progressState(row)} /><span title={row?.message}>{row?.message || (row ? `${formatBytes(row.downloaded)} / ${formatBytes(row.total)}` : "Ready")}</span></div><span className={`pill ${row?.status || "ready"}`}>{statusLabel(row)}</span></div>; })}</div>}
+      {expanded && visibleArtifacts.length > 0 && (
+        <div className="artifact-table">
+          {visibleArtifacts.map((artifact) => {
+            const row = rows[artifact.id];
+            const rowStatus = row?.status;
+            const isDownloading = rowStatus === "queued" || rowStatus === "downloading" || rowStatus === "retrying";
+            const isCompleted = rowStatus === "completed";
+            return (
+              <div className={`artifact-row ${active ? "active-artifact" : ""}`} key={artifact.id}>
+                {!active && (
+                  <button
+                    className={`check-button ${artifact.selected ? "checked" : ""}`}
+                    title={artifact.selected ? "Selected" : "Not selected"}
+                    onClick={() => onToggleArtifact(artifact.id)}
+                  >
+                    {artifact.selected && <Check size={14} />}
+                  </button>
+                )}
+                <div className="artifact-name">
+                  <strong>{artifact.name}</strong>
+                  <span>{kindLabel(artifact.kind)}</span>
+                </div>
+                <div className="progress-cell">
+                  <ProgressBar progress={progressState(row)} />
+                  <span title={row?.message}>
+                    {row?.message || (row ? `${formatBytes(row.downloaded)} / ${formatBytes(row.total)}` : "Ready")}
+                  </span>
+                </div>
+                <span className={`pill ${row?.status || "ready"}`}>
+                  {statusLabel(row)}
+                </span>
+                <div className="artifact-action">
+                  {!isDownloading && !isCompleted && onDownloadArtifact && (
+                    <button
+                      className="icon-button compact-icon"
+                      title="Download this artifact"
+                      onClick={() => onDownloadArtifact(artifact)}
+                    >
+                      <Download size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </article>
   );
 }

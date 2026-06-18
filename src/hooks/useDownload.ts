@@ -223,6 +223,14 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
     [enqueue],
   );
 
+  // ponytail: minimal single-artifact downloader
+  const startSingle = useCallback(
+    async (group: BuildArtifactGroup, artifact: Artifact, options: StartOptions) => {
+      enqueue(group, [artifact], options);
+    },
+    [enqueue],
+  );
+
   const cancel = useCallback(async (group: BuildArtifactGroup) => {
     const selectedIds = new Set(selectedArtifacts(group).map((artifact) => artifact.id));
     const cancelledQueued = queue.current.filter((item) => item.groupId === group.id && selectedIds.has(item.artifact.id));
@@ -260,7 +268,7 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
   }, [enqueue]);
 
   const categories = useMemo(() => classifyGroups(groups, rows), [groups, rows]);
-  return { rows, setRows, totalSpeed, averageThreadSpeed, slotSpeeds, start, cancel, retry, categories };
+  return { rows, setRows, totalSpeed, averageThreadSpeed, slotSpeeds, start, startSingle, cancel, retry, categories };
 }
 
 export function calculateRollingSpeed(samples: { at: number; bytes: number }[], now: number) {
