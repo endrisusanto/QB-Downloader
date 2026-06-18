@@ -287,12 +287,35 @@ export function classifyGroups(groups: BuildArtifactGroup[], rows: Record<string
   const completed: BuildArtifactGroup[] = [];
   const failed: BuildArtifactGroup[] = [];
   for (const group of groups) {
+    fetched.push(group);
     const selected = selectedArtifacts(group);
-    const statuses = selected.map((artifact) => rows[artifact.id]?.status).filter(Boolean);
-    if (statuses.includes("failed")) failed.push(group);
-    else if (statuses.some((status) => status === "queued" || status === "downloading" || status === "retrying")) progress.push(group);
-    else if (selected.length > 0 && statuses.length === selected.length && statuses.every((status) => status === "completed")) completed.push(group);
-    else fetched.push(group);
+    
+    const failedSelected = selected.filter((a) => rows[a.id]?.status === "failed");
+    if (failedSelected.length > 0) {
+      failed.push({
+        ...group,
+        artifacts: failedSelected,
+      });
+    }
+    
+    const progressSelected = selected.filter((a) => {
+      const status = rows[a.id]?.status;
+      return status === "queued" || status === "downloading" || status === "retrying";
+    });
+    if (progressSelected.length > 0) {
+      progress.push({
+        ...group,
+        artifacts: progressSelected,
+      });
+    }
+    
+    const completedSelected = selected.filter((a) => rows[a.id]?.status === "completed");
+    if (completedSelected.length > 0) {
+      completed.push({
+        ...group,
+        artifacts: completedSelected,
+      });
+    }
   }
   return { fetched, progress, completed, failed };
 }

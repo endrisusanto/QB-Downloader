@@ -40,6 +40,23 @@ describe("download state", () => {
     expect(classifyGroups([group], { a: row("a", "cancelled"), b: row("b", "cancelled") }).fetched).toHaveLength(1);
   });
 
+  it("splits a single group with mixed statuses into separate categories", () => {
+    const categories = classifyGroups([group], {
+      a: row("a", "completed"),
+      b: row("b", "failed"),
+    });
+    expect(categories.failed).toHaveLength(1);
+    expect(categories.failed[0].artifacts).toHaveLength(1);
+    expect(categories.failed[0].artifacts[0].id).toBe("b");
+
+    expect(categories.completed).toHaveLength(1);
+    expect(categories.completed[0].artifacts).toHaveLength(1);
+    expect(categories.completed[0].artifacts[0].id).toBe("a");
+
+    expect(categories.fetched).toHaveLength(1);
+    expect(categories.fetched[0].artifacts).toHaveLength(2);
+  });
+
   it("aggregates raw bytes over five seconds and becomes idle", () => {
     const samples = [{ at: 1_000, bytes: 0 }, { at: 3_000, bytes: 4_000 }, { at: 5_000, bytes: 8_000 }];
     expect(calculateRollingSpeed(samples, 5_000)).toBe(2_000);

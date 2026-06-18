@@ -459,6 +459,11 @@ button {
   border-color: #ffd4dc;
 }
 
+.build-group.failed::before {
+  background: linear-gradient(90deg, rgba(239, 68, 68, 0.2), rgba(248, 113, 113, 0.1));
+  border-right-color: rgba(220, 38, 38, 0.25);
+}
+
 .build-group.loading {
   color: #64748b;
 }
@@ -1374,6 +1379,15 @@ button {
 [data-theme="dark"] .build-group::before {
   background: linear-gradient(90deg, rgba(34, 197, 94, 0.34), rgba(34, 197, 94, 0.16));
   border-right-color: rgba(74, 222, 128, 0.42);
+}
+
+[data-theme="dark"] .build-group.failed::before {
+  background: linear-gradient(90deg, rgba(239, 68, 68, 0.24), rgba(239, 68, 68, 0.12));
+  border-right-color: rgba(248, 113, 113, 0.35);
+}
+
+[data-theme="dark"] .build-group.failed {
+  border-color: rgba(239, 68, 68, 0.3);
 }
 
 [data-theme="dark"] .quick-input input,
