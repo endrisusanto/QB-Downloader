@@ -32,6 +32,7 @@ export type BuildArtifactGroup = {
   error?: string;
   lastCheckedAt?: string;
   nextCheckAt?: string;
+  customFilters?: string[];
 };
 
 export type DownloadStatus =

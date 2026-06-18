@@ -1,14 +1,15 @@
-import { Activity, Check, ChevronDown, ChevronRight, Download, RefreshCcw, Trash2, X } from "lucide-react";
+import { Activity, Check, ChevronDown, ChevronRight, Download, Filter, RefreshCcw, Trash2, X } from "lucide-react";
 import type { CSSProperties } from "react";
 import type { BuildArtifactGroup, DownloadEvent } from "../types";
 import { formatBytes, groupProgress, kindLabel, progressState, selectedArtifacts, statusLabel, visibleArtifacts as getVisibleArtifacts } from "../utils";
 import { ProgressBar } from "./ProgressBar";
 
-export function BuildGroup({ group, rows, expanded, hideUncheckedArtifacts, onToggleExpanded, onToggleArtifact, onToggleAll, onDownload, onCancel, onRetry, onRemove, onProgress }: {
+export function BuildGroup({ group, rows, expanded, hideUncheckedArtifacts, onToggleExpanded, onToggleArtifact, onToggleAll, onDownload, onCancel, onRetry, onRemove, onProgress, onConfigureFilters }: {
   group: BuildArtifactGroup; rows: Record<string, DownloadEvent>; expanded: boolean;
   hideUncheckedArtifacts: boolean;
   onToggleExpanded: () => void; onToggleArtifact: (id: string) => void; onToggleAll: (selected: boolean) => void;
   onDownload: () => void; onCancel: () => void; onRetry: () => void; onRemove: () => void; onProgress: () => void;
+  onConfigureFilters?: () => void;
 }) {
   const artifacts = group.artifacts;
   const selected = selectedArtifacts(group);
@@ -30,7 +31,16 @@ export function BuildGroup({ group, rows, expanded, hideUncheckedArtifacts, onTo
         <button className="ghost-icon" title={expanded ? "Collapse build" : "Expand build"} onClick={onToggleExpanded}>{expanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}</button>
         <div className="group-title"><strong>{group.buildId || group.input}</strong><span>{subtitle}</span></div>
         <div className="group-actions">
-          {watching && <span className="watching-status"><span className="spinner" />Waiting</span>}
+          {watching && (
+            <>
+              <span className="watching-status"><span className="spinner" />Waiting</span>
+              {onConfigureFilters && (
+                <button className="icon-button" title="Configure auto-download filters" onClick={onConfigureFilters}>
+                  <Filter size={16} />
+                </button>
+              )}
+            </>
+          )}
           {!watching && !active && artifacts.length > 0 && <button className={`secondary-button compact selection-toggle ${allSelected ? "selected" : ""}`} aria-pressed={allSelected} onClick={() => onToggleAll(!allSelected)}><Check size={15} />{allSelected ? "Deselect all" : "Select all"}</button>}
           {hasRows && <button className="icon-button" title="Open progress" onClick={onProgress}><Activity size={16} /></button>}
           {failed && <button className="icon-button" title="Retry download" onClick={onRetry}><RefreshCcw size={16} /></button>}

@@ -80,7 +80,7 @@ export function useBuilds(
         credentials,
         quickBuildConfig,
       });
-      const prepared = prepareFetchedGroup(result, input, selectedTypes);
+      const prepared = prepareFetchedGroup(result, input, group.customFilters || selectedTypes);
       const now = new Date().toISOString();
       setGroups((current) => {
         const existing = current.find((item) => sameIdentity(item, group));
@@ -88,6 +88,7 @@ export function useBuilds(
         const nextGroup = {
           ...prepared,
           id: stableId,
+          customFilters: group.customFilters,
           lastCheckedAt: now,
           nextCheckAt: prepared.status === "watching" ? new Date(Date.now() + WATCH_POLL_MS).toISOString() : undefined,
         };
@@ -171,6 +172,16 @@ export function useBuilds(
     );
   }, []);
 
+  const setCustomFilters = useCallback((groupId: string, customFilters: string[]) => {
+    setGroups((current) =>
+      current.map((group) =>
+        group.id === groupId
+          ? { ...group, customFilters }
+          : group,
+      ),
+    );
+  }, []);
+
   const removeGroup = useCallback((groupId: string) => {
     setGroups((current) => current.filter((group) => group.id !== groupId));
   }, []);
@@ -186,6 +197,7 @@ export function useBuilds(
     setGroupsSelection,
     toggleArtifact,
     removeGroup,
+    setCustomFilters,
   };
 }
 
