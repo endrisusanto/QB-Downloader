@@ -65,7 +65,7 @@ export function BuildGroup({ group, rows, expanded, hideUncheckedArtifacts, onTo
                     title={artifact.selected ? "Selected" : "Not selected"}
                     onClick={() => onToggleArtifact(artifact.id)}
                   >
-                    {artifact.selected && <Check size={14} />}
+                    {artifact.selected && <Check size={16} strokeWidth={3} />}
                   </button>
                 )}
                 <div className="artifact-name">
