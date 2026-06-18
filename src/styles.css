@@ -698,6 +698,7 @@ button {
   align-content: start;
   padding: 0;
   background: #18181c;
+  overflow: hidden;
 }
 
 .dialog-window .progress-modal,
@@ -1619,8 +1620,10 @@ button {
   font-weight: 600;
 }
 
-.info-grid-table td:second-child {
+.info-grid-table td:nth-child(2) {
   color: #ffffff;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .info-grid-table .resume-support-no {
@@ -1654,10 +1657,8 @@ button {
 .speed-row-name {
   color: #e4e4e7;
   font-size: 13px;
-  max-width: 70%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .speed-row-val {
@@ -1815,10 +1816,8 @@ button {
   color: #ffffff;
   font-weight: 600;
   font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 300px;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .detail-status-label {

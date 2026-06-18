@@ -146,8 +146,8 @@ function StandaloneDialog({ kind, storageKey }: { kind: DialogKind; storageKey: 
     if (!element) return;
     const currentWindow = WebviewWindow.getCurrent();
     const resize = () => {
-      const height = Math.min(960, Math.max(220, Math.ceil(element.scrollHeight)));
-      void currentWindow.setSize(new LogicalSize(680, height));
+      const height = Math.min(960, Math.max(440, Math.ceil(element.scrollHeight)));
+      void currentWindow.setSize(new LogicalSize(850, height));
     };
     resize();
     const observer = new ResizeObserver(resize);
@@ -165,7 +165,7 @@ async function openDialogWindow(kind: DialogKind, group: BuildArtifactGroup, row
     const label = dialogWindowLabel(kind, group.id);
     const existing = await WebviewWindow.getByLabel(label);
     if (existing) { await existing.setFocus(); return true; }
-    new WebviewWindow(label, { url: `index.html?dialog=${kind}&key=${encodeURIComponent(dialogStorageKey(kind, group.id))}`, title: kind === "progress" ? `Download progress - ${group.buildId || group.input}` : `Download complete - ${group.buildId || group.input}`, width: kind === "progress" ? 680 : 460, height: kind === "progress" ? 300 : 320, center: true, resizable: true, decorations: true });
+    new WebviewWindow(label, { url: `index.html?dialog=${kind}&key=${encodeURIComponent(dialogStorageKey(kind, group.id))}`, title: kind === "progress" ? `Download progress - ${group.buildId || group.input}` : `Download complete - ${group.buildId || group.input}`, width: kind === "progress" ? 850 : 460, height: kind === "progress" ? 440 : 320, center: true, resizable: true, decorations: true });
     return true;
   } catch (error) { console.error(error); return false; }
 }
