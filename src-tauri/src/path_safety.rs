@@ -37,6 +37,6 @@ mod tests {
     #[test]
     fn sanitizes_output_path() {
         let path = output_path("/tmp/base", "../AP test.tar.md5");
-        assert_eq!(path, Path::new("/tmp/base/AP_test.tar.md5"));
+        assert_eq!(path, Path::new("/tmp/base").join("AP_test.tar.md5"));
     }
 }
