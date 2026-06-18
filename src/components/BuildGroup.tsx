@@ -18,7 +18,7 @@ export function BuildGroup({ group, rows, expanded, hideUncheckedArtifacts, onTo
   const hasRows = statuses.some(Boolean);
   const allSelected = artifacts.length > 0 && selected.length === artifacts.length;
   const visibleArtifacts = getVisibleArtifacts(group, hideUncheckedArtifacts);
-  const cardProgress = groupProgress(visibleArtifacts, rows);
+  const cardProgress = groupProgress(selected, rows);
   return (
     <article className={`build-group progress-${cardProgress.mode} ${group.error || failed ? "failed" : ""}`} style={{ "--card-progress": `${cardProgress.percent}%` } as CSSProperties}>
       <div className="group-header">

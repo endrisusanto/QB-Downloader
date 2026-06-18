@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { BuildArtifactGroup, Credentials, QuickBuildConfig } from "../types";
 import { normalizeGroup, prepareGroup, selectedArtifacts, splitBulkInput } from "../utils";
 
@@ -8,7 +8,18 @@ export function useBuilds(
   quickBuildConfig: QuickBuildConfig,
   selectedTypes: string[],
 ) {
-  const [groups, setGroups] = useState<BuildArtifactGroup[]>([]);
+  const [groups, setGroups] = useState<BuildArtifactGroup[]>(() => {
+    try {
+      const saved = localStorage.getItem("quickbuild-download-manager-groups");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem("quickbuild-download-manager-groups", JSON.stringify(groups));
+  }, [groups]);
   const [loadingInputs, setLoadingInputs] = useState<Set<string>>(new Set());
 
   const fetchInputs = useCallback(

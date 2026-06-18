@@ -31,7 +31,29 @@ let downloadHistoryCache: DownloadHistoryEntry[] | null = null;
 let historyFlushTimer: number | null = null;
 
 export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispatch<React.SetStateAction<BuildArtifactGroup[]>>) {
-  const [rows, setRows] = useState<Record<string, DownloadEvent>>({});
+  const [rows, setRows] = useState<Record<string, DownloadEvent>>(() => {
+    const initialRows: Record<string, DownloadEvent> = {};
+    const history = readDownloadHistory();
+    const sortedHistory = [...history].sort((a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime());
+    for (const entry of sortedHistory) {
+      const isInterrupted = entry.status === "downloading" || entry.status === "queued" || entry.status === "retrying";
+      initialRows[entry.artifactId] = {
+        jobId: entry.jobId,
+        artifactId: entry.artifactId,
+        buildId: entry.buildId,
+        name: entry.name,
+        status: isInterrupted ? "cancelled" : entry.status,
+        downloaded: entry.downloaded,
+        total: entry.total,
+        path: entry.path,
+        message: isInterrupted ? "Interrupted" : entry.message,
+        resumable: false,
+        attempt: 0,
+        maxAttempts: 4,
+      };
+    }
+    return initialRows;
+  });
   const [totalSpeed, setTotalSpeed] = useState(0);
   const [averageThreadSpeed, setAverageThreadSpeed] = useState(0);
   const [slotSpeeds, setSlotSpeeds] = useState<Record<string, number>>({});
