@@ -6,7 +6,10 @@
   "permissions": [
     "core:default",
     "core:webview:allow-create-webview-window",
+    "core:window:default",
     "core:window:allow-create",
+    "core:window:allow-close",
+    "core:window:allow-set-size",
     "dialog:default",
     "dialog:allow-open",
     "stronghold:default"
