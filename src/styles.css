@@ -696,8 +696,8 @@ button {
   min-height: 100vh;
   display: grid;
   align-content: start;
-  padding: 18px;
-  background: #f5f7fb;
+  padding: 0;
+  background: #18181c;
 }
 
 .dialog-window .progress-modal,
@@ -709,7 +709,7 @@ button {
 
 .dialog-window .progress-modal {
   height: auto;
-  max-height: calc(100vh - 36px);
+  max-height: none;
 }
 
 .dialog-window .complete-modal {
@@ -1537,14 +1537,12 @@ button {
 /* Screenshot Style Dialog UI */
 .modal.progress-modal.screenshot-style {
   background: #18181c;
-  border: 1px solid #2d2d34;
   color: #e4e4e7;
   padding: 0;
   overflow: hidden;
-  max-width: 680px;
+  max-width: 100%;
   width: 100%;
-  border-radius: 8px;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+  border-radius: 0;
 }
 
 .dialog-tabs {
@@ -1639,8 +1637,6 @@ button {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: 200px;
-  overflow-y: auto;
 }
 
 .speed-tab-row {
@@ -1782,8 +1778,6 @@ button {
 }
 
 .dialog-detail-table-wrapper {
-  max-height: 180px;
-  overflow-y: auto;
   border-top: 1px solid #2d2d34;
   background: #111113;
 }

@@ -146,7 +146,7 @@ function StandaloneDialog({ kind, storageKey }: { kind: DialogKind; storageKey: 
     if (!element) return;
     const currentWindow = WebviewWindow.getCurrent();
     const resize = () => {
-      const height = Math.min(700, Math.max(220, Math.ceil(element.scrollHeight + 36)));
+      const height = Math.min(960, Math.max(220, Math.ceil(element.scrollHeight)));
       void currentWindow.setSize(new LogicalSize(680, height));
     };
     resize();
