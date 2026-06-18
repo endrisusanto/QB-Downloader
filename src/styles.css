@@ -697,22 +697,41 @@ button {
 .dialog-window {
   min-height: 100vh;
   display: grid;
-  align-content: start;
-  padding: 0;
-  background: #18181c;
   overflow: hidden;
 }
 
-.dialog-window .progress-modal,
-.dialog-window .complete-modal {
+.dialog-window.dialog-window-progress {
+  align-content: start;
+  padding: 0;
+  background: #18181c;
+}
+
+.dialog-window.dialog-window-complete {
+  align-content: center;
+  justify-content: center;
+  padding: 24px;
+  background: #f5f7fb;
+}
+
+[data-theme="dark"] .dialog-window.dialog-window-complete {
+  background: #141416;
+}
+
+.dialog-window.dialog-window-progress .progress-modal {
   width: 100%;
   max-height: none;
+  height: auto;
   box-shadow: none;
 }
 
-.dialog-window .progress-modal {
-  height: auto;
+.dialog-window.dialog-window-complete .complete-modal {
+  width: 412px;
   max-height: none;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="dark"] .dialog-window.dialog-window-complete .complete-modal {
+  box-shadow: 0 18px 70px rgba(0, 0, 0, 0.36);
 }
 
 .dialog-window .complete-modal {

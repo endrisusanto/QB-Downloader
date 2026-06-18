@@ -164,9 +164,9 @@ function StandaloneDialog({ kind, storageKey }: { kind: DialogKind; storageKey: 
     observer.observe(element);
     return () => observer.disconnect();
   }, [kind, snapshot]);
-  if (!snapshot) return <main className="dialog-window"><div className="empty-state compact"><h1>Dialog data expired</h1></div></main>;
+  if (!snapshot) return <main className={`dialog-window dialog-window-${kind}`} data-theme={darkMode ? "dark" : "light"}><div className="empty-state compact"><h1>Dialog data expired</h1></div></main>;
   const close = () => WebviewWindow.getCurrent().close();
-  return <main className="dialog-window" data-theme={darkMode ? "dark" : "light"}>{kind === "progress" ? <ProgressDialog group={snapshot.group} rows={snapshot.rows} slotSpeeds={snapshot.slotSpeeds || {}} onClose={close} embedded /> : <CompleteDialog group={snapshot.group} rows={snapshot.rows} onClose={close} onOpenFolder={() => openCompletedFolder(snapshot.group, snapshot.rows)} embedded />}</main>;
+  return <main className={`dialog-window dialog-window-${kind}`} data-theme={darkMode ? "dark" : "light"}>{kind === "progress" ? <ProgressDialog group={snapshot.group} rows={snapshot.rows} slotSpeeds={snapshot.slotSpeeds || {}} onClose={close} embedded /> : <CompleteDialog group={snapshot.group} rows={snapshot.rows} onClose={close} onOpenFolder={() => openCompletedFolder(snapshot.group, snapshot.rows)} embedded />}</main>;
 }
 
 async function openDialogWindow(kind: DialogKind, group: BuildArtifactGroup, rows: ReturnType<typeof useDownload>["rows"], slotSpeeds: Record<string, number> = {}) {
