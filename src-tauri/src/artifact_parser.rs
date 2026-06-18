@@ -73,6 +73,27 @@ pub fn parse_version(build_response: &str) -> Option<String> {
     Some(clean_html_string(&raw))
 }
 
+pub fn parse_build_status(build_response: &str) -> Option<String> {
+    let raw = extract_xml_tag(build_response, "status")
+        .or_else(|| {
+            serde_json::from_str::<Value>(build_response)
+                .ok()
+                .and_then(|json| {
+                    ["status", "buildStatus", "state", "result"]
+                        .iter()
+                        .find_map(|key| json.get(*key).and_then(Value::as_str).map(str::to_string))
+                })
+        })
+        .or_else(|| {
+            Regex::new(r"(?i)\bstatus\s*[:=]\s*([A-Z_ -]+)")
+                .ok()
+                .and_then(|re| re.captures(build_response))
+                .and_then(|captures| captures.get(1).map(|m| m.as_str().to_string()))
+        })?;
+    let status = clean_html_string(&raw).to_ascii_uppercase();
+    (!status.is_empty()).then_some(status)
+}
+
 pub fn parse_artifacts(build_id: &str, response: &str) -> Vec<Artifact> {
     if let Ok(json) = serde_json::from_str::<Value>(response) {
         let mut artifacts = Vec::new();
@@ -253,6 +274,18 @@ mod tests {
         assert_eq!(
             parse_version(response_xml),
             Some("[merge S110733366 V110733367] Automated SMR Server Build".to_string())
+        );
+    }
+
+    #[test]
+    fn parses_build_status_from_xml_and_json() {
+        assert_eq!(
+            parse_build_status("<build><status>RUNNING</status></build>").as_deref(),
+            Some("RUNNING")
+        );
+        assert_eq!(
+            parse_build_status(r#"{"buildStatus":"SUCCESSFUL"}"#).as_deref(),
+            Some("SUCCESSFUL")
         );
     }
 }

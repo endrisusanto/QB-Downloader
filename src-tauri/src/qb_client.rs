@@ -1,4 +1,4 @@
-use crate::artifact_parser::{parse_artifacts, parse_build_id, parse_version};
+use crate::artifact_parser::{parse_artifacts, parse_build_id, parse_build_status, parse_version};
 use crate::types::{
     BuildArtifactGroup, Credentials, QuickBuildConfig, TokenTestAttempt, TokenTestResult,
 };
@@ -45,6 +45,10 @@ impl QbClient {
         self.validate_credentials()?;
         let build_id = parse_build_id(input).ok_or(QbError::InvalidBuildId)?;
 
+        if self.is_build_running(&build_id).await? {
+            return Ok(running_group(input, &build_id));
+        }
+
         let build_info = match self.send_rest(&format!("/builds/{build_id}")).await {
             Ok(text) => text,
             Err(QbError::BuildRunning) => {
@@ -53,6 +57,9 @@ impl QbClient {
             Err(err) => return Err(err),
         };
         let version = parse_version(&build_info);
+        if is_running_status(parse_build_status(&build_info).as_deref()) {
+            return Ok(running_group(input, &build_id));
+        }
 
         let mut artifact_text = String::new();
         for path in [
@@ -167,6 +174,18 @@ impl QbClient {
         Ok(text)
     }
 
+    async fn is_build_running(&self, build_id: &str) -> Result<bool, QbError> {
+        match self.send_rest(&format!("/builds/{build_id}/status")).await {
+            Ok(text) => Ok(is_running_status(parse_build_status(&text).as_deref())
+                || is_running_status(Some(text.trim()))),
+            Err(QbError::NotFound) => Ok(false),
+            Err(QbError::BuildRunning) => Ok(true),
+            Err(QbError::Unauthorized) => Err(QbError::Unauthorized),
+            Err(QbError::Forbidden) => Err(QbError::Forbidden),
+            Err(_) => Ok(false),
+        }
+    }
+
     fn validate_credentials(&self) -> Result<(), QbError> {
         if self.credentials.username.trim().is_empty()
             || self.credentials.access_token.trim().is_empty()
@@ -222,9 +241,20 @@ fn map_status_with_body(status: StatusCode, body: &str) -> Result<(), QbError> {
 
 fn is_build_running_response(body: &str) -> bool {
     let normalized = body.to_ascii_lowercase();
+    if is_running_status(parse_build_status(body).as_deref()) {
+        return true;
+    }
     normalized.contains("build is running")
         || normalized.contains("build still running")
         || normalized.contains("build is still running")
+        || normalized.trim() == "running"
+}
+
+fn is_running_status(status: Option<&str>) -> bool {
+    matches!(
+        status.map(|value| value.trim().to_ascii_uppercase()),
+        Some(value) if value == "RUNNING" || value == "BUILDING" || value == "QUEUED"
+    )
 }
 
 fn running_group(input: &str, build_id: &str) -> BuildArtifactGroup {
@@ -278,5 +308,13 @@ mod tests {
             ),
             Err(QbError::BuildRunning)
         ));
+    }
+
+    #[test]
+    fn recognizes_running_status_values_from_qd_flow() {
+        assert!(is_running_status(Some("RUNNING")));
+        assert!(is_running_status(Some(" building ")));
+        assert!(!is_running_status(Some("SUCCESSFUL")));
+        assert!(!is_running_status(None));
     }
 }
