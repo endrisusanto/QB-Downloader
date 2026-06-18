@@ -707,10 +707,10 @@ button {
 }
 
 .dialog-window.dialog-window-complete {
-  align-content: center;
-  justify-content: center;
-  padding: 24px;
-  background: #f5f7fb;
+  align-content: stretch;
+  justify-content: stretch;
+  padding: 0;
+  background: #ffffff;
 }
 
 [data-theme="dark"] .dialog-window.dialog-window-complete {
@@ -725,18 +725,17 @@ button {
 }
 
 .dialog-window.dialog-window-complete .complete-modal {
-  width: 412px;
+  width: 100%;
+  height: 100%;
   max-height: none;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
-}
-
-[data-theme="dark"] .dialog-window.dialog-window-complete .complete-modal {
-  box-shadow: 0 18px 70px rgba(0, 0, 0, 0.36);
-}
-
-.dialog-window .complete-modal {
-  align-self: center;
-  justify-self: center;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: 24px;
+  align-content: center;
+  justify-content: center;
+  align-self: stretch;
+  justify-self: stretch;
 }
 
 .settings-modal {
