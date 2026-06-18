@@ -287,8 +287,14 @@ export function classifyGroups(groups: BuildArtifactGroup[], rows: Record<string
   const completed: BuildArtifactGroup[] = [];
   const failed: BuildArtifactGroup[] = [];
   for (const group of groups) {
-    fetched.push(group);
     const selected = selectedArtifacts(group);
+    const hasActiveOrFinished = selected.some((a) => {
+      const status = rows[a.id]?.status;
+      return status === "queued" || status === "downloading" || status === "retrying" || status === "completed" || status === "failed";
+    });
+    if (!hasActiveOrFinished) {
+      fetched.push(group);
+    }
     
     const failedSelected = selected.filter((a) => rows[a.id]?.status === "failed");
     if (failedSelected.length > 0) {

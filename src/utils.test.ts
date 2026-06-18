@@ -53,8 +53,7 @@ describe("download state", () => {
     expect(categories.completed[0].artifacts).toHaveLength(1);
     expect(categories.completed[0].artifacts[0].id).toBe("a");
 
-    expect(categories.fetched).toHaveLength(1);
-    expect(categories.fetched[0].artifacts).toHaveLength(2);
+    expect(categories.fetched).toHaveLength(0);
   });
 
   it("aggregates raw bytes over five seconds and becomes idle", () => {
