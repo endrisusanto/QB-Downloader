@@ -52,10 +52,13 @@ function AppContent() {
         activeSubscriptionsRef.current.add(event.data.key);
       } else if (event.data?.type === "unsubscribe") {
         activeSubscriptionsRef.current.delete(event.data.key);
+      } else if (event.data?.type === "cancel") {
+        const target = builds.groups.find((g) => g.id === event.data.groupId);
+        if (target) void downloads.cancel(target);
       }
     };
     return () => channel.close();
-  }, []);
+  }, [builds.groups, downloads]);
 
   useEffect(() => {
     for (const group of builds.groups) {
@@ -116,7 +119,7 @@ function AppContent() {
       <section className="content-area">{builds.groups.length === 0 && builds.loadingInputs.size === 0 ? <div className="empty-state"><img src="/quickbuild-logo.svg" alt="" /><h1>QuickBuild downloads</h1><p>Paste a build ID or URL to fetch artifacts.</p></div> : <TaskAccordions categories={categoryRecord} loadingInputs={builds.loadingInputs} rows={downloads.rows} sections={sections} buildExpanded={buildExpanded} hideUncheckedArtifacts={settings.hideUncheckedArtifacts} onSection={(key) => setSections((current) => ({ ...current, [key]: !current[key] }))} onToggleAllBuilds={toggleAllBuilds} onToggleCategoryBuilds={toggleCategoryBuilds} onBuildExpanded={(id) => setBuildExpanded((current) => ({ ...current, [id]: !(current[id] ?? globalExpanded) }))} onToggleArtifact={builds.toggleArtifact} onToggleGroup={builds.setGroupSelection} onToggleFetched={(selected) => builds.setGroupsSelection(categoryRecord.fetched, selected)} onDownload={(group) => void start(group)} onDownloadFetched={() => void Promise.all(categoryRecord.fetched.filter((group) => selectedArtifacts(group).length).map(start))} onCancel={(group) => void downloads.cancel(group)} onRetry={(group) => void downloads.retry(group)} onRemove={(group) => void remove(group)} onProgress={(group) => void openDialogWindow("progress", group, downloads.rows, downloads.slotSpeeds).then((opened) => { if (!opened) setProgressGroup(group); })} />}</section>
       {settingsOpen && <SettingsModal value={settings} secureError={settingsError} onSave={saveSettings} onClose={() => setSettingsOpen(false)} onPickFolder={() => invoke<string | null>("pick_download_dir")} />}
       {bulkOpen && <BulkEntryModal onClose={() => setBulkOpen(false)} onSubmit={(value) => void submit(value)} />}
-      {progressGroup && <ProgressDialog group={progressGroup} rows={downloads.rows} slotSpeeds={downloads.slotSpeeds} onClose={() => setProgressGroup(null)} />}
+      {progressGroup && <ProgressDialog group={progressGroup} rows={downloads.rows} slotSpeeds={downloads.slotSpeeds} onClose={() => setProgressGroup(null)} onCancel={() => void downloads.cancel(progressGroup)} />}
       {completeGroup && <CompleteDialog group={completeGroup} rows={downloads.rows} onClose={() => setCompleteGroup(null)} onOpenFolder={() => openCompletedFolder(completeGroup, downloads.rows)} />}
     </main>
   );
