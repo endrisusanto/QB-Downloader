@@ -42,6 +42,8 @@ export function normalizeGroup(raw: BuildArtifactGroup, fallbackInput: string): 
     status: raw?.status || "ready",
     version: raw?.version,
     error: raw?.error,
+    lastCheckedAt: raw?.lastCheckedAt,
+    nextCheckAt: raw?.nextCheckAt,
     artifacts: (Array.isArray(raw?.artifacts) ? raw.artifacts : [])
       .map((artifact, index) => normalizeArtifact(artifact, buildId, index))
       .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })),

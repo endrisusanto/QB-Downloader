@@ -17,6 +17,8 @@ pub enum QbError {
     Forbidden,
     #[error("Can not find the build.")]
     NotFound,
+    #[error("Build is still running. QB Downloader will keep checking until artifacts are ready.")]
+    BuildRunning,
     #[error("Network error: {0}")]
     Network(String),
     #[error("{0}")]
@@ -43,7 +45,13 @@ impl QbClient {
         self.validate_credentials()?;
         let build_id = parse_build_id(input).ok_or(QbError::InvalidBuildId)?;
 
-        let build_info = self.send_rest(&format!("/builds/{build_id}")).await?;
+        let build_info = match self.send_rest(&format!("/builds/{build_id}")).await {
+            Ok(text) => text,
+            Err(QbError::BuildRunning) => {
+                return Ok(running_group(input, &build_id));
+            }
+            Err(err) => return Err(err),
+        };
         let version = parse_version(&build_info);
 
         let mut artifact_text = String::new();
@@ -55,6 +63,9 @@ impl QbClient {
                 Ok(text) => {
                     artifact_text.push('\n');
                     artifact_text.push_str(&text);
+                }
+                Err(QbError::BuildRunning) => {
+                    return Ok(running_group(input, &build_id));
                 }
                 Err(QbError::NotFound) => {}
                 Err(err) => return Err(err),
@@ -147,11 +158,13 @@ impl QbClient {
             .await
             .map_err(|err| QbError::Network(err.to_string()))?;
 
-        map_status(response.status())?;
-        response
+        let status = response.status();
+        let text = response
             .text()
             .await
-            .map_err(|err| QbError::Network(err.to_string()))
+            .map_err(|err| QbError::Network(err.to_string()))?;
+        map_status_with_body(status, &text)?;
+        Ok(text)
     }
 
     fn validate_credentials(&self) -> Result<(), QbError> {
@@ -189,14 +202,40 @@ fn username_candidates(username: &str) -> Vec<String> {
 }
 
 pub fn map_status(status: StatusCode) -> Result<(), QbError> {
+    map_status_with_body(status, "")
+}
+
+fn map_status_with_body(status: StatusCode, body: &str) -> Result<(), QbError> {
     match status {
         StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(()),
         StatusCode::UNAUTHORIZED => Err(QbError::Unauthorized),
         StatusCode::FORBIDDEN => Err(QbError::Forbidden),
         StatusCode::NOT_FOUND => Err(QbError::NotFound),
+        StatusCode::INTERNAL_SERVER_ERROR if is_build_running_response(body) => {
+            Err(QbError::BuildRunning)
+        }
         other => Err(QbError::Other(format!(
             "QuickBuild server returned HTTP {other}."
         ))),
+    }
+}
+
+fn is_build_running_response(body: &str) -> bool {
+    let normalized = body.to_ascii_lowercase();
+    normalized.contains("build is running")
+        || normalized.contains("build still running")
+        || normalized.contains("build is still running")
+}
+
+fn running_group(input: &str, build_id: &str) -> BuildArtifactGroup {
+    BuildArtifactGroup {
+        id: uuid::Uuid::new_v4().to_string(),
+        input: input.to_string(),
+        build_id: Some(build_id.to_string()),
+        status: "watching".to_string(),
+        version: None,
+        artifacts: Vec::new(),
+        error: None,
     }
 }
 
@@ -224,5 +263,20 @@ mod tests {
             "/ids?user_name=endri.s&token"
         );
         assert_eq!(append_qb_suffix("/builds/123", ""), "/builds/123");
+    }
+
+    #[test]
+    fn treats_running_build_500_as_watchable_state() {
+        assert!(matches!(
+            map_status(StatusCode::INTERNAL_SERVER_ERROR),
+            Err(QbError::Other(_))
+        ));
+        assert!(matches!(
+            map_status_with_body(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "The build is running. Please try later."
+            ),
+            Err(QbError::BuildRunning)
+        ));
     }
 }

@@ -30,6 +30,8 @@ export type BuildArtifactGroup = {
   version?: string;
   artifacts: Artifact[];
   error?: string;
+  lastCheckedAt?: string;
+  nextCheckAt?: string;
 };
 
 export type DownloadStatus =

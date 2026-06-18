@@ -144,7 +144,8 @@ impl DownloadManager {
                         ),
                     );
                 } else {
-                    download_with_retry(app, http, job_id.clone(), request, control, artifact).await;
+                    download_with_retry(app, http, job_id.clone(), request, control, artifact)
+                        .await;
                 }
 
                 if remaining.fetch_sub(1, Ordering::AcqRel) == 1 {

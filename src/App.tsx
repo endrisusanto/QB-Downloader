@@ -82,6 +82,19 @@ function AppContent() {
     }
   }, [buildExpanded, builds.groups, downloads.rows, downloads.slotSpeeds, globalExpanded, settings.showCompleteDialog]);
 
+  useEffect(() => {
+    if (builds.readyAutoDownloads.size === 0) return;
+    if (!settings.downloadTargetDir) {
+      setSettingsOpen(true);
+      return;
+    }
+    for (const groupId of builds.readyAutoDownloads) {
+      const group = builds.groups.find((item) => item.id === groupId);
+      if (!group || group.status === "watching" || selectedArtifacts(group).length === 0) continue;
+      builds.consumeReadyAutoDownload(groupId);
+      void start(group);
+    }
+  }, [builds, credentials, config, downloads, settings.downloadTargetDir, settings.maxConcurrent]);
 
   if (settingsLoading) return <main className="app-shell"><div className="empty-state"><span className="spinner" /><h1>Unlocking secure settings</h1></div></main>;
 

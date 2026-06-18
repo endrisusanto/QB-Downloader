@@ -13,23 +13,29 @@ export function BuildGroup({ group, rows, expanded, hideUncheckedArtifacts, onTo
   const artifacts = group.artifacts;
   const selected = selectedArtifacts(group);
   const statuses = selected.map((artifact) => rows[artifact.id]?.status);
+  const watching = group.status === "watching";
   const active = statuses.some((status) => status === "queued" || status === "downloading" || status === "retrying");
   const failed = statuses.includes("failed");
   const hasRows = statuses.some(Boolean);
   const allSelected = artifacts.length > 0 && selected.length === artifacts.length;
   const visibleArtifacts = getVisibleArtifacts(group, hideUncheckedArtifacts);
   const cardProgress = groupProgress(selected, rows);
+  const nextCheck = group.nextCheckAt ? new Date(group.nextCheckAt).toLocaleTimeString() : "";
+  const subtitle = watching
+    ? `Build is running. Waiting for artifacts${nextCheck ? ` - next check ${nextCheck}` : ""}.`
+    : group.error || `${selected.length}/${artifacts.length} selected${group.version ? ` - ${group.version}` : ""}`;
   return (
-    <article className={`build-group progress-${cardProgress.mode} ${group.error || failed ? "failed" : ""}`} style={{ "--card-progress": `${cardProgress.percent}%` } as CSSProperties}>
+    <article className={`build-group progress-${cardProgress.mode} ${watching ? "watching" : ""} ${group.error || failed ? "failed" : ""}`} style={{ "--card-progress": `${cardProgress.percent}%` } as CSSProperties}>
       <div className="group-header">
         <button className="ghost-icon" title={expanded ? "Collapse build" : "Expand build"} onClick={onToggleExpanded}>{expanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}</button>
-        <div className="group-title"><strong>{group.buildId || group.input}</strong><span>{group.error || `${selected.length}/${artifacts.length} selected${group.version ? ` - ${group.version}` : ""}`}</span></div>
+        <div className="group-title"><strong>{group.buildId || group.input}</strong><span>{subtitle}</span></div>
         <div className="group-actions">
-          {!active && artifacts.length > 0 && <button className={`secondary-button compact selection-toggle ${allSelected ? "selected" : ""}`} aria-pressed={allSelected} onClick={() => onToggleAll(!allSelected)}><Check size={15} />{allSelected ? "Deselect all" : "Select all"}</button>}
+          {watching && <span className="watching-status"><span className="spinner" />Waiting</span>}
+          {!watching && !active && artifacts.length > 0 && <button className={`secondary-button compact selection-toggle ${allSelected ? "selected" : ""}`} aria-pressed={allSelected} onClick={() => onToggleAll(!allSelected)}><Check size={15} />{allSelected ? "Deselect all" : "Select all"}</button>}
           {hasRows && <button className="icon-button" title="Open progress" onClick={onProgress}><Activity size={16} /></button>}
           {failed && <button className="icon-button" title="Retry download" onClick={onRetry}><RefreshCcw size={16} /></button>}
           {active && <button className="icon-button danger" title="Cancel download" onClick={onCancel}><X size={16} /></button>}
-          {!active && !failed && <button className="primary-button icon-only" title="Download selected artifacts" disabled={Boolean(group.error) || selected.length === 0} onClick={onDownload}><Download size={16} /></button>}
+          {!watching && !active && !failed && <button className="primary-button icon-only" title="Download selected artifacts" disabled={Boolean(group.error) || selected.length === 0} onClick={onDownload}><Download size={16} /></button>}
           <button className="icon-button" title="Delete build" onClick={onRemove}><Trash2 size={16} /></button>
         </div>
       </div>
