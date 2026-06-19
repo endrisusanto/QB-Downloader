@@ -87,11 +87,9 @@ describe("progress and visibility", () => {
     expect(statusLabel({ status: "downloading", downloaded: 25 })).toBe("downloading");
   });
 
-  it("hides unchecked artifacts without changing selection", () => {
-    expect(visibleArtifacts(group, true).map((artifact) => artifact.id)).toEqual(["a", "b"]);
-    const mixed = { ...group, artifacts: group.artifacts.map((artifact, index) => ({ ...artifact, selected: index === 0 })) };
-    expect(visibleArtifacts(mixed, true).map((artifact) => artifact.id)).toEqual(["a"]);
-    expect(mixed.artifacts[1].selected).toBe(false);
+  it("filters visible artifacts based on active filters", () => {
+    expect(visibleArtifacts(group, ["ALL_", "AP_"]).map((artifact) => artifact.id)).toEqual(["a", "b"]);
+    expect(visibleArtifacts(group, ["ALL_"]).map((artifact) => artifact.id)).toEqual(["a"]);
   });
 
   it("treats mixed accordion state as expand next", () => {

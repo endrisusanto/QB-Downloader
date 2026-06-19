@@ -9,6 +9,7 @@ export function useBuilds(
   credentials: Credentials,
   quickBuildConfig: QuickBuildConfig,
   selectedTypes: string[],
+  autoCheck: boolean,
 ) {
   const [groups, setGroups] = useState<BuildArtifactGroup[]>(() => {
     try {
@@ -46,7 +47,7 @@ export function useBuilds(
                 credentials,
                 quickBuildConfig,
               });
-        const prepared = results.map((group, index) => prepareFetchedGroup(group, inputs[index] || "bulk", selectedTypes));
+        const prepared = results.map((group, index) => prepareFetchedGroup(group, inputs[index] || "bulk", selectedTypes, autoCheck));
         setGroups((current) => prepared.reduce(upsertGroup, current));
       } catch (error) {
         setGroups((current) => [
@@ -67,7 +68,7 @@ export function useBuilds(
         });
       }
     },
-    [credentials, quickBuildConfig, selectedTypes],
+    [credentials, quickBuildConfig, selectedTypes, autoCheck],
   );
 
   const refreshWatchingBuild = useCallback(async (group: BuildArtifactGroup) => {
@@ -80,7 +81,7 @@ export function useBuilds(
         credentials,
         quickBuildConfig,
       });
-      const prepared = prepareFetchedGroup(result, input, group.customFilters || selectedTypes);
+      const prepared = prepareFetchedGroup(result, input, group.customFilters || selectedTypes, autoCheck);
       const now = new Date().toISOString();
       setGroups((current) => {
         const existing = current.find((item) => sameIdentity(item, group));
@@ -112,7 +113,7 @@ export function useBuilds(
     } finally {
       pollingInputs.current.delete(input);
     }
-  }, [credentials, quickBuildConfig, selectedTypes]);
+  }, [credentials, quickBuildConfig, selectedTypes, autoCheck]);
 
   useEffect(() => {
     const tick = () => {
@@ -222,8 +223,8 @@ function upsertGroup(groups: BuildArtifactGroup[], group: BuildArtifactGroup) {
   return groups.map((item, index) => (index === existing ? { ...group, id: item.id } : item));
 }
 
-function prepareFetchedGroup(group: BuildArtifactGroup, fallbackInput: string, selectedTypes: string[]) {
-  const prepared = prepareGroup(normalizeGroup(group, fallbackInput), selectedTypes);
+function prepareFetchedGroup(group: BuildArtifactGroup, fallbackInput: string, selectedTypes: string[], autoCheck: boolean) {
+  const prepared = prepareGroup(normalizeGroup(group, fallbackInput), selectedTypes, autoCheck);
   if (prepared.status !== "watching") return prepared;
   return {
     ...prepared,

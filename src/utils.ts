@@ -69,13 +69,13 @@ function normalizeArtifactKind(kind: unknown): ArtifactKind {
     : "other";
 }
 
-export function prepareGroup(group: BuildArtifactGroup, filters: string[]): BuildArtifactGroup {
+export function prepareGroup(group: BuildArtifactGroup, filters: string[], autoCheck: boolean): BuildArtifactGroup {
   const enabled = new Set(filters);
   return {
     ...group,
     artifacts: group.artifacts.map((artifact) => ({
       ...artifact,
-      selected: filterForKind(artifact.kind, artifact.name, enabled),
+      selected: autoCheck ? filterForKind(artifact.kind, artifact.name, enabled) : false,
     })),
   };
 }
@@ -90,8 +90,9 @@ export function selectedArtifacts(group: BuildArtifactGroup) {
   return group.artifacts.filter((artifact) => artifact.selected);
 }
 
-export function visibleArtifacts(group: BuildArtifactGroup, hideUnchecked: boolean) {
-  return hideUnchecked ? selectedArtifacts(group) : group.artifacts;
+export function visibleArtifacts(group: BuildArtifactGroup, filters: string[]) {
+  const enabled = new Set(filters);
+  return group.artifacts.filter((artifact) => filterForKind(artifact.kind, artifact.name, enabled));
 }
 
 export function areAllBuildsExpanded(groupIds: string[], expanded: Record<string, boolean>) {

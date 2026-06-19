@@ -4,9 +4,9 @@ import type { Artifact, BuildArtifactGroup, DownloadEvent } from "../types";
 import { formatBytes, groupProgress, kindLabel, progressState, selectedArtifacts, statusLabel, visibleArtifacts as getVisibleArtifacts } from "../utils";
 import { ProgressBar } from "./ProgressBar";
 
-export function BuildGroup({ group, rows, expanded, hideUncheckedArtifacts, onToggleExpanded, onToggleArtifact, onToggleAll, onDownload, onCancel, onRetry, onRemove, onProgress, onConfigureFilters, onDownloadArtifact, onRemoveArtifact }: {
+export function BuildGroup({ group, rows, expanded, filters, onToggleExpanded, onToggleArtifact, onToggleAll, onDownload, onCancel, onRetry, onRemove, onProgress, onConfigureFilters, onDownloadArtifact, onRemoveArtifact }: {
   group: BuildArtifactGroup; rows: Record<string, DownloadEvent>; expanded: boolean;
-  hideUncheckedArtifacts: boolean;
+  filters: string[];
   onToggleExpanded: () => void; onToggleArtifact: (id: string) => void; onToggleAll: (selected: boolean) => void;
   onDownload: () => void; onCancel: () => void; onRetry: () => void; onRemove: () => void; onProgress: () => void;
   onConfigureFilters?: () => void;
@@ -23,7 +23,7 @@ export function BuildGroup({ group, rows, expanded, hideUncheckedArtifacts, onTo
   const hasFailed = statuses.includes("failed");
   const hasRows = statuses.some(Boolean);
   const allSelected = artifacts.length > 0 && selected.length === artifacts.length;
-  const visibleArtifacts = getVisibleArtifacts(group, hideUncheckedArtifacts);
+  const visibleArtifacts = getVisibleArtifacts(group, filters);
   const cardProgress = groupProgress(selected, rows);
   const nextCheck = group.nextCheckAt ? new Date(group.nextCheckAt).toLocaleTimeString() : "";
   const subtitle = watching
