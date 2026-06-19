@@ -4,13 +4,14 @@ import type { Artifact, BuildArtifactGroup, DownloadEvent } from "../types";
 import { formatBytes, groupProgress, kindLabel, progressState, selectedArtifacts, statusLabel, visibleArtifacts as getVisibleArtifacts } from "../utils";
 import { ProgressBar } from "./ProgressBar";
 
-export function BuildGroup({ group, rows, expanded, hideUncheckedArtifacts, onToggleExpanded, onToggleArtifact, onToggleAll, onDownload, onCancel, onRetry, onRemove, onProgress, onConfigureFilters, onDownloadArtifact }: {
+export function BuildGroup({ group, rows, expanded, hideUncheckedArtifacts, onToggleExpanded, onToggleArtifact, onToggleAll, onDownload, onCancel, onRetry, onRemove, onProgress, onConfigureFilters, onDownloadArtifact, onRemoveArtifact }: {
   group: BuildArtifactGroup; rows: Record<string, DownloadEvent>; expanded: boolean;
   hideUncheckedArtifacts: boolean;
   onToggleExpanded: () => void; onToggleArtifact: (id: string) => void; onToggleAll: (selected: boolean) => void;
   onDownload: () => void; onCancel: () => void; onRetry: () => void; onRemove: () => void; onProgress: () => void;
   onConfigureFilters?: () => void;
   onDownloadArtifact?: (artifact: Artifact) => void;
+  onRemoveArtifact?: (artifactId: string) => void;
 }) {
   const artifacts = group.artifacts;
   const selected = selectedArtifacts(group);
@@ -89,6 +90,15 @@ export function BuildGroup({ group, rows, expanded, hideUncheckedArtifacts, onTo
                       onClick={() => onDownloadArtifact(artifact)}
                     >
                       <Download size={14} />
+                    </button>
+                  )}
+                  {onRemoveArtifact && (
+                    <button
+                      className="icon-button compact-icon danger-icon"
+                      title="Delete this artifact"
+                      onClick={() => onRemoveArtifact(artifact.id)}
+                    >
+                      <Trash2 size={14} />
                     </button>
                   )}
                 </div>

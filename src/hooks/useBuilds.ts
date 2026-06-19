@@ -186,6 +186,19 @@ export function useBuilds(
     setGroups((current) => current.filter((group) => group.id !== groupId));
   }, []);
 
+  const removeArtifact = useCallback((groupId: string, artifactId: string) => {
+    setGroups((current) =>
+      current.map((group) =>
+        group.id === groupId
+          ? {
+              ...group,
+              artifacts: group.artifacts.filter((artifact) => artifact.id !== artifactId),
+            }
+          : group,
+      ),
+    );
+  }, []);
+
   return {
     groups,
     setGroups,
@@ -197,6 +210,7 @@ export function useBuilds(
     setGroupsSelection,
     toggleArtifact,
     removeGroup,
+    removeArtifact,
     setCustomFilters,
   };
 }

@@ -122,6 +122,20 @@ async fn secure_vault_password() -> Result<String, String> {
         .map_err(|err| err.to_string())
 }
 
+#[tauri::command]
+async fn delete_file(path: String) -> Result<(), String> {
+    let p = std::path::Path::new(&path);
+    if p.exists() {
+        std::fs::remove_file(p).map_err(|err| err.to_string())?;
+    }
+    let part_path = format!("{}.part", path);
+    let part_p = std::path::Path::new(&part_path);
+    if part_p.exists() {
+        std::fs::remove_file(part_p).map_err(|err| err.to_string())?;
+    }
+    Ok(())
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -184,7 +198,8 @@ pub fn run() {
             retry_download,
             pick_download_dir,
             open_folder,
-            secure_vault_password
+            secure_vault_password,
+            delete_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
