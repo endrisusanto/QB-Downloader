@@ -33,3 +33,6 @@ Thumbs.db
 
 # Reverse-engineering source binary kept out of git by default
 QD.exe
+
+# Local portable Node
+.node/

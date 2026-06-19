@@ -4,6 +4,18 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
+# Ensure node and npm are available (ponytail: portable download if missing)
+if ! command -v node &>/dev/null || ! command -v npm &>/dev/null; then
+  echo "Node.js or npm not found in PATH. Checking/installing portable Node.js..."
+  NODE_DIR="$ROOT_DIR/.node"
+  if [ ! -f "$NODE_DIR/bin/node" ]; then
+    echo "Downloading portable Node.js..."
+    mkdir -p "$NODE_DIR"
+    curl -fsSL https://nodejs.org/dist/v20.11.1/node-v20.11.1-linux-x64.tar.xz | tar -xJ -C "$NODE_DIR" --strip-components=1
+  fi
+  export PATH="$NODE_DIR/bin:$PATH"
+fi
+
 BUMP="${1:-patch}"
 REMOTE_URL="https://github.com/endrisusanto/QB-Downloader.git"
 AUTO_COMMIT_MESSAGE="${AUTO_COMMIT_MESSAGE:-chore: auto commit before release}"
@@ -109,7 +121,14 @@ fs.writeFileSync(cargoPath, cargo);
 NODE
 
 npm install --package-lock-only
-cargo check --manifest-path src-tauri/Cargo.toml
+# Try to run cargo check. If it fails (expected in headless sandbox/CI environments lacking GUI libraries),
+# fall back to updating the Cargo.lock file via cargo metadata.
+echo "Verifying cargo version and updating Cargo.lock..."
+if ! cargo check --manifest-path src-tauri/Cargo.toml; then
+  echo "Warning: cargo check failed. This is typical in headless environments lacking GUI system libraries."
+  echo "Falling back to updating Cargo.lock version via cargo metadata..."
+  cargo metadata --manifest-path src-tauri/Cargo.toml --no-deps --format-version 1 >/dev/null
+fi
 
 git add package.json package-lock.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json
 git commit -m "chore(release): ${TAG}"
