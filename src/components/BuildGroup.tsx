@@ -19,6 +19,8 @@ export function BuildGroup({ group, rows, expanded, hideUncheckedArtifacts, onTo
   const watching = group.status === "watching";
   const active = statuses.some((status) => status === "queued" || status === "downloading" || status === "retrying");
   const failed = statuses.includes("failed");
+  const hasCompleted = statuses.includes("completed");
+  const hasFailed = statuses.includes("failed");
   const hasRows = statuses.some(Boolean);
   const allSelected = artifacts.length > 0 && selected.length === artifacts.length;
   const visibleArtifacts = getVisibleArtifacts(group, hideUncheckedArtifacts);
@@ -43,7 +45,7 @@ export function BuildGroup({ group, rows, expanded, hideUncheckedArtifacts, onTo
               )}
             </>
           )}
-          {!watching && !active && artifacts.length > 0 && <button className={`secondary-button compact selection-toggle ${allSelected ? "selected" : ""}`} aria-pressed={allSelected} onClick={() => onToggleAll(!allSelected)}><Check size={15} />{allSelected ? "Deselect all" : "Select all"}</button>}
+          {!watching && !active && !hasCompleted && !hasFailed && artifacts.length > 0 && <button className={`secondary-button compact selection-toggle ${allSelected ? "selected" : ""}`} aria-pressed={allSelected} onClick={() => onToggleAll(!allSelected)}><Check size={15} />{allSelected ? "Deselect all" : "Select all"}</button>}
           {hasRows && <button className="icon-button" title="Open progress" onClick={onProgress}><Activity size={16} /></button>}
           {failed && <button className="icon-button" title="Retry download" onClick={onRetry}><RefreshCcw size={16} /></button>}
           {active && <button className="icon-button danger" title="Cancel download" onClick={onCancel}><X size={16} /></button>}
@@ -59,8 +61,8 @@ export function BuildGroup({ group, rows, expanded, hideUncheckedArtifacts, onTo
             const isDownloading = rowStatus === "queued" || rowStatus === "downloading" || rowStatus === "retrying";
             const isCompleted = rowStatus === "completed";
             return (
-              <div className={`artifact-row ${active ? "active-artifact" : ""}`} key={artifact.id}>
-                {!active && (
+              <div className={`artifact-row ${active || isCompleted || rowStatus === "failed" ? "active-artifact" : ""}`} key={artifact.id}>
+                {!active && !isCompleted && rowStatus !== "failed" && (
                   <button
                     className={`check-button ${artifact.selected ? "checked" : ""}`}
                     title={artifact.selected ? "Selected" : "Not selected"}
