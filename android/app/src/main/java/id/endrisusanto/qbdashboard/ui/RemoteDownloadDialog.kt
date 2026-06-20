@@ -23,7 +23,7 @@ fun RemoteDownloadDialog(
     onConfirm: (qbId: String, artifactTypes: List<String>, autoStart: Boolean) -> Unit,
 ) {
     var qbId by remember { mutableStateOf("") }
-    var selectedTypes by remember {
+    var selectedTypes by remember(presetTypes) {
         mutableStateOf(if (presetTypes.isNotEmpty()) presetTypes.toSet() else FILTER_OPTIONS.toSet())
     }
     var fetchOnly by remember { mutableStateOf(true) }

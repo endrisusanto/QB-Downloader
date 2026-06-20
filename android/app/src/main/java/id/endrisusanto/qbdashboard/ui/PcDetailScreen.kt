@@ -103,6 +103,33 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient, onBack: () -> Unit)
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 8.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                if (pc.sysStats != null) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                        ) {
+                            Column(Modifier.padding(16.dp)) {
+                                Text("System Resources", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text("💻 CPU: ${String.format(java.util.Locale.US, "%.1f", pc.sysStats.cpuUsage)}%", style = MaterialTheme.typography.bodySmall)
+                                        Text("🧠 RAM: ${formatBytes(pc.sysStats.ramUsed)} / ${formatBytes(pc.sysStats.ramTotal)}", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    Column(Modifier.weight(1f)) {
+                                        Text("💾 Storage: ${formatBytes(pc.sysStats.diskAvailable)} free", style = MaterialTheme.typography.bodySmall)
+                                        Text("⚡ Speed: ${formatBytes(pc.sysStats.totalSpeed)}/s", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // 1. Fetched Builds Accordion
                 item {
                     AccordionHeader("Fetched Builds", classified.fetched.size, fetchedExpanded) {

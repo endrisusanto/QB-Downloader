@@ -57,6 +57,12 @@ export function useServerSync(
   const onRemoteRestartArtifactRef = useRef(onRemoteRestartArtifact);
   const onRemoteStartGroupRef = useRef(onRemoteStartGroup);
 
+  const groupsRef = useRef(groups);
+  const rowsRef = useRef(rows);
+  const presetTypesRef = useRef(presetTypes);
+  const sysStatsRef = useRef(sysStats);
+  const totalSpeedRef = useRef(totalSpeed);
+
   useEffect(() => {
     onRemoteDownloadRef.current = onRemoteDownload;
     onRemoteDeleteGroupRef.current = onRemoteDeleteGroup;
@@ -64,6 +70,14 @@ export function useServerSync(
     onRemoteRestartArtifactRef.current = onRemoteRestartArtifact;
     onRemoteStartGroupRef.current = onRemoteStartGroup;
   }, [onRemoteDownload, onRemoteDeleteGroup, onRemoteDeleteArtifact, onRemoteRestartArtifact, onRemoteStartGroup]);
+
+  useEffect(() => {
+    groupsRef.current = groups;
+    rowsRef.current = rows;
+    presetTypesRef.current = presetTypes;
+    sysStatsRef.current = sysStats;
+    totalSpeedRef.current = totalSpeed;
+  }, [groups, rows, presetTypes, sysStats, totalSpeed]);
 
   // Fetch CPU, RAM and disk capacity stats periodically
   useEffect(() => {
@@ -105,10 +119,12 @@ export function useServerSync(
         pcId,
         pcName: displayName,
         os: navigator.platform,
-        presetTypes,
-        groups,
-        rows,
-        sysStats: sysStats ? { ...sysStats, totalSpeed } : { cpuUsage: 0, ramTotal: 0, ramUsed: 0, diskTotal: 0, diskAvailable: 0, totalSpeed },
+        presetTypes: presetTypesRef.current,
+        groups: groupsRef.current,
+        rows: rowsRef.current,
+        sysStats: sysStatsRef.current
+          ? { ...sysStatsRef.current, totalSpeed: totalSpeedRef.current }
+          : { cpuUsage: 0, ramTotal: 0, ramUsed: 0, diskTotal: 0, diskAvailable: 0, totalSpeed: totalSpeedRef.current },
       });
 
       socket.onopen = () => {
@@ -125,7 +141,11 @@ export function useServerSync(
         try {
           const msg = JSON.parse(event.data as string);
           if (msg.type === "start_download") {
-            onRemoteDownloadRef.current(msg.qbId, msg.artifactTypes ?? [], msg.autoStart !== false);
+            onRemoteDownloadRef.current(
+              msg.qbId,
+              msg.artifactTypes ?? [],
+              msg.autoStart !== false && msg.autoStart !== "false"
+            );
           } else if (msg.type === "delete_group") {
             onRemoteDeleteGroupRef.current(msg.groupId);
           } else if (msg.type === "delete_artifact") {
@@ -141,7 +161,7 @@ export function useServerSync(
       setStatus("disconnected");
       reconnectTimer.current = window.setTimeout(connect, 5_000);
     }
-  }, [serverUrl, pcId, displayName, send, presetTypes, groups, rows, sysStats, totalSpeed]);
+  }, [serverUrl, pcId, displayName, send]);
 
   // Connect / reconnect when serverUrl changes
   useEffect(() => {
@@ -162,12 +182,14 @@ export function useServerSync(
         pcId,
         pcName: displayName,
         os: navigator.platform,
-        presetTypes,
-        sysStats: sysStats ? { ...sysStats, totalSpeed } : { cpuUsage: 0, ramTotal: 0, ramUsed: 0, diskTotal: 0, diskAvailable: 0, totalSpeed },
+        presetTypes: presetTypesRef.current,
+        sysStats: sysStatsRef.current
+          ? { ...sysStatsRef.current, totalSpeed: totalSpeedRef.current }
+          : { cpuUsage: 0, ramTotal: 0, ramUsed: 0, diskTotal: 0, diskAvailable: 0, totalSpeed: totalSpeedRef.current },
       });
     }, 30_000);
     return () => window.clearInterval(timer);
-  }, [send, pcId, displayName, serverUrl, sysStats, totalSpeed, presetTypes]);
+  }, [send, pcId, displayName, serverUrl]);
 
   // Forward full state whenever it changes
   useEffect(() => {
@@ -186,3 +208,4 @@ export function useServerSync(
 
   return { status };
 }
+
