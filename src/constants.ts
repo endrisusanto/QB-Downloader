@@ -19,4 +19,6 @@ export const defaultSettings: SettingsState = {
   showCompleteDialog: true,
   hideUncheckedArtifacts: false,
   darkMode: false,
+  serverUrl: "",
+  pcName: "",
 };

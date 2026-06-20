@@ -92,6 +92,8 @@ export type SettingsState = {
   showCompleteDialog: boolean;
   hideUncheckedArtifacts: boolean;
   darkMode: boolean;
+  serverUrl: string;
+  pcName: string;
 };
 
 export type ProgressMode = "determinate" | "indeterminate" | "completed";

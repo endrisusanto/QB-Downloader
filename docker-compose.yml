@@ -1,0 +1,13 @@
+services:
+  server:
+    build: ./server
+    ports:
+      - "3000:3000"
+    environment:
+      # Leave API_KEY empty to disable auth (Cloudflare tunnel provides protection)
+      - API_KEY=${API_KEY:-}
+      - PORT=3000
+    restart: unless-stopped
+    volumes:
+      # Web dashboard static files — rebuild dashboard and they're served live
+      - ./server/public:/app/public:ro

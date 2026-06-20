@@ -1,0 +1,13 @@
+{
+  "name": "qb-dashboard-server",
+  "version": "1.0.0",
+  "description": "QB Downloader remote dashboard relay server",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  }
+}

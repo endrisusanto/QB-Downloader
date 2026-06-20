@@ -58,6 +58,8 @@ export function SettingsModal({ value, secureError, onSave, onClose, onPickFolde
         <label className="toggle-row"><input type="checkbox" checked={draft.showCompleteDialog} onChange={(event) => patch({ showCompleteDialog: event.target.checked })} />Show complete dialog when download finishes</label>
         <label className="toggle-row"><input type="checkbox" checked={draft.hideUncheckedArtifacts} onChange={(event) => patch({ hideUncheckedArtifacts: event.target.checked })} />Auto-check filtered artifacts on fetch</label>
         <label className="toggle-row"><input type="checkbox" checked={draft.darkMode} onChange={(event) => patch({ darkMode: event.target.checked })} />Dark mode</label>
+        <label>Dashboard server URL<input value={draft.serverUrl} onChange={(event) => patch({ serverUrl: event.target.value })} placeholder="https://qd.endrisusanto.my.id" /></label>
+        <label>PC display name<input value={draft.pcName} onChange={(event) => patch({ pcName: event.target.value })} placeholder="Auto (hostname)" /></label>
         <div className="type-grid">{FILTER_OPTIONS.map((filter) => <button key={filter} className={`type-chip ${draft.selectedTypes.includes(filter) ? "selected" : ""}`} onClick={() => patch({ selectedTypes: draft.selectedTypes.includes(filter) ? draft.selectedTypes.filter((item) => item !== filter) : [...draft.selectedTypes, filter] })}>{filter}</button>)}</div>
         <div className="modal-actions"><button className="primary-button" disabled={saving || Boolean(secureError)} onClick={save}>{saving ? "Saving..." : "Save"}</button></div>
       </div>

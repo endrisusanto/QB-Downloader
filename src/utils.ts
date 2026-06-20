@@ -30,6 +30,8 @@ export function sanitizePreferences(raw: Partial<SettingsState> = {}) {
     showCompleteDialog: raw.showCompleteDialog !== false,
     hideUncheckedArtifacts: Boolean(raw.hideUncheckedArtifacts),
     darkMode: Boolean(raw.darkMode),
+    serverUrl: raw.serverUrl || "",
+    pcName: raw.pcName || "",
   };
 }
 
