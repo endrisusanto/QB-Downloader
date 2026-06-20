@@ -140,8 +140,8 @@ class ServerClient(private val context: Context) {
     }
 
     private fun buildWsUrl(base: String, path: String): String {
-        val b = base.trimEnd('/').replace(Regex("^http"), "ws")
-        val key = apiKey
+        val b = base.trim().trimEnd('/').replace(Regex("^http"), "ws")
+        val key = apiKey.trim()
         return if (key.isNotBlank()) "$b$path?token=${key}" else "$b$path"
     }
 

@@ -40,11 +40,12 @@ export function useServerSync(
   }, []);
 
   const connect = useCallback(() => {
-    if (!serverUrl) return;
+    const cleanUrl = serverUrl.trim();
+    if (!cleanUrl) return;
     if (reconnectTimer.current) { window.clearTimeout(reconnectTimer.current); reconnectTimer.current = null; }
     try {
       // Convert http(s) → ws(s) and append agent path
-      const wsUrl = serverUrl.replace(/^http/, "ws").replace(/\/$/, "") + "/ws/agent";
+      const wsUrl = cleanUrl.replace(/^http/, "ws").replace(/\/$/, "") + "/ws/agent";
       setStatus("connecting");
       const socket = new WebSocket(wsUrl);
       wsRef.current = socket;
