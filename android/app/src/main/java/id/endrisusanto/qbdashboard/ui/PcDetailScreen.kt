@@ -141,7 +141,7 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient, onBack: () -> Unit)
                         item { EmptyAccordionMessage() }
                     } else {
                         items(classified.fetched, key = { "fetched-" + it.id }) { g ->
-                            FetchedGroupCard(pcId = pc.pcId, group = g, serverClient = serverClient)
+                            FetchedGroupCard(pcId = pc.pcId, group = g, presetTypes = pc.presetTypes, serverClient = serverClient)
                         }
                     }
                 }
@@ -243,7 +243,7 @@ fun EmptyAccordionMessage() {
 }
 
 @Composable
-fun FetchedGroupCard(pcId: String, group: BuildArtifactGroup, serverClient: ServerClient) {
+fun FetchedGroupCard(pcId: String, group: BuildArtifactGroup, presetTypes: List<String>, serverClient: ServerClient) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -275,10 +275,18 @@ fun FetchedGroupCard(pcId: String, group: BuildArtifactGroup, serverClient: Serv
                 }
             }
             Spacer(Modifier.height(8.dp))
-            group.artifacts.forEach { a ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            visibleArtifacts(group, presetTypes).forEach { a ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = a.selected,
+                        onCheckedChange = { serverClient.sendRemoteToggleArtifact(pcId, group.id, a.id) },
+                        modifier = Modifier.size(32.dp),
+                    )
                     Text(a.name, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    Text("pending", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                    TextButton(onClick = { serverClient.sendRemoteStartArtifact(pcId, group.id, a.id) }) { Text("Download") }
+                    IconButton(onClick = { serverClient.sendRemoteDeleteArtifact(pcId, group.id, a.id) }, modifier = Modifier.size(32.dp)) {
+                        Text("🗑️", style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
         }
@@ -339,11 +347,12 @@ fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String,
                 val status = row?.status ?: "queued"
                 Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(a.name, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    Text(
-                        "${downloadPercent(row)}% · $status",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.tertiary,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("${downloadPercent(row)}% · $status", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
+                        IconButton(onClick = { serverClient.sendRemoteDeleteArtifact(pcId, group.id, a.id) }, modifier = Modifier.size(32.dp)) {
+                            Text("🗑️", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
                 }
             }
         }
@@ -432,10 +441,10 @@ fun FailedGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String, D
                     ) {
                         Text("failed", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                         IconButton(
-                            onClick = { serverClient.sendRemoteRestartArtifact(pcId, group.id, a.id) },
-                            modifier = Modifier.size(24.dp)
+                            onClick = { serverClient.sendRemoteStartArtifact(pcId, group.id, a.id) },
+                            modifier = Modifier.size(32.dp)
                         ) {
-                            Text("🔄", style = MaterialTheme.typography.labelSmall)
+                            Text("⬇", style = MaterialTheme.typography.labelSmall)
                         }
                         IconButton(
                             onClick = { serverClient.sendRemoteDeleteArtifact(pcId, group.id, a.id) },
@@ -446,6 +455,17 @@ fun FailedGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String, D
                     }
                 }
             }
+        }
+    }
+}
+
+private fun visibleArtifacts(group: BuildArtifactGroup, presetTypes: List<String>): List<Artifact> {
+    val filters = group.customFilters ?: presetTypes
+    if (filters.isEmpty()) return group.artifacts
+    return group.artifacts.filter { artifact ->
+        filters.any { filter ->
+            if (filter == "md5") artifact.name.endsWith(".md5", ignoreCase = true)
+            else artifact.name.startsWith(filter, ignoreCase = true)
         }
     }
 }

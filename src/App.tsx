@@ -42,7 +42,7 @@ function AppContent() {
 
         const filters = artifactTypes.length > 0 ? artifactTypes : settings.selectedTypes;
         const normalized = normalizeGroup(result, qbId);
-        const prepared = prepareGroup(normalized, filters, true);
+        const prepared = { ...prepareGroup(normalized, filters, true), customFilters: filters };
 
         let finalGroup = prepared;
         builds.setGroups((current) => {
@@ -97,6 +97,10 @@ function AppContent() {
     }
   }, [builds.groups, startSingle]);
 
+  const handleRemoteToggleArtifact = useCallback((groupId: string, artifactId: string) => {
+    builds.toggleArtifact(groupId, artifactId);
+  }, [builds.toggleArtifact]);
+
   const handleRemoteStartGroup = useCallback((groupId: string) => {
     const group = builds.groups.find((g) => g.id === groupId);
     if (group) {
@@ -117,6 +121,7 @@ function AppContent() {
     handleRemoteDeleteArtifact,
     handleRemoteRestartArtifact,
     handleRemoteStartGroup,
+    handleRemoteToggleArtifact,
   );
   const [query, setQuery] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -248,7 +253,7 @@ function AppContent() {
   }
   return (
     <main className="app-shell" data-theme={settings.darkMode ? "dark" : "light"}>
-      <header className="topbar"><div className="brand"><img src="/quickbuild-logo.svg" alt="" /><span>QB Downloader</span></div><form className="quick-input" onSubmit={(event: FormEvent) => { event.preventDefault(); void submit(query); setQuery(""); }}><Download size={19} /><input ref={inputRef} value={query} onChange={(event) => setQuery(event.target.value)} onPaste={(event) => { const text = event.clipboardData.getData("text"); if (/[,\s].*\S/.test(text)) { event.preventDefault(); void submit(text); } }} placeholder="Build ID or URL" spellCheck={false} /></form><button className="icon-button" title="Bulk entry" onClick={() => setBulkOpen(true)}><RotateCcw size={18} /></button><button className="icon-button" title="Open output folder" disabled={!settings.downloadTargetDir} onClick={() => { if (settings.downloadTargetDir) void invoke("open_folder", { path: settings.downloadTargetDir }); }}><FolderOpen size={18} /></button><button className="icon-button" title="Settings" onClick={() => setSettingsOpen(true)}><Settings size={18} /></button><button className="icon-button" title={settings.darkMode ? "Light mode" : "Dark mode"} onClick={() => { const next = { ...settings, darkMode: !settings.darkMode }; patchSettings({ darkMode: next.darkMode }); void saveSettings(next); }}>{settings.darkMode ? <Sun size={18} /> : <Moon size={18} />}</button>{settings.serverUrl && <div className={`server-badge server-badge-${syncStatus}`} title={`Dashboard: ${syncStatus}`}>{syncStatus === "connected" ? <Wifi size={13} /> : <WifiOff size={13} />}<span>{syncStatus === "connected" ? "Online" : syncStatus === "connecting" ? "Sync…" : "Offline"}</span></div>}</header>
+      <header className="topbar"><div className="brand"><img src="/quickbuild-logo.svg" alt="" /><span>QB Downloader</span></div><form className="quick-input" onSubmit={(event: FormEvent) => { event.preventDefault(); void submit(query); setQuery(""); }}><Download size={19} /><input ref={inputRef} value={query} onChange={(event) => setQuery(event.target.value)} onPaste={(event) => { const text = event.clipboardData.getData("text"); if (/[,\s].*\S/.test(text)) { event.preventDefault(); void submit(text); } }} placeholder="Build ID or URL" spellCheck={false} /></form><div className="toolbar-actions"><button className="icon-button" title="Bulk entry" onClick={() => setBulkOpen(true)}><RotateCcw size={18} /></button><button className="icon-button" title="Open output folder" disabled={!settings.downloadTargetDir} onClick={() => { if (settings.downloadTargetDir) void invoke("open_folder", { path: settings.downloadTargetDir }); }}><FolderOpen size={18} /></button><button className="icon-button" title="Settings" onClick={() => setSettingsOpen(true)}><Settings size={18} /></button><button className="icon-button" title={settings.darkMode ? "Light mode" : "Dark mode"} onClick={() => { const next = { ...settings, darkMode: !settings.darkMode }; patchSettings({ darkMode: next.darkMode }); void saveSettings(next); }}>{settings.darkMode ? <Sun size={18} /> : <Moon size={18} />}</button>{settings.serverUrl && <div className={`server-badge server-badge-${syncStatus}`} title={`Dashboard: ${syncStatus}`}>{syncStatus === "connected" ? <Wifi size={13} /> : <WifiOff size={13} />}<span>{syncStatus === "connected" ? "Online" : syncStatus === "connecting" ? "Sync…" : "Offline"}</span></div>}</div></header>
       <Dashboard builds={builds.groups.length} selected={countSelected(builds.groups)} active={categoryRecord.progress.length} completed={categoryRecord.completed.length} failed={categoryRecord.failed.length} totalSpeed={downloads.totalSpeed} averageThreadSpeed={downloads.averageThreadSpeed} folder={settings.downloadTargetDir} />
       <section className="content-area">{builds.groups.length === 0 && builds.loadingInputs.size === 0 ? <div className="empty-state"><img src="/quickbuild-logo.svg" alt="" /><h1>QuickBuild downloads</h1><p>Paste a build ID or URL to fetch artifacts.</p></div> : <TaskAccordions categories={categoryRecord} loadingInputs={builds.loadingInputs} rows={downloads.rows} sections={sections} buildExpanded={buildExpanded} filters={settings.selectedTypes} onSection={(key) => setSections((current) => ({ ...current, [key]: !current[key] }))} onToggleAllBuilds={toggleAllBuilds} onToggleCategoryBuilds={toggleCategoryBuilds} onBuildExpanded={(id) => setBuildExpanded((current) => ({ ...current, [id]: !(current[id] ?? globalExpanded) }))} onToggleArtifact={builds.toggleArtifact} onToggleGroup={builds.setGroupSelection} onToggleFetched={(selected) => builds.setGroupsSelection(categoryRecord.fetched, selected)} onDownload={(group) => void start(group)} onDownloadFetched={() => void Promise.all(categoryRecord.fetched.filter((group) => selectedArtifacts(group).length).map(start))} onCancel={(group) => void downloads.cancel(group)} onRetry={(group) => void downloads.retry(group)} onRemove={(group) => void remove(group)} onProgress={(group) => void openDialogWindow("progress", group, downloads.rows, downloads.slotSpeeds).then((opened) => { if (!opened) setProgressGroup(group); })} onConfigureFilters={(group) => setFilterGroup(group)} onDownloadArtifact={(group, artifact) => void startSingle(group, artifact)} onRemoveArtifact={removeArtifact} />}</section>
       {settingsOpen && <SettingsModal value={settings} secureError={settingsError} onSave={saveSettings} onClose={() => setSettingsOpen(false)} onPickFolder={() => invoke<string | null>("pick_download_dir")} />}

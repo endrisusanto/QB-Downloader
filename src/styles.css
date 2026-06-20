@@ -60,6 +60,13 @@ button {
   flex: 1;
 }
 
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
 .server-badge {
   display: flex;
   align-items: center;
@@ -1672,6 +1679,10 @@ button {
     flex-basis: 100%;
   }
 
+  .toolbar-actions {
+    margin-left: 0;
+  }
+
   .dashboard-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     padding: 12px;
@@ -1734,7 +1745,6 @@ button {
 }
 
 .quick-input {
-  max-width: 720px;
   border-color: #dbe3f0;
   box-shadow: 0 10px 30px rgba(25, 41, 71, 0.07);
 }

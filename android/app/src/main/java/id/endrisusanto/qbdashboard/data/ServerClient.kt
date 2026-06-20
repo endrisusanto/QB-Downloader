@@ -31,6 +31,7 @@ data class BuildArtifactGroup(
     val buildId: String?,
     val name: String?,
     val status: String,
+    val customFilters: List<String>?,
     val artifacts: List<Artifact>,
 )
 
@@ -173,6 +174,26 @@ class ServerClient(private val context: Context) {
         ws?.send(payload.toString())
     }
 
+    fun sendRemoteStartArtifact(pcId: String, groupId: String, artifactId: String) {
+        val payload = JSONObject().apply {
+            put("type", "remote_start_artifact")
+            put("pcId", pcId)
+            put("groupId", groupId)
+            put("artifactId", artifactId)
+        }
+        ws?.send(payload.toString())
+    }
+
+    fun sendRemoteToggleArtifact(pcId: String, groupId: String, artifactId: String) {
+        val payload = JSONObject().apply {
+            put("type", "remote_toggle_artifact")
+            put("pcId", pcId)
+            put("groupId", groupId)
+            put("artifactId", artifactId)
+        }
+        ws?.send(payload.toString())
+    }
+
     fun sendRemoteStartGroup(pcId: String, groupId: String) {
         val payload = JSONObject().apply {
             put("type", "remote_start_group")
@@ -215,12 +236,14 @@ class ServerClient(private val context: Context) {
                         selected = artObj.optBoolean("selected", true),
                     )
                 }
+                val customFiltersArr = groupObj.optJSONArray("customFilters")
                 BuildArtifactGroup(
                     id = groupObj.optString("id", ""),
                     input = groupObj.optString("input", ""),
                     buildId = groupObj.optString("buildId", "").takeIf { it.isNotBlank() },
                     name = groupObj.optString("name", "").takeIf { it.isNotBlank() },
                     status = groupObj.optString("status", ""),
+                    customFilters = customFiltersArr?.let { filters -> (0 until filters.length()).map(filters::getString) },
                     artifacts = artifacts,
                 )
             }

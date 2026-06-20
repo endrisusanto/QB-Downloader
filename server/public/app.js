@@ -136,6 +136,14 @@ window.remoteRestartArtifact = (pcId, groupId, artifactId) => {
   sendCommand({ type: "remote_restart_artifact", pcId, groupId, artifactId });
 };
 
+window.remoteStartArtifact = (pcId, groupId, artifactId) => {
+  sendCommand({ type: "remote_start_artifact", pcId, groupId, artifactId });
+};
+
+window.remoteToggleArtifact = (pcId, groupId, artifactId) => {
+  sendCommand({ type: "remote_toggle_artifact", pcId, groupId, artifactId });
+};
+
 function openDownload(pcId, pcName) {
   selectedPcId = pcId;
   const pc = pcs.find((p) => p.pcId === pcId);
@@ -226,6 +234,12 @@ function classifyGroups(groups, rows) {
   return { fetched, progress, completed, failed };
 }
 
+function matchesArtifactFilter(artifact, filters) {
+  if (!filters?.length) return true;
+  const name = artifact.name.toUpperCase();
+  return filters.some((filter) => filter === "md5" ? name.endsWith(".MD5") : name.startsWith(filter.toUpperCase()));
+}
+
 function renderGroupList(pc, groupList, type) {
   if (groupList.length === 0) return `<div class="empty-accordion-msg">No builds in this category</div>`;
   return groupList.map((g) => {
@@ -266,7 +280,7 @@ function renderGroupList(pc, groupList, type) {
       `;
     }
 
-    const artHtml = g.artifacts.map((a) => {
+    const artHtml = g.artifacts.filter((a) => matchesArtifactFilter(a, g.customFilters || pc.presetTypes)).map((a) => {
       const row = pc.rows[a.id] || {};
       let rowStatusHtml = "";
       let artActionsHtml = "";
@@ -286,10 +300,17 @@ function renderGroupList(pc, groupList, type) {
         rowStatusHtml = `<span class="art-status ${row.status || "queued"}">${row.status || "queued"}</span>`;
       } else {
         rowStatusHtml = `<span class="art-status pending">pending</span>`;
+        artActionsHtml = `
+          <div class="art-actions">
+            <button class="btn-primary-icon" onclick="remoteStartArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Download">⬇</button>
+            <button class="btn-danger-icon" onclick="remoteDeleteArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Delete">🗑️</button>
+          </div>
+        `;
       }
 
       return `
         <div class="art-row">
+          ${isFetched ? `<input type="checkbox" ${a.selected !== false ? "checked" : ""} onchange="remoteToggleArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Select artifact">` : ""}
           <div class="art-name" title="${a.name}">${a.name}</div>
           <div class="art-right">
             ${rowStatusHtml}

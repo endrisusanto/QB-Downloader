@@ -136,6 +136,16 @@ wss.on("connection", (ws, req) => {
           if (pc?.ws?.readyState === 1) {
             sendTo(pc.ws, { type: "restart_artifact", groupId: msg.groupId, artifactId: msg.artifactId });
           }
+        } else if (msg.type === "remote_start_artifact") {
+          const pc = pcs.get(msg.pcId);
+          if (pc?.ws?.readyState === 1) {
+            sendTo(pc.ws, { type: "start_artifact", groupId: msg.groupId, artifactId: msg.artifactId });
+          }
+        } else if (msg.type === "remote_toggle_artifact") {
+          const pc = pcs.get(msg.pcId);
+          if (pc?.ws?.readyState === 1) {
+            sendTo(pc.ws, { type: "toggle_artifact", groupId: msg.groupId, artifactId: msg.artifactId });
+          }
         } else if (msg.type === "remote_start_group") {
           const pc = pcs.get(msg.pcId);
           if (pc?.ws?.readyState === 1) {

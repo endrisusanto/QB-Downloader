@@ -27,7 +27,7 @@ export function getOrCreatePcId(): string {
 /**
  * Connects to the remote relay server via WebSocket.
  * - Broadcasts full Tauri state (groups, rows, presetTypes) and system stats.
- * - Handles remote commands: delete_group, delete_artifact, restart_artifact, start_group.
+ * - Handles remote commands: delete_group, delete_artifact, restart_artifact, start_group, toggle_artifact.
  */
 export function useServerSync(
   serverUrl: string,
@@ -42,6 +42,7 @@ export function useServerSync(
   onRemoteDeleteArtifact: (groupId: string, artifactId: string) => void,
   onRemoteRestartArtifact: (groupId: string, artifactId: string) => void,
   onRemoteStartGroup: (groupId: string) => void,
+  onRemoteToggleArtifact: (groupId: string, artifactId: string) => void,
 ) {
   const [status, setStatus] = useState<SyncStatus>("disconnected");
   const [sysStats, setSysStats] = useState<SystemStats | null>(null);
@@ -56,6 +57,7 @@ export function useServerSync(
   const onRemoteDeleteArtifactRef = useRef(onRemoteDeleteArtifact);
   const onRemoteRestartArtifactRef = useRef(onRemoteRestartArtifact);
   const onRemoteStartGroupRef = useRef(onRemoteStartGroup);
+  const onRemoteToggleArtifactRef = useRef(onRemoteToggleArtifact);
 
   const groupsRef = useRef(groups);
   const rowsRef = useRef(rows);
@@ -69,7 +71,8 @@ export function useServerSync(
     onRemoteDeleteArtifactRef.current = onRemoteDeleteArtifact;
     onRemoteRestartArtifactRef.current = onRemoteRestartArtifact;
     onRemoteStartGroupRef.current = onRemoteStartGroup;
-  }, [onRemoteDownload, onRemoteDeleteGroup, onRemoteDeleteArtifact, onRemoteRestartArtifact, onRemoteStartGroup]);
+    onRemoteToggleArtifactRef.current = onRemoteToggleArtifact;
+  }, [onRemoteDownload, onRemoteDeleteGroup, onRemoteDeleteArtifact, onRemoteRestartArtifact, onRemoteStartGroup, onRemoteToggleArtifact]);
 
   useEffect(() => {
     groupsRef.current = groups;
@@ -154,6 +157,10 @@ export function useServerSync(
             onRemoteRestartArtifactRef.current(msg.groupId, msg.artifactId);
           } else if (msg.type === "start_group") {
             onRemoteStartGroupRef.current(msg.groupId);
+          } else if (msg.type === "toggle_artifact") {
+            onRemoteToggleArtifactRef.current(msg.groupId, msg.artifactId);
+          } else if (msg.type === "start_artifact") {
+            onRemoteRestartArtifactRef.current(msg.groupId, msg.artifactId);
           }
         } catch { /* ignore malformed */ }
       };
@@ -208,4 +215,3 @@ export function useServerSync(
 
   return { status };
 }
-
