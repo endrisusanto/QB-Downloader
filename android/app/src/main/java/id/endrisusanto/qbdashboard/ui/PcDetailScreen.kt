@@ -1,5 +1,8 @@
 package id.endrisusanto.qbdashboard.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -14,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -111,7 +115,7 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient, onBack: () -> Unit)
                     stickyHeader {
                         Card(
                             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                         ) {
                             Column(Modifier.padding(16.dp)) {
                                 Text("System Resources", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
@@ -256,7 +260,7 @@ fun EmptyAccordionMessage() {
 fun FetchedGroupCard(pcId: String, group: BuildArtifactGroup, presetTypes: List<String>, serverClient: ServerClient) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
     ) {
         Column(Modifier.padding(12.dp)) {
             Row(
@@ -264,7 +268,7 @@ fun FetchedGroupCard(pcId: String, group: BuildArtifactGroup, presetTypes: List<
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(group.buildId ?: group.input, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                CopyableBuildId(group.buildId ?: group.input)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = { serverClient.sendRemoteStartGroup(pcId, group.id) },
@@ -320,7 +324,7 @@ fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String,
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
     ) {
         Column(Modifier.padding(12.dp)) {
             Row(
@@ -328,7 +332,7 @@ fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String,
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(group.buildId ?: group.input, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                CopyableBuildId(group.buildId ?: group.input)
                 OutlinedButton(
                     onClick = { serverClient.sendRemoteDeleteGroup(pcId, group.id) },
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
@@ -392,7 +396,7 @@ fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String,
 fun CompletedGroupCard(pcId: String, group: BuildArtifactGroup, serverClient: ServerClient) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
     ) {
         Column(Modifier.padding(12.dp)) {
             Row(
@@ -400,7 +404,7 @@ fun CompletedGroupCard(pcId: String, group: BuildArtifactGroup, serverClient: Se
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(group.buildId ?: group.input, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                CopyableBuildId(group.buildId ?: group.input)
                 TextButton(
                     onClick = { serverClient.sendRemoteDeleteGroup(pcId, group.id) },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
@@ -436,7 +440,7 @@ fun CompletedGroupCard(pcId: String, group: BuildArtifactGroup, serverClient: Se
 fun FailedGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String, DownloadEvent>, serverClient: ServerClient) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
     ) {
         Column(Modifier.padding(12.dp)) {
             Row(
@@ -444,7 +448,7 @@ fun FailedGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String, D
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(group.buildId ?: group.input, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                CopyableBuildId(group.buildId ?: group.input)
                 TextButton(
                     onClick = { serverClient.sendRemoteDeleteGroup(pcId, group.id) },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
@@ -501,7 +505,19 @@ private fun visibleArtifacts(group: BuildArtifactGroup, presetTypes: List<String
 
 @Composable
 private fun ArtifactName(name: String, modifier: Modifier = Modifier) {
-    Text(name, style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip, modifier = modifier.horizontalScroll(rememberScrollState()))
+    val context = LocalContext.current
+    Text(name, style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip, modifier = modifier.clickable { copyToClipboard(context, name) }.horizontalScroll(rememberScrollState()))
+}
+
+@Composable
+private fun CopyableBuildId(value: String) {
+    val context = LocalContext.current
+    Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { copyToClipboard(context, value) })
+}
+
+private fun copyToClipboard(context: Context, value: String) {
+    (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+        .setPrimaryClip(ClipData.newPlainText("QuickBuild value", value))
 }
 
 private fun downloadPercent(row: DownloadEvent?): Int =

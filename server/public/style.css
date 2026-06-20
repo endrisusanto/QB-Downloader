@@ -344,7 +344,7 @@ input:focus { border-color: var(--accent); }
   grid-template-columns: 1fr;
   gap: 12px;
   padding: 14px 20px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--surface2);
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
 }
