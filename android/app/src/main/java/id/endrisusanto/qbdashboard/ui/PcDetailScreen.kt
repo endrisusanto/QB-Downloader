@@ -318,7 +318,7 @@ fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String,
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
                     modifier = Modifier.height(32.dp)
                 ) {
-                    Text("Cancel", style = MaterialTheme.typography.labelMedium)
+                    Text("Delete", style = MaterialTheme.typography.labelMedium)
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -339,7 +339,11 @@ fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String,
                 val status = row?.status ?: "queued"
                 Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(a.name, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    Text(status, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
+                    Text(
+                        "${downloadPercent(row)}% · $status",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
                 }
             }
         }
@@ -353,7 +357,17 @@ fun CompletedGroupCard(pcId: String, group: BuildArtifactGroup, serverClient: Se
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(Modifier.padding(12.dp)) {
-            Text(group.buildId ?: group.input, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(group.buildId ?: group.input, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                TextButton(
+                    onClick = { serverClient.sendRemoteDeleteGroup(pcId, group.id) },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text("Delete") }
+            }
             Spacer(Modifier.height(8.dp))
             group.artifacts.forEach { a ->
                 Row(
@@ -387,7 +401,17 @@ fun FailedGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String, D
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(Modifier.padding(12.dp)) {
-            Text(group.buildId ?: group.input, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(group.buildId ?: group.input, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                TextButton(
+                    onClick = { serverClient.sendRemoteDeleteGroup(pcId, group.id) },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text("Delete") }
+            }
             Spacer(Modifier.height(8.dp))
             group.artifacts.forEach { a ->
                 val row = rows[a.id]
@@ -425,3 +449,6 @@ fun FailedGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String, D
         }
     }
 }
+
+private fun downloadPercent(row: DownloadEvent?): Int =
+    if ((row?.total ?: 0L) > 0L) min(100, ((row!!.downloaded * 100) / row.total).toInt()) else 0

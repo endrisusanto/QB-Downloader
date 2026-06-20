@@ -39,11 +39,12 @@ fun DashboardApp(serverClient: ServerClient) {
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
                 )
             )
         }
     ) { padding ->
-        Box(Modifier.padding(padding)) {
+        Box(Modifier.padding(padding).fillMaxSize()) {
             NavHost(navController = navController, startDestination = "pcs") {
                 composable("pcs") {
                     PcListScreen(

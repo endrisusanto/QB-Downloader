@@ -60,6 +60,7 @@ export function BuildGroup({ group, rows, expanded, filters, onToggleExpanded, o
             const rowStatus = row?.status;
             const isDownloading = rowStatus === "queued" || rowStatus === "downloading" || rowStatus === "retrying";
             const isCompleted = rowStatus === "completed";
+            const progress = progressState(row);
             return (
               <div className={`artifact-row ${active || isCompleted || rowStatus === "failed" ? "active-artifact" : ""}`} key={artifact.id}>
                 {!active && !isCompleted && rowStatus !== "failed" && (
@@ -76,9 +77,9 @@ export function BuildGroup({ group, rows, expanded, filters, onToggleExpanded, o
                   <span>{kindLabel(artifact.kind)}</span>
                 </div>
                 <div className="progress-cell">
-                  <ProgressBar progress={progressState(row)} />
+                  <ProgressBar progress={progress} />
                   <span title={row?.message}>
-                    {row?.message || (row ? `${formatBytes(row.downloaded)} / ${formatBytes(row.total)}` : "Ready")}
+                    {row?.message || (row ? `${progress.mode === "indeterminate" ? "Downloading" : `${progress.percent}%`} · ${formatBytes(row.downloaded)} / ${formatBytes(row.total)}` : "Ready")}
                   </span>
                 </div>
                 <span className={`pill ${row?.status || "ready"}`}>

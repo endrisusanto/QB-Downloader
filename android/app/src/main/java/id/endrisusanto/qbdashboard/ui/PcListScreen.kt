@@ -2,6 +2,7 @@ package id.endrisusanto.qbdashboard.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
@@ -71,9 +72,10 @@ fun PcCard(pc: PcState, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
     val active = pc.rows.values.count { it.status in listOf("queued", "downloading", "retrying") }
     val completed = pc.rows.values.count { it.status == "completed" }
 
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -97,7 +99,10 @@ fun PcCard(pc: PcState, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
 
             Spacer(Modifier.height(12.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 StatChip("Active", "$active")
                 StatChip("Done", "$completed")
                 StatChip("Total", "$total")
@@ -113,12 +118,12 @@ fun PcCard(pc: PcState, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text("💻 CPU: ${String.format(java.util.Locale.US, "%.1f", pc.sysStats.cpuUsage)}%", style = MaterialTheme.typography.bodySmall)
-                        Text("🧠 RAM: ${formatBytes(pc.sysStats.ramUsed)} / ${formatBytes(pc.sysStats.ramTotal)}", style = MaterialTheme.typography.bodySmall)
+                        Text("CPU  ${String.format(java.util.Locale.US, "%.1f", pc.sysStats.cpuUsage)}%", style = MaterialTheme.typography.bodySmall)
+                        Text("RAM  ${formatBytes(pc.sysStats.ramUsed)} / ${formatBytes(pc.sysStats.ramTotal)}", style = MaterialTheme.typography.bodySmall)
                     }
                     Column(Modifier.weight(1f)) {
-                        Text("💾 Storage: ${formatBytes(pc.sysStats.diskAvailable)} free", style = MaterialTheme.typography.bodySmall)
-                        Text("⚡ Speed: ${formatBytes(pc.sysStats.totalSpeed)}/s", style = MaterialTheme.typography.bodySmall)
+                        Text("Storage  ${formatBytes(pc.sysStats.diskAvailable)} free", style = MaterialTheme.typography.bodySmall)
+                        Text("Speed  ${formatBytes(pc.sysStats.totalSpeed)}/s", style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -137,9 +142,18 @@ fun PcCard(pc: PcState, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
 }
 
 @Composable
-fun StatChip(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+fun RowScope.StatChip(label: String, value: String) {
+    Surface(
+        modifier = Modifier.weight(1f),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+        shape = MaterialTheme.shapes.small,
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
