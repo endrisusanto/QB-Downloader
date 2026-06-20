@@ -29,12 +29,17 @@ function checkAuth(req, ws) {
   return true;
 }
 
+function clientIp(req) {
+  return String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim().replace(/^::ffff:/, "");
+}
+
 function stateMessage() {
   return JSON.stringify({
     type: "state_update",
     pcs: [...pcs.values()].map((pc) => ({
       pcId: pc.info.pcId,
       pcName: pc.info.pcName || pc.info.pcId.slice(0, 8),
+      ip: pc.info.ip || "",
       os: pc.info.os || "",
       online: true,
       lastSeen: pc.lastSeen,
@@ -71,7 +76,7 @@ wss.on("connection", (ws, req) => {
           const existing = pcs.get(pcId);
           pcs.set(pcId, {
             ws,
-            info: { ...existing?.info, ...msg },
+            info: { ...existing?.info, ...msg, ip: clientIp(req) },
             lastSeen: new Date().toISOString()
           });
           broadcastState();

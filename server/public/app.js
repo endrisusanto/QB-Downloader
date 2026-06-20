@@ -385,6 +385,7 @@ function renderPc(pc) {
         <div class="pc-meta">
           <span class="pc-os">${pc.os || "Windows"}</span>
           <span class="pc-id">${pc.pcId.slice(0, 8)}</span>
+          ${pc.ip ? `<span class="pc-ip">${pc.ip}</span>` : ""}
         </div>
       </div>
       <div class="pc-status-badge ${pc.online ? "online" : "offline"}">${pc.online ? "Online" : "Offline"}</div>

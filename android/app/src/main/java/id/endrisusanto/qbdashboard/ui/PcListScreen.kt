@@ -82,6 +82,7 @@ fun PcCard(pc: PcState, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
                 Column(Modifier.weight(1f)) {
                     Text(pc.pcName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text(pc.os, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (pc.ip.isNotBlank()) Text("IP: ${pc.ip}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Surface(
                     color = if (pc.online) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)

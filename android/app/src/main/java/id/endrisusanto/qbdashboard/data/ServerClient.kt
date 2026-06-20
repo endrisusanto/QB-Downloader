@@ -49,6 +49,7 @@ data class DownloadEvent(
 data class PcState(
     val pcId: String,
     val pcName: String,
+    val ip: String,
     val os: String,
     val online: Boolean,
     val lastSeen: String,
@@ -270,6 +271,7 @@ class ServerClient(private val context: Context) {
             PcState(
                 pcId = pc.getString("pcId"),
                 pcName = pc.optString("pcName", pc.getString("pcId").take(8)),
+                ip = pc.optString("ip", ""),
                 os = pc.optString("os", "Windows"),
                 online = pc.optBoolean("online", false),
                 lastSeen = pc.optString("lastSeen", ""),

@@ -151,7 +151,7 @@ body {
 .pc-name { font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pc-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .pc-os { font-size: 12px; color: var(--text-muted); }
-.pc-id { font-size: 11px; color: var(--text-muted); font-family: monospace; opacity: 0.6; }
+.pc-id, .pc-ip { font-size: 11px; color: var(--text-muted); font-family: monospace; opacity: 0.6; }
 
 .pc-status-badge {
   flex-shrink: 0;
@@ -164,6 +164,7 @@ body {
 .pc-status-badge.offline { background: var(--red-bg); color: var(--red); }
 
 .pc-actions { padding: 0 20px 14px; display: flex; gap: 8px; }
+.remote-dl-btn { width: 100%; justify-content: center; }
 
 .btn-primary {
   display: flex; align-items: center; gap: 6px;
