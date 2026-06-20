@@ -1,7 +1,16 @@
 package id.endrisusanto.qbdashboard.data
 
+import android.Manifest
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.content.SharedPreferences
+import id.endrisusanto.qbdashboard.MainActivity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import okhttp3.*
@@ -71,6 +80,10 @@ class ServerClient(private val context: Context) {
         private const val PREFS_NAME = "qb_dashboard_prefs"
         private const val PREF_SERVER_URL = "server_url"
         private const val PREF_API_KEY = "api_key"
+        private const val DOWNLOAD_CHANNEL_ID = "download_progress"
+        private const val DOWNLOAD_NOTIFICATION_ID = 1
+        private const val RESULT_CHANNEL_ID = "download_results"
+        private const val RESULT_NOTIFICATION_ID = 2
     }
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -80,6 +93,17 @@ class ServerClient(private val context: Context) {
 
     private var ws: WebSocket? = null
     private var reconnectJob: java.util.Timer? = null
+    private var previousStatuses = emptyMap<String, String>()
+    private val notificationManager = context.getSystemService(NotificationManager::class.java)
+
+    init {
+        notificationManager.createNotificationChannel(
+            NotificationChannel(DOWNLOAD_CHANNEL_ID, "Download progress", NotificationManager.IMPORTANCE_LOW)
+        )
+        notificationManager.createNotificationChannel(
+            NotificationChannel(RESULT_CHANNEL_ID, "Download results", NotificationManager.IMPORTANCE_DEFAULT)
+        )
+    }
 
     val connectionStatus = MutableStateFlow(ConnectionStatus.DISCONNECTED)
     val pcs: MutableStateFlow<List<PcState>> = MutableStateFlow(emptyList())
@@ -132,6 +156,8 @@ class ServerClient(private val context: Context) {
         ws?.close(1000, "User disconnect")
         ws = null
         connectionStatus.value = ConnectionStatus.DISCONNECTED
+        previousStatuses = emptyMap()
+        notificationManager.cancel(DOWNLOAD_NOTIFICATION_ID)
     }
 
     /** Send a remote download command to a specific PC. */
@@ -282,6 +308,73 @@ class ServerClient(private val context: Context) {
             )
         }
         pcs.value = list
+        updateDownloadNotification(list)
+        notifyDownloadResults(list)
+    }
+
+    private fun updateDownloadNotification(pcs: List<PcState>) {
+        if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+        val active = pcs.flatMap { it.rows.values }.filter { it.status in listOf("queued", "downloading", "retrying") }
+        if (active.isEmpty()) {
+            notificationManager.cancel(DOWNLOAD_NOTIFICATION_ID)
+            return
+        }
+
+        val downloaded = active.sumOf { it.downloaded }
+        val total = active.sumOf { it.total }
+        val percent = if (total > 0) ((downloaded * 100) / total).toInt().coerceAtMost(100) else 0
+        val intent = PendingIntent.getActivity(
+            context,
+            0,
+            Intent(context, MainActivity::class.java).apply { flags = Intent.FLAG_ACTIVITY_SINGLE_TOP },
+            PendingIntent.FLAG_IMMUTABLE,
+        )
+        val notification = Notification.Builder(context, DOWNLOAD_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setContentTitle("Remote downloads in progress")
+            .setContentText("${active.size} file(s) · $percent%")
+            .setContentIntent(intent)
+            .setOnlyAlertOnce(true)
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .setCategory(Notification.CATEGORY_PROGRESS)
+            .setProgress(100, percent, total == 0L)
+            .build()
+        notificationManager.notify(DOWNLOAD_NOTIFICATION_ID, notification)
+    }
+
+    private fun notifyDownloadResults(pcs: List<PcState>) {
+        val activeStatuses = setOf("queued", "downloading", "retrying")
+        val currentStatuses = pcs.flatMap { pc ->
+            pc.rows.map { (artifactId, row) -> "${pc.pcId}:$artifactId" to row.status }
+        }.toMap()
+        val completed = currentStatuses.count { (id, status) -> status == "completed" && previousStatuses[id] in activeStatuses }
+        val failed = currentStatuses.count { (id, status) -> status == "failed" && previousStatuses[id] in activeStatuses }
+        previousStatuses = currentStatuses
+        if (completed == 0 && failed == 0) return
+        if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+
+        val result = listOfNotNull(
+            completed.takeIf { it > 0 }?.let { "$it completed" },
+            failed.takeIf { it > 0 }?.let { "$it failed" },
+        ).joinToString(" · ")
+        val intent = PendingIntent.getActivity(
+            context,
+            RESULT_NOTIFICATION_ID,
+            Intent(context, MainActivity::class.java).apply { flags = Intent.FLAG_ACTIVITY_SINGLE_TOP },
+            PendingIntent.FLAG_IMMUTABLE,
+        )
+        notificationManager.notify(
+            RESULT_NOTIFICATION_ID,
+            Notification.Builder(context, RESULT_CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.stat_sys_download_done)
+                .setContentTitle("Download update")
+                .setContentText(result)
+                .setContentIntent(intent)
+                .setAutoCancel(true)
+                .setCategory(Notification.CATEGORY_STATUS)
+                .build()
+        )
     }
 
     private fun buildWsUrl(base: String, path: String): String {
