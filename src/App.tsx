@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { LogicalSize } from "@tauri-apps/api/dpi";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Download, FolderOpen, Moon, RotateCcw, Settings, Sun, Wifi, WifiOff } from "lucide-react";
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { BulkEntryModal } from "./components/BulkEntryModal";
 import { CompleteDialog } from "./components/CompleteDialog";
@@ -18,7 +18,7 @@ import { useDownload } from "./hooks/useDownload";
 import { useServerSync } from "./hooks/useServerSync";
 import { useSettings } from "./hooks/useSettings";
 import type { Artifact, BuildArtifactGroup, DialogKind, SectionKey } from "./types";
-import { areAllBuildsExpanded, folderFromFilePath, selectedArtifacts } from "./utils";
+import { areAllBuildsExpanded, folderFromFilePath, normalizeGroup, prepareGroup, selectedArtifacts } from "./utils";
 
 function AppContent() {
   const standalone = standaloneDialogConfig();
@@ -28,16 +28,60 @@ function AppContent() {
   const credentials = useMemo(() => ({ username: settings.username, accessToken: settings.accessToken }), [settings.username, settings.accessToken]);
   const config = useMemo(() => ({ baseUrl: settings.quickBuildUrl, apiSuffix: settings.apiSuffix }), [settings.quickBuildUrl, settings.apiSuffix]);
   const builds = useBuilds(credentials, config, settings.selectedTypes, settings.hideUncheckedArtifacts);
+  const downloads = useDownload(builds.groups, builds.setGroups);
+
+  const handleRemoteDownload = useCallback(
+    async (qbId: string, artifactTypes: string[]) => {
+      if (!settings.username || !settings.accessToken || settingsError) return;
+      try {
+        const result = await invoke<BuildArtifactGroup>("fetch_build_artifacts", {
+          input: qbId,
+          credentials,
+          quickBuildConfig: config,
+        });
+
+        const filters = artifactTypes.length > 0 ? artifactTypes : settings.selectedTypes;
+        const normalized = normalizeGroup(result, qbId);
+        const prepared = prepareGroup(normalized, filters, true);
+
+        let finalGroup = prepared;
+        builds.setGroups((current) => {
+          const identity = prepared.buildId || prepared.input;
+          const existing = current.find((item) => (item.buildId || item.input) === identity);
+          if (existing) {
+            finalGroup = { ...prepared, id: existing.id };
+            return current.map((item) => (item.id === existing.id ? finalGroup : item));
+          } else {
+            return [prepared, ...current];
+          }
+        });
+
+        if (!settings.downloadTargetDir) return;
+        await downloads.start(finalGroup, {
+          targetDir: settings.downloadTargetDir,
+          maxConcurrent: settings.maxConcurrent,
+          credentials,
+          quickBuildConfig: config,
+        });
+        if (settings.showProgressDialog) {
+          void openDialogWindow("progress", finalGroup, downloads.rows, downloads.slotSpeeds).then((opened) => {
+            if (!opened) setProgressGroup(finalGroup);
+          });
+        }
+      } catch (err) {
+        console.error("Remote download failed:", err);
+      }
+    },
+    [credentials, config, settings, settingsError, builds, downloads],
+  );
+
   const { status: syncStatus } = useServerSync(
     settings.serverUrl,
     settings.pcName,
     (qbId, artifactTypes) => {
-      // Remote download: fetch build then auto-start with matched artifact types
-      void builds.fetchInputs(qbId);
-      // ponytail: fetchInputs queues the build; user's selectedTypes filter handles auto-check
+      void handleRemoteDownload(qbId, artifactTypes);
     },
   );
-  const downloads = useDownload(builds.groups, builds.setGroups);
   const [query, setQuery] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
