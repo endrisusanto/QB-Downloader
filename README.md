@@ -83,6 +83,13 @@ Desktop download manager for Samsung Android QuickBuild artifacts, built with Re
 - Application, taskbar, shortcut, and system tray use the packaged QuickBuild icon.
 - Closing the main window hides it to the system tray. Use the tray menu to show or quit the application.
 
+### Remote Control & Central Dashboard
+
+- **Centralized WebSocket Relay**: Tauri agents connect to a central Node.js relay server (e.g. `qd.endrisusanto.my.id` via Cloudflare tunnel) to broadcast heartbeats and download progress.
+- **Automatic Remote Downloading**: Trigger downloads remotely from the Web Dashboard or Android app. The Tauri agent automatically fetches, filters, and runs the downloads.
+- **Real-Time PC Synchronization**: Live status badge in the Tauri agent (`Online` / `Sync...` / `Offline`) showing connection status to the central server.
+- **Settings configuration**: Configure "Dashboard Server URL" and "PC Display Name" in Tauri settings.
+
 ## Server-dependent behavior
 
 QuickBuild server capabilities can vary:
@@ -126,6 +133,9 @@ src-tauri/src/
   download_manager.rs  Concurrent download, retry, cancel, and resume logic
   qb_client.rs          Dynamic QuickBuild API client
   secure_storage.rs     OS keyring bootstrap for Stronghold
+server/             Express & WebSocket Node.js relay server
+  public/           Vanilla JS web dashboard SPA
+android/            Kotlin Jetpack Compose Android dashboard application
 ```
 
 ## Development
@@ -158,6 +168,40 @@ npm run build
 cargo test --manifest-path src-tauri/Cargo.toml
 npm run tauri build
 ```
+
+## Remote Dashboard Deployment & Setup
+
+### 1. Server Deployment (Docker)
+
+The relay server and web dashboard are packaged together and can be deployed with Docker Compose.
+
+```yaml
+services:
+  server:
+    build: ./server
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - API_KEY=your_optional_secret_api_key
+    restart: unless-stopped
+```
+
+To build and run:
+```bash
+docker compose up -d --build
+```
+
+### 2. Android App (Kotlin Compose)
+
+The companion Android dashboard app is located in the `android/` directory.
+- Built using **Jetpack Compose** and **Material3**.
+- Handles connection settings via OkHttp WebSockets with automatic reconnection.
+- Allows monitoring all active PCs and triggering remote downloads.
+
+To build the APK:
+1. Open the `/android` project in Android Studio.
+2. Build the project or run: `./gradlew assembleDebug`
 
 ## Build Windows NSIS
 
