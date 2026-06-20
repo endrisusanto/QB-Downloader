@@ -297,7 +297,10 @@ function renderGroupList(pc, groupList, type) {
           </div>
         `;
       } else if (isProgress) {
-        rowStatusHtml = `<span class="art-status ${row.status || "queued"}">${row.status || "queued"}</span>`;
+        const total = row.total || a.size || 0;
+        const percent = total > 0 ? Math.min(100, Math.round(((row.downloaded || 0) / total) * 100)) : 0;
+        rowStatusHtml = `<span class="art-status ${row.status || "queued"}">${row.status || "queued"} · ${percent}%</span>`;
+        artActionsHtml = `<button class="btn-danger btn-sm" onclick="remoteDeleteArtifact('${pc.pcId}', '${g.id}', '${a.id}')">Cancel</button>`;
       } else {
         rowStatusHtml = `<span class="art-status pending">pending</span>`;
         artActionsHtml = `
@@ -309,10 +312,10 @@ function renderGroupList(pc, groupList, type) {
       }
 
       return `
-        <div class="art-row">
+        <div class="art-row ${isProgress ? "art-progress-row" : ""}">
           ${isFetched ? `<input type="checkbox" ${a.selected !== false ? "checked" : ""} onchange="remoteSetArtifactSelected('${pc.pcId}', '${g.id}', '${a.id}', this.checked)" title="Select artifact">` : ""}
           <div class="art-name" title="${a.name}">${a.name}</div>
-          <div class="art-right">
+          <div class="art-right ${isProgress ? "art-progress-actions" : ""}">
             ${rowStatusHtml}
             ${artActionsHtml}
           </div>

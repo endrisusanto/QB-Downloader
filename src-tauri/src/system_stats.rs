@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{net::UdpSocket, path::Path};
 use sysinfo::{Disks, System};
 
 #[derive(serde::Serialize)]
@@ -54,4 +54,11 @@ pub fn get_stats(target_dir: &str) -> SystemStats {
         disk_total,
         disk_available,
     }
+}
+
+pub fn local_ipv4() -> Option<String> {
+    let socket = UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket.connect("1.1.1.1:80").ok()?;
+    let ip = socket.local_addr().ok()?.ip();
+    ip.is_ipv4().then_some(ip.to_string())
 }

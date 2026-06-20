@@ -76,7 +76,7 @@ wss.on("connection", (ws, req) => {
           const existing = pcs.get(pcId);
           pcs.set(pcId, {
             ws,
-            info: { ...existing?.info, ...msg, ip: clientIp(req) },
+            info: { ...existing?.info, ...msg, ip: msg.ip || existing?.info?.ip || clientIp(req) },
             lastSeen: new Date().toISOString()
           });
           broadcastState();

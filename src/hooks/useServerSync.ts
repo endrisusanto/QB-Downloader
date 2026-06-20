@@ -46,6 +46,7 @@ export function useServerSync(
 ) {
   const [status, setStatus] = useState<SyncStatus>("disconnected");
   const [sysStats, setSysStats] = useState<SystemStats | null>(null);
+  const [localIp, setLocalIp] = useState("");
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<number | null>(null);
   const pcId = getOrCreatePcId();
@@ -64,6 +65,7 @@ export function useServerSync(
   const presetTypesRef = useRef(presetTypes);
   const sysStatsRef = useRef(sysStats);
   const totalSpeedRef = useRef(totalSpeed);
+  const localIpRef = useRef(localIp);
 
   useEffect(() => {
     onRemoteDownloadRef.current = onRemoteDownload;
@@ -80,7 +82,12 @@ export function useServerSync(
     presetTypesRef.current = presetTypes;
     sysStatsRef.current = sysStats;
     totalSpeedRef.current = totalSpeed;
-  }, [groups, rows, presetTypes, sysStats, totalSpeed]);
+    localIpRef.current = localIp;
+  }, [groups, rows, presetTypes, sysStats, totalSpeed, localIp]);
+
+  useEffect(() => {
+    void invoke<string | null>("get_local_ipv4").then((ip) => setLocalIp(ip || "")).catch(() => setLocalIp(""));
+  }, []);
 
   // Fetch CPU, RAM and disk capacity stats periodically
   useEffect(() => {
@@ -121,6 +128,7 @@ export function useServerSync(
         type,
         pcId,
         pcName: displayName,
+        ip: localIpRef.current,
         os: navigator.platform,
         presetTypes: presetTypesRef.current,
         groups: groupsRef.current,
@@ -188,6 +196,7 @@ export function useServerSync(
         type: "heartbeat",
         pcId,
         pcName: displayName,
+        ip: localIpRef.current,
         os: navigator.platform,
         presetTypes: presetTypesRef.current,
         sysStats: sysStatsRef.current
@@ -205,13 +214,14 @@ export function useServerSync(
       type: "progress",
       pcId,
       pcName: displayName,
+      ip: localIp,
       os: navigator.platform,
       presetTypes,
       groups,
       rows,
       sysStats: sysStats ? { ...sysStats, totalSpeed } : { cpuUsage: 0, ramTotal: 0, ramUsed: 0, diskTotal: 0, diskAvailable: 0, totalSpeed },
     });
-  }, [serverUrl, status, pcId, displayName, presetTypes, groups, rows, sysStats, totalSpeed, send]);
+  }, [serverUrl, status, pcId, displayName, localIp, presetTypes, groups, rows, sysStats, totalSpeed, send]);
 
   return { status };
 }

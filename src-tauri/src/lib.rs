@@ -146,6 +146,11 @@ async fn get_system_stats(target_dir: String) -> Result<system_stats::SystemStat
     .map_err(|err| err.to_string())?
 }
 
+#[tauri::command]
+fn get_local_ipv4() -> Option<String> {
+    system_stats::local_ipv4()
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -210,7 +215,8 @@ pub fn run() {
             open_folder,
             secure_vault_password,
             delete_file,
-            get_system_stats
+            get_system_stats,
+            get_local_ipv4
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

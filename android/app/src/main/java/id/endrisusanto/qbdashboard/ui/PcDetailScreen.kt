@@ -103,7 +103,8 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient, onBack: () -> Unit)
             val classified = remember(pc.groups, pc.rows) { classifyPcGroups(pc.groups, pc.rows) }
 
             LazyColumn(
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 8.dp, bottom = 16.dp),
+                modifier = Modifier.padding(padding),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (pc.sysStats != null) {
@@ -220,9 +221,15 @@ fun AccordionHeader(
     isExpanded: Boolean,
     onToggle: () -> Unit
 ) {
+    val color = when (title) {
+        "Fetched Builds" -> MaterialTheme.colorScheme.secondaryContainer
+        "Progress" -> MaterialTheme.colorScheme.primaryContainer
+        "Completed" -> MaterialTheme.colorScheme.tertiaryContainer
+        else -> MaterialTheme.colorScheme.errorContainer
+    }
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+        colors = CardDefaults.cardColors(containerColor = color)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
@@ -348,13 +355,32 @@ fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String,
             group.artifacts.forEach { a ->
                 val row = rows[a.id]
                 val status = row?.status ?: "queued"
-                Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    ArtifactName(a.name, Modifier.weight(1f))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${downloadPercent(row)}% · $status", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
-                        IconButton(onClick = { serverClient.sendRemoteDeleteArtifact(pcId, group.id, a.id) }, modifier = Modifier.size(32.dp)) {
-                            Text("🗑️", style = MaterialTheme.typography.labelSmall)
+                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    ArtifactName(a.name)
+                    Spacer(Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Text(
+                                "${status.replaceFirstChar { it.uppercase() }} · ${downloadPercent(row)}%",
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
                         }
+                        OutlinedButton(
+                            onClick = { serverClient.sendRemoteDeleteArtifact(pcId, group.id, a.id) },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                            modifier = Modifier.height(32.dp)
+                        ) { Text("Cancel", style = MaterialTheme.typography.labelMedium) }
                     }
                 }
             }
