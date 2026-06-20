@@ -6,6 +6,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -31,7 +32,7 @@ fun DashboardApp(serverClient: ServerClient) {
                 title = { Text("QB Remote Dashboard") },
                 actions = {
                     ConnectionBadge(connectionStatus)
-                    Spacer(Modifier.width(androidx.compose.ui.unit.dp.times(8f)))
+                    Spacer(Modifier.width(8.dp))
                     IconButton(onClick = { showSettings = true }) {
                         Icon(Icons.Default.Settings, "Settings")
                     }
@@ -82,7 +83,7 @@ fun ConnectionBadge(status: ConnectionStatus) {
     ) {
         Text(
             text = label,
-            modifier = Modifier.padding(horizontal = androidx.compose.ui.unit.dp.times(10f), vertical = androidx.compose.ui.unit.dp.times(4f)),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
             style = MaterialTheme.typography.labelSmall,
             color = color,
         )

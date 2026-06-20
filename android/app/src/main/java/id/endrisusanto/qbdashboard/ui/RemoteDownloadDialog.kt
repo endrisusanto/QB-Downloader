@@ -2,6 +2,7 @@ package id.endrisusanto.qbdashboard.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -11,6 +12,7 @@ import androidx.compose.ui.unit.dp
 
 private val FILTER_OPTIONS = listOf("ALL_", "AP_", "BL_", "CP_", "CSC_", "md5", "USERDATA_", "HOME_")
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RemoteDownloadDialog(
     pcName: String,
