@@ -142,7 +142,7 @@ function openDownload(pcId, pcName) {
   selectedTypes = new Set(pc && pc.presetTypes && pc.presetTypes.length > 0 ? pc.presetTypes : FILTER_OPTIONS);
   document.getElementById("dl-pc-name").textContent = pcName;
   document.getElementById("dl-qb-id").value = "";
-  document.getElementById("dl-fetch-only").checked = false;
+  document.getElementById("dl-fetch-only").checked = true;
   renderChips();
   downloadModal.classList.remove("hidden");
   setTimeout(() => document.getElementById("dl-qb-id").focus(), 50);

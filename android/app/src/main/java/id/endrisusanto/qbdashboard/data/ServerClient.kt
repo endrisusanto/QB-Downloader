@@ -83,7 +83,7 @@ class ServerClient(private val context: Context) {
     val pcs: MutableStateFlow<List<PcState>> = MutableStateFlow(emptyList())
 
     var serverUrl: String
-        get() = prefs.getString(PREF_SERVER_URL, "") ?: ""
+        get() = prefs.getString(PREF_SERVER_URL, "https://qd.endrisusanto.my.id/") ?: "https://qd.endrisusanto.my.id/"
         set(v) { prefs.edit().putString(PREF_SERVER_URL, v).apply() }
 
     var apiKey: String
