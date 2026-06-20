@@ -33,6 +33,12 @@ export function useServerSync(
   const pcId = getOrCreatePcId();
   const displayName = pcName || `PC-${pcId.slice(0, 8)}`;
 
+  // Keep a stable ref to onRemoteDownload to avoid reconnect cycles on re-render
+  const onRemoteDownloadRef = useRef(onRemoteDownload);
+  useEffect(() => {
+    onRemoteDownloadRef.current = onRemoteDownload;
+  }, [onRemoteDownload]);
+
   const send = useCallback((msg: object) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(msg));
@@ -64,7 +70,7 @@ export function useServerSync(
         try {
           const msg = JSON.parse(event.data as string);
           if (msg.type === "start_download") {
-            onRemoteDownload(msg.qbId, msg.artifactTypes ?? []);
+            onRemoteDownloadRef.current(msg.qbId, msg.artifactTypes ?? []);
           }
         } catch { /* ignore malformed */ }
       };
@@ -72,7 +78,7 @@ export function useServerSync(
       setStatus("disconnected");
       reconnectTimer.current = window.setTimeout(connect, 5_000);
     }
-  }, [serverUrl, pcId, displayName, onRemoteDownload, send]);
+  }, [serverUrl, pcId, displayName, send]);
 
   // Connect / reconnect when serverUrl changes
   useEffect(() => {
