@@ -115,6 +115,11 @@ esac
 CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
 
 
+# Auto-detect local JDK 17 fallback for system java version mismatch
+if [ -z "$JAVA_HOME" ] && [ -d "/usr/lib/jvm/java-1.17.0-openjdk-amd64" ]; then
+    export JAVA_HOME="/usr/lib/jvm/java-1.17.0-openjdk-amd64"
+fi
+
 # Determine the Java command to use to start the JVM.
 if [ -n "$JAVA_HOME" ] ; then
     if [ -x "$JAVA_HOME/jre/sh/java" ] ; then
