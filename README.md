@@ -89,6 +89,7 @@ Desktop download manager for Samsung Android QuickBuild artifacts, built with Re
 - **Automatic Remote Downloading**: Trigger downloads remotely from the Web Dashboard or Android app. The Tauri agent automatically fetches, filters, and runs the downloads.
 - **Real-Time PC Synchronization**: Live status badge in the Tauri agent (`Online` / `Sync...` / `Offline`) showing connection status to the central server.
 - **Settings configuration**: Configure "Dashboard Server URL" and "PC Display Name" in Tauri settings.
+- **Responsive Web Dashboard**: PC cards use the available page width with side padding and automatically arrange from one to four cards per row. Build accordions use distinct fetched, progress, completed, and failed colors.
 
 ## Server-dependent behavior
 
@@ -198,6 +199,7 @@ The companion Android dashboard app is located in the `android/` directory.
 - Built using **Jetpack Compose** and **Material3**.
 - Handles connection settings via OkHttp WebSockets with automatic reconnection.
 - Allows monitoring all active PCs and triggering remote downloads.
+- Keeps System Resources visible while scrolling. Build cards show download progress and status badges; tap a filename or QB ID to copy it.
 
 To build the APK:
 1. Open the `/android` project in Android Studio.
