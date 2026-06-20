@@ -1,6 +1,15 @@
-import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DownloadEvent } from "../types";
+import type { BuildArtifactGroup, DownloadEvent } from "../types";
+
+// Types matching the Rust implementation
+export type SystemStats = {
+  cpuUsage: number;
+  ramTotal: number;
+  ramUsed: number;
+  diskTotal: number;
+  diskAvailable: number;
+};
 
 export type SyncStatus = "disconnected" | "connecting" | "connected";
 
@@ -17,27 +26,63 @@ export function getOrCreatePcId(): string {
 
 /**
  * Connects to the remote relay server via WebSocket.
- * - Sends heartbeat every 30s so the server knows this PC is alive.
- * - Forwards all download events as `progress` messages.
- * - Calls `onRemoteDownload` when the server issues a `start_download` command.
+ * - Broadcasts full Tauri state (groups, rows, presetTypes) and system stats.
+ * - Handles remote commands: delete_group, delete_artifact, restart_artifact, start_group.
  */
 export function useServerSync(
   serverUrl: string,
   pcName: string,
-  onRemoteDownload: (qbId: string, artifactTypes: string[]) => void,
+  downloadTargetDir: string,
+  presetTypes: string[],
+  groups: BuildArtifactGroup[],
+  rows: Record<string, DownloadEvent>,
+  totalSpeed: number,
+  onRemoteDownload: (qbId: string, artifactTypes: string[], autoStart: boolean) => void,
+  onRemoteDeleteGroup: (groupId: string) => void,
+  onRemoteDeleteArtifact: (groupId: string, artifactId: string) => void,
+  onRemoteRestartArtifact: (groupId: string, artifactId: string) => void,
+  onRemoteStartGroup: (groupId: string) => void,
 ) {
   const [status, setStatus] = useState<SyncStatus>("disconnected");
+  const [sysStats, setSysStats] = useState<SystemStats | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<number | null>(null);
-  const jobsRef = useRef<Record<string, DownloadEvent>>({});
   const pcId = getOrCreatePcId();
   const displayName = pcName || `PC-${pcId.slice(0, 8)}`;
 
-  // Keep a stable ref to onRemoteDownload to avoid reconnect cycles on re-render
+  // Keep stable refs to handlers to prevent socket reconnection loops
   const onRemoteDownloadRef = useRef(onRemoteDownload);
+  const onRemoteDeleteGroupRef = useRef(onRemoteDeleteGroup);
+  const onRemoteDeleteArtifactRef = useRef(onRemoteDeleteArtifact);
+  const onRemoteRestartArtifactRef = useRef(onRemoteRestartArtifact);
+  const onRemoteStartGroupRef = useRef(onRemoteStartGroup);
+
   useEffect(() => {
     onRemoteDownloadRef.current = onRemoteDownload;
-  }, [onRemoteDownload]);
+    onRemoteDeleteGroupRef.current = onRemoteDeleteGroup;
+    onRemoteDeleteArtifactRef.current = onRemoteDeleteArtifact;
+    onRemoteRestartArtifactRef.current = onRemoteRestartArtifact;
+    onRemoteStartGroupRef.current = onRemoteStartGroup;
+  }, [onRemoteDownload, onRemoteDeleteGroup, onRemoteDeleteArtifact, onRemoteRestartArtifact, onRemoteStartGroup]);
+
+  // Fetch CPU, RAM and disk capacity stats periodically
+  useEffect(() => {
+    if (!serverUrl || !downloadTargetDir) {
+      setSysStats(null);
+      return;
+    }
+    const fetchStats = async () => {
+      try {
+        const stats = await invoke<SystemStats>("get_system_stats", { targetDir: downloadTargetDir });
+        setSysStats(stats);
+      } catch (err) {
+        console.error("Failed to get system stats:", err);
+      }
+    };
+    fetchStats();
+    const timer = window.setInterval(fetchStats, 10_000);
+    return () => window.clearInterval(timer);
+  }, [serverUrl, downloadTargetDir]);
 
   const send = useCallback((msg: object) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -50,15 +95,25 @@ export function useServerSync(
     if (!cleanUrl) return;
     if (reconnectTimer.current) { window.clearTimeout(reconnectTimer.current); reconnectTimer.current = null; }
     try {
-      // Convert http(s) → ws(s) and append agent path
       const wsUrl = cleanUrl.replace(/^http/, "ws").replace(/\/$/, "") + "/ws/agent";
       setStatus("connecting");
       const socket = new WebSocket(wsUrl);
       wsRef.current = socket;
 
+      const getPayload = (type: string) => ({
+        type,
+        pcId,
+        pcName: displayName,
+        os: navigator.platform,
+        presetTypes,
+        groups,
+        rows,
+        sysStats: sysStats ? { ...sysStats, totalSpeed } : { cpuUsage: 0, ramTotal: 0, ramUsed: 0, diskTotal: 0, diskAvailable: 0, totalSpeed },
+      });
+
       socket.onopen = () => {
         setStatus("connected");
-        send({ type: "heartbeat", pcId, pcName: displayName, os: navigator.platform });
+        send(getPayload("heartbeat"));
       };
       socket.onclose = () => {
         setStatus("disconnected");
@@ -70,7 +125,15 @@ export function useServerSync(
         try {
           const msg = JSON.parse(event.data as string);
           if (msg.type === "start_download") {
-            onRemoteDownloadRef.current(msg.qbId, msg.artifactTypes ?? []);
+            onRemoteDownloadRef.current(msg.qbId, msg.artifactTypes ?? [], msg.autoStart !== false);
+          } else if (msg.type === "delete_group") {
+            onRemoteDeleteGroupRef.current(msg.groupId);
+          } else if (msg.type === "delete_artifact") {
+            onRemoteDeleteArtifactRef.current(msg.groupId, msg.artifactId);
+          } else if (msg.type === "restart_artifact") {
+            onRemoteRestartArtifactRef.current(msg.groupId, msg.artifactId);
+          } else if (msg.type === "start_group") {
+            onRemoteStartGroupRef.current(msg.groupId);
           }
         } catch { /* ignore malformed */ }
       };
@@ -78,7 +141,7 @@ export function useServerSync(
       setStatus("disconnected");
       reconnectTimer.current = window.setTimeout(connect, 5_000);
     }
-  }, [serverUrl, pcId, displayName, send]);
+  }, [serverUrl, pcId, displayName, send, presetTypes, groups, rows, sysStats, totalSpeed]);
 
   // Connect / reconnect when serverUrl changes
   useEffect(() => {
@@ -94,31 +157,32 @@ export function useServerSync(
   useEffect(() => {
     if (!serverUrl) return;
     const timer = window.setInterval(() => {
-      send({ type: "heartbeat", pcId, pcName: displayName, os: navigator.platform });
+      send({
+        type: "heartbeat",
+        pcId,
+        pcName: displayName,
+        os: navigator.platform,
+        presetTypes,
+        sysStats: sysStats ? { ...sysStats, totalSpeed } : { cpuUsage: 0, ramTotal: 0, ramUsed: 0, diskTotal: 0, diskAvailable: 0, totalSpeed },
+      });
     }, 30_000);
     return () => window.clearInterval(timer);
-  }, [send, pcId, displayName, serverUrl]);
+  }, [send, pcId, displayName, serverUrl, sysStats, totalSpeed, presetTypes]);
 
-  // Forward Tauri download events → server
+  // Forward full state whenever it changes
   useEffect(() => {
-    if (!serverUrl) return;
-    const names = ["queued", "progress", "retrying", "completed", "failed", "cancelled"];
-    const unlisten = Promise.all(
-      names.map((name) =>
-        listen<DownloadEvent>(`download://${name}`, ({ payload }) => {
-          jobsRef.current[payload.artifactId] = payload;
-          // Prune old completed/cancelled to keep payload small
-          for (const [id, job] of Object.entries(jobsRef.current)) {
-            if ((job.status === "completed" || job.status === "cancelled") && id !== payload.artifactId) {
-              // keep last 20 terminal entries max
-            }
-          }
-          send({ type: "progress", pcId, jobs: Object.values(jobsRef.current) });
-        }),
-      ),
-    );
-    return () => void unlisten.then((fns) => fns.forEach((f) => f()));
-  }, [send, pcId, serverUrl]);
+    if (!serverUrl || status !== "connected") return;
+    send({
+      type: "progress",
+      pcId,
+      pcName: displayName,
+      os: navigator.platform,
+      presetTypes,
+      groups,
+      rows,
+      sysStats: sysStats ? { ...sysStats, totalSpeed } : { cpuUsage: 0, ramTotal: 0, ramUsed: 0, diskTotal: 0, diskAvailable: 0, totalSpeed },
+    });
+  }, [serverUrl, status, pcId, displayName, presetTypes, groups, rows, sysStats, totalSpeed, send]);
 
   return { status };
 }

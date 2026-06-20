@@ -31,7 +31,7 @@ function AppContent() {
   const downloads = useDownload(builds.groups, builds.setGroups);
 
   const handleRemoteDownload = useCallback(
-    async (qbId: string, artifactTypes: string[]) => {
+    async (qbId: string, artifactTypes: string[], autoStart: boolean = true) => {
       if (!settings.username || !settings.accessToken || settingsError) return;
       try {
         const result = await invoke<BuildArtifactGroup>("fetch_build_artifacts", {
@@ -56,6 +56,8 @@ function AppContent() {
           }
         });
 
+        if (!autoStart) return;
+
         if (!settings.downloadTargetDir) return;
         await downloads.start(finalGroup, {
           targetDir: settings.downloadTargetDir,
@@ -75,12 +77,46 @@ function AppContent() {
     [credentials, config, settings, settingsError, builds, downloads],
   );
 
+  const handleRemoteDeleteGroup = useCallback((groupId: string) => {
+    const group = builds.groups.find((g) => g.id === groupId);
+    if (group) {
+      void remove(group);
+    }
+  }, [builds.groups, remove]);
+
+  const handleRemoteDeleteArtifact = useCallback((groupId: string, artifactId: string) => {
+    void removeArtifact(groupId, artifactId);
+  }, [removeArtifact]);
+
+  const handleRemoteRestartArtifact = useCallback((groupId: string, artifactId: string) => {
+    const group = builds.groups.find((g) => g.id === groupId);
+    if (!group) return;
+    const artifact = group.artifacts.find((a) => a.id === artifactId);
+    if (artifact) {
+      void startSingle(group, artifact);
+    }
+  }, [builds.groups, startSingle]);
+
+  const handleRemoteStartGroup = useCallback((groupId: string) => {
+    const group = builds.groups.find((g) => g.id === groupId);
+    if (group) {
+      void start(group);
+    }
+  }, [builds.groups, start]);
+
   const { status: syncStatus } = useServerSync(
     settings.serverUrl,
     settings.pcName,
-    (qbId, artifactTypes) => {
-      void handleRemoteDownload(qbId, artifactTypes);
-    },
+    settings.downloadTargetDir,
+    settings.selectedTypes,
+    builds.groups,
+    downloads.rows,
+    downloads.totalSpeed,
+    handleRemoteDownload,
+    handleRemoteDeleteGroup,
+    handleRemoteDeleteArtifact,
+    handleRemoteRestartArtifact,
+    handleRemoteStartGroup,
   );
   const [query, setQuery] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);

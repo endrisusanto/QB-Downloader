@@ -1,12 +1,14 @@
 package id.endrisusanto.qbdashboard.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
@@ -16,11 +18,15 @@ private val FILTER_OPTIONS = listOf("ALL_", "AP_", "BL_", "CP_", "CSC_", "md5", 
 @Composable
 fun RemoteDownloadDialog(
     pcName: String,
+    presetTypes: List<String>,
     onDismiss: () -> Unit,
-    onConfirm: (qbId: String, artifactTypes: List<String>) -> Unit,
+    onConfirm: (qbId: String, artifactTypes: List<String>, autoStart: Boolean) -> Unit,
 ) {
     var qbId by remember { mutableStateOf("") }
-    var selectedTypes by remember { mutableStateOf(FILTER_OPTIONS.toSet()) }
+    var selectedTypes by remember {
+        mutableStateOf(if (presetTypes.isNotEmpty()) presetTypes.toSet() else FILTER_OPTIONS.toSet())
+    }
+    var fetchOnly by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
 
     AlertDialog(
@@ -60,6 +66,21 @@ fun RemoteDownloadDialog(
                         )
                     }
                 }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { fetchOnly = !fetchOnly }
+                        .padding(vertical = 4.dp)
+                ) {
+                    Checkbox(
+                        checked = fetchOnly,
+                        onCheckedChange = { fetchOnly = it }
+                    )
+                    Text("Fetch only (do not auto-start)", style = MaterialTheme.typography.bodyMedium)
+                }
             }
         },
         confirmButton = {
@@ -67,7 +88,7 @@ fun RemoteDownloadDialog(
                 when {
                     qbId.isBlank() -> error = "Enter a build ID or URL"
                     selectedTypes.isEmpty() -> error = "Select at least one artifact type"
-                    else -> onConfirm(qbId.trim(), selectedTypes.toList())
+                    else -> onConfirm(qbId.trim(), selectedTypes.toList(), !fetchOnly)
                 }
             }) { Text("Start Download") }
         },

@@ -38,7 +38,10 @@ function stateMessage() {
       os: pc.info.os || "",
       online: true,
       lastSeen: pc.lastSeen,
-      jobs: pc.jobs,
+      presetTypes: pc.info.presetTypes || [],
+      groups: pc.info.groups || [],
+      rows: pc.info.rows || {},
+      sysStats: pc.info.sysStats || null,
     })),
   });
 }
@@ -66,12 +69,19 @@ wss.on("connection", (ws, req) => {
         if (msg.type === "heartbeat") {
           pcId = msg.pcId;
           const existing = pcs.get(pcId);
-          pcs.set(pcId, { ws, info: msg, jobs: existing?.jobs || [], lastSeen: new Date().toISOString() });
+          pcs.set(pcId, {
+            ws,
+            info: { ...existing?.info, ...msg },
+            lastSeen: new Date().toISOString()
+          });
           broadcastState();
 
         } else if (msg.type === "progress" && msg.pcId) {
           const pc = pcs.get(msg.pcId);
-          if (pc) { pc.jobs = msg.jobs; pc.lastSeen = new Date().toISOString(); }
+          if (pc) {
+            pc.info = { ...pc.info, ...msg };
+            pc.lastSeen = new Date().toISOString();
+          }
           broadcastState();
 
         } else if (msg.type === "download_ack") {
@@ -101,9 +111,35 @@ wss.on("connection", (ws, req) => {
         if (msg.type === "remote_download") {
           const pc = pcs.get(msg.pcId);
           if (pc?.ws?.readyState === 1) {
-            sendTo(pc.ws, { type: "start_download", commandId: randomUUID(), qbId: msg.qbId, artifactTypes: msg.artifactTypes });
+            sendTo(pc.ws, {
+              type: "start_download",
+              commandId: randomUUID(),
+              qbId: msg.qbId,
+              artifactTypes: msg.artifactTypes,
+              autoStart: msg.autoStart !== false
+            });
           } else {
             sendTo(ws, { type: "error", message: "PC not online or not found" });
+          }
+        } else if (msg.type === "remote_delete_group") {
+          const pc = pcs.get(msg.pcId);
+          if (pc?.ws?.readyState === 1) {
+            sendTo(pc.ws, { type: "delete_group", groupId: msg.groupId });
+          }
+        } else if (msg.type === "remote_delete_artifact") {
+          const pc = pcs.get(msg.pcId);
+          if (pc?.ws?.readyState === 1) {
+            sendTo(pc.ws, { type: "delete_artifact", groupId: msg.groupId, artifactId: msg.artifactId });
+          }
+        } else if (msg.type === "remote_restart_artifact") {
+          const pc = pcs.get(msg.pcId);
+          if (pc?.ws?.readyState === 1) {
+            sendTo(pc.ws, { type: "restart_artifact", groupId: msg.groupId, artifactId: msg.artifactId });
+          }
+        } else if (msg.type === "remote_start_group") {
+          const pc = pcs.get(msg.pcId);
+          if (pc?.ws?.readyState === 1) {
+            sendTo(pc.ws, { type: "start_group", groupId: msg.groupId });
           }
         }
       } catch { /* ignore */ }
@@ -136,12 +172,12 @@ app.get("/api/state", (req, res) => {
 
 app.post("/api/download", (req, res) => {
   if (API_KEY && req.headers.authorization !== `Bearer ${API_KEY}`) return res.status(401).json({ error: "Unauthorized" });
-  const { pcId, qbId, artifactTypes } = req.body || {};
+  const { pcId, qbId, artifactTypes, autoStart } = req.body || {};
   if (!pcId || !qbId || !artifactTypes?.length) return res.status(400).json({ error: "Missing pcId, qbId, or artifactTypes" });
   const pc = pcs.get(pcId);
   if (!pc?.ws || pc.ws.readyState !== 1) return res.status(404).json({ error: "PC not online" });
   const commandId = randomUUID();
-  sendTo(pc.ws, { type: "start_download", commandId, qbId, artifactTypes });
+  sendTo(pc.ws, { type: "start_download", commandId, qbId, artifactTypes, autoStart: autoStart !== false });
   res.json({ ok: true, commandId });
 });
 

@@ -13,6 +13,14 @@ import androidx.compose.ui.unit.dp
 import id.endrisusanto.qbdashboard.data.PcState
 import id.endrisusanto.qbdashboard.data.ServerClient
 
+fun formatBytes(bytes: Long): String {
+    if (bytes <= 0) return "0 B"
+    val units = listOf("B", "KB", "MB", "GB", "TB")
+    val digitGroups = (Math.log10(bytes.toDouble()) / Math.log10(1024.0)).toInt()
+    val value = bytes / Math.pow(1024.0, digitGroups.toDouble())
+    return String.format(java.util.Locale.US, "%.1f %s", value, units[digitGroups])
+}
+
 @Composable
 fun PcListScreen(serverClient: ServerClient, onPcClick: (String) -> Unit) {
     val pcs by serverClient.pcs.collectAsState()
@@ -47,9 +55,10 @@ fun PcListScreen(serverClient: ServerClient, onPcClick: (String) -> Unit) {
     downloadTarget?.let { pc ->
         RemoteDownloadDialog(
             pcName = pc.pcName,
+            presetTypes = pc.presetTypes,
             onDismiss = { downloadTarget = null },
-            onConfirm = { qbId, types ->
-                serverClient.sendRemoteDownload(pc.pcId, qbId, types)
+            onConfirm = { qbId, types, autoStart ->
+                serverClient.sendRemoteDownload(pc.pcId, qbId, types, autoStart)
                 downloadTarget = null
             },
         )
@@ -58,8 +67,9 @@ fun PcListScreen(serverClient: ServerClient, onPcClick: (String) -> Unit) {
 
 @Composable
 fun PcCard(pc: PcState, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
-    val active = pc.jobs.count { it.status in listOf("queued", "downloading", "retrying") }
-    val completed = pc.jobs.count { it.status == "completed" }
+    val total = pc.groups.flatMap { it.artifacts }.size
+    val active = pc.rows.values.count { it.status in listOf("queued", "downloading", "retrying") }
+    val completed = pc.rows.values.count { it.status == "completed" }
 
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
@@ -90,7 +100,27 @@ fun PcCard(pc: PcState, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 StatChip("Active", "$active")
                 StatChip("Done", "$completed")
-                StatChip("Total", "${pc.jobs.size}")
+                StatChip("Total", "$total")
+            }
+
+            if (pc.sysStats != null) {
+                Spacer(Modifier.height(12.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                Spacer(Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("💻 CPU: ${String.format(java.util.Locale.US, "%.1f", pc.sysStats.cpuUsage)}%", style = MaterialTheme.typography.bodySmall)
+                        Text("🧠 RAM: ${formatBytes(pc.sysStats.ramUsed)} / ${formatBytes(pc.sysStats.ramTotal)}", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text("💾 Storage: ${formatBytes(pc.sysStats.diskAvailable)} free", style = MaterialTheme.typography.bodySmall)
+                        Text("⚡ Speed: ${formatBytes(pc.sysStats.totalSpeed)}/s", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
             }
 
             Spacer(Modifier.height(12.dp))

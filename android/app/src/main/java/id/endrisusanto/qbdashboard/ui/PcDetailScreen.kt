@@ -1,5 +1,7 @@
 package id.endrisusanto.qbdashboard.ui
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -7,14 +9,59 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import id.endrisusanto.qbdashboard.data.PcJob
+import id.endrisusanto.qbdashboard.data.Artifact
+import id.endrisusanto.qbdashboard.data.BuildArtifactGroup
+import id.endrisusanto.qbdashboard.data.DownloadEvent
 import id.endrisusanto.qbdashboard.data.ServerClient
 import kotlin.math.min
 import kotlin.math.roundToInt
+
+data class ClassifiedGroups(
+    val fetched: List<BuildArtifactGroup>,
+    val progress: List<BuildArtifactGroup>,
+    val completed: List<BuildArtifactGroup>,
+    val failed: List<BuildArtifactGroup>
+)
+
+fun classifyPcGroups(groups: List<BuildArtifactGroup>, rows: Map<String, DownloadEvent>): ClassifiedGroups {
+    val fetched = mutableListOf<BuildArtifactGroup>()
+    val progress = mutableListOf<BuildArtifactGroup>()
+    val completed = mutableListOf<BuildArtifactGroup>()
+    val failed = mutableListOf<BuildArtifactGroup>()
+
+    for (group in groups) {
+        val selected = group.artifacts.filter { it.selected }
+        val hasActiveOrFinished = selected.any { a ->
+            val status = rows[a.id]?.status
+            status in listOf("queued", "downloading", "retrying", "completed", "failed")
+        }
+        if (!hasActiveOrFinished) {
+            fetched.add(group)
+        }
+
+        val failedSelected = selected.filter { rows[it.id]?.status == "failed" }
+        if (failedSelected.isNotEmpty()) {
+            failed.add(group.copy(artifacts = failedSelected))
+        }
+
+        val progressSelected = selected.filter { rows[it.id]?.status in listOf("queued", "downloading", "retrying") }
+        if (progressSelected.isNotEmpty()) {
+            progress.add(group.copy(artifacts = progressSelected))
+        }
+
+        val completedSelected = selected.filter { rows[it.id]?.status == "completed" }
+        if (completedSelected.isNotEmpty()) {
+            completed.add(group.copy(artifacts = completedSelected))
+        }
+    }
+
+    return ClassifiedGroups(fetched, progress, completed, failed)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -22,6 +69,11 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient, onBack: () -> Unit)
     val pcs by serverClient.pcs.collectAsState()
     val pc = pcs.firstOrNull { it.pcId == pcId }
     var showDownload by remember { mutableStateOf(false) }
+
+    var fetchedExpanded by remember { mutableStateOf(true) }
+    var progressExpanded by remember { mutableStateOf(true) }
+    var completedExpanded by remember { mutableStateOf(true) }
+    var failedExpanded by remember { mutableStateOf(true) }
 
     Scaffold(
         topBar = {
@@ -45,15 +97,73 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient, onBack: () -> Unit)
                 Text("PC not found", modifier = Modifier.padding(16.dp))
             }
         } else {
+            val classified = remember(pc.groups, pc.rows) { classifyPcGroups(pc.groups, pc.rows) }
+
             LazyColumn(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 8.dp, bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                if (pc.jobs.isEmpty()) {
-                    item { Text("No active downloads.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                } else {
-                    items(pc.jobs, key = { it.artifactId }) { job ->
-                        JobCard(job)
+                // 1. Fetched Builds Accordion
+                item {
+                    AccordionHeader("Fetched Builds", classified.fetched.size, fetchedExpanded) {
+                        fetchedExpanded = !fetchedExpanded
+                    }
+                }
+                if (fetchedExpanded) {
+                    if (classified.fetched.isEmpty()) {
+                        item { EmptyAccordionMessage() }
+                    } else {
+                        items(classified.fetched, key = { "fetched-" + it.id }) { g ->
+                            FetchedGroupCard(pcId = pc.pcId, group = g, serverClient = serverClient)
+                        }
+                    }
+                }
+
+                // 2. Progress Accordion
+                item {
+                    AccordionHeader("Progress", classified.progress.size, progressExpanded) {
+                        progressExpanded = !progressExpanded
+                    }
+                }
+                if (progressExpanded) {
+                    if (classified.progress.isEmpty()) {
+                        item { EmptyAccordionMessage() }
+                    } else {
+                        items(classified.progress, key = { "progress-" + it.id }) { g ->
+                            ProgressGroupCard(pcId = pc.pcId, group = g, rows = pc.rows, serverClient = serverClient)
+                        }
+                    }
+                }
+
+                // 3. Completed Accordion
+                item {
+                    AccordionHeader("Completed", classified.completed.size, completedExpanded) {
+                        completedExpanded = !completedExpanded
+                    }
+                }
+                if (completedExpanded) {
+                    if (classified.completed.isEmpty()) {
+                        item { EmptyAccordionMessage() }
+                    } else {
+                        items(classified.completed, key = { "completed-" + it.id }) { g ->
+                            CompletedGroupCard(pcId = pc.pcId, group = g, serverClient = serverClient)
+                        }
+                    }
+                }
+
+                // 4. Failed Accordion
+                item {
+                    AccordionHeader("Failed", classified.failed.size, failedExpanded) {
+                        failedExpanded = !failedExpanded
+                    }
+                }
+                if (failedExpanded) {
+                    if (classified.failed.isEmpty()) {
+                        item { EmptyAccordionMessage() }
+                    } else {
+                        items(classified.failed, key = { "failed-" + it.id }) { g ->
+                            FailedGroupCard(pcId = pc.pcId, group = g, rows = pc.rows, serverClient = serverClient)
+                        }
                     }
                 }
             }
@@ -63,9 +173,10 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient, onBack: () -> Unit)
     if (showDownload && pc != null) {
         RemoteDownloadDialog(
             pcName = pc.pcName,
+            presetTypes = pc.presetTypes,
             onDismiss = { showDownload = false },
-            onConfirm = { qbId, types ->
-                serverClient.sendRemoteDownload(pc.pcId, qbId, types)
+            onConfirm = { qbId, types, autoStart ->
+                serverClient.sendRemoteDownload(pc.pcId, qbId, types, autoStart)
                 showDownload = false
             },
         )
@@ -73,57 +184,217 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient, onBack: () -> Unit)
 }
 
 @Composable
-fun JobCard(job: PcJob) {
-    val pct = when {
-        job.status == "completed" -> 1f
-        job.total != null && job.total > 0 -> min(1f, job.downloaded.toFloat() / job.total)
-        else -> 0f
+fun AccordionHeader(
+    title: String,
+    count: Int,
+    isExpanded: Boolean,
+    onToggle: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("$title ($count)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Text(if (isExpanded) "▼" else "▶", style = MaterialTheme.typography.labelSmall)
+        }
     }
-    val statusColor = when (job.status) {
-        "completed" -> MaterialTheme.colorScheme.primary
-        "failed" -> MaterialTheme.colorScheme.error
-        "downloading", "queued", "retrying" -> MaterialTheme.colorScheme.tertiary
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
+}
 
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(14.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(
-                    job.name,
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    overflow = TextOverflow.Ellipsis,
-                    maxLines = 1,
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    job.status,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = statusColor,
-                    fontWeight = FontWeight.SemiBold,
-                )
+@Composable
+fun EmptyAccordionMessage() {
+    Text(
+        "No builds in this category.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+        modifier = Modifier.padding(vertical = 4.dp, horizontal = 8.dp)
+    )
+}
+
+@Composable
+fun FetchedGroupCard(pcId: String, group: BuildArtifactGroup, serverClient: ServerClient) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(group.buildId ?: group.input, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { serverClient.sendRemoteStartGroup(pcId, group.id) },
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text("Download", style = MaterialTheme.typography.labelMedium)
+                    }
+                    OutlinedButton(
+                        onClick = { serverClient.sendRemoteDeleteGroup(pcId, group.id) },
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text("Delete", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            group.artifacts.forEach { a ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(a.name, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Text("pending", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String, DownloadEvent>, serverClient: ServerClient) {
+    var totalSize = 0L
+    var downloaded = 0L
+    group.artifacts.forEach { a ->
+        val row = rows[a.id]
+        if (row != null) {
+            totalSize += row.total
+            downloaded += row.downloaded
+        } else {
+            totalSize += a.size
+        }
+    }
+    val pct = if (totalSize > 0L) min(1f, downloaded.toFloat() / totalSize) else 0f
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(group.buildId ?: group.input, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                OutlinedButton(
+                    onClick = { serverClient.sendRemoteDeleteGroup(pcId, group.id) },
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text("Cancel", style = MaterialTheme.typography.labelMedium)
+                }
             }
             Spacer(Modifier.height(8.dp))
             LinearProgressIndicator(
                 progress = { pct },
                 modifier = Modifier.fillMaxWidth(),
-                color = statusColor,
+                color = MaterialTheme.colorScheme.primary
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "${(pct * 100).roundToInt()}% · ${formatBytes(job.downloaded)} / ${job.total?.let(::formatBytes) ?: "?"}",
+                "${(pct * 100).roundToInt()}% · ${formatBytes(downloaded)} / ${formatBytes(totalSize)}",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Spacer(Modifier.height(8.dp))
+            group.artifacts.forEach { a ->
+                val row = rows[a.id]
+                val status = row?.status ?: "queued"
+                Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(a.name, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Text(status, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
+                }
+            }
         }
     }
 }
 
-private fun formatBytes(bytes: Long): String {
-    if (bytes <= 0) return "0 B"
-    val units = arrayOf("B", "KB", "MB", "GB")
-    val i = min((Math.log(bytes.toDouble()) / Math.log(1024.0)).toInt(), units.size - 1)
-    return "%.1f %s".format(bytes / Math.pow(1024.0, i.toDouble()), units[i])
+@Composable
+fun CompletedGroupCard(pcId: String, group: BuildArtifactGroup, serverClient: ServerClient) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Text(group.buildId ?: group.input, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            group.artifacts.forEach { a ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(a.name, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("completed", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        IconButton(
+                            onClick = { serverClient.sendRemoteDeleteArtifact(pcId, group.id, a.id) },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Text("🗑️", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun FailedGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String, DownloadEvent>, serverClient: ServerClient) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Text(group.buildId ?: group.input, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            group.artifacts.forEach { a ->
+                val row = rows[a.id]
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(a.name, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (row?.message != null) {
+                            Text(row.message, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text("failed", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                        IconButton(
+                            onClick = { serverClient.sendRemoteRestartArtifact(pcId, group.id, a.id) },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Text("🔄", style = MaterialTheme.typography.labelSmall)
+                        }
+                        IconButton(
+                            onClick = { serverClient.sendRemoteDeleteArtifact(pcId, group.id, a.id) },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Text("🗑️", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

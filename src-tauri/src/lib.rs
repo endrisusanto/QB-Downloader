@@ -4,6 +4,7 @@ mod path_safety;
 mod qb_client;
 mod secure_storage;
 mod types;
+mod system_stats;
 
 use download_manager::DownloadManager;
 use qb_client::QbClient;
@@ -136,6 +137,15 @@ async fn delete_file(path: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+async fn get_system_stats(target_dir: String) -> Result<system_stats::SystemStats, String> {
+    tokio::task::spawn_blocking(move || {
+        Ok(system_stats::get_stats(&target_dir))
+    })
+    .await
+    .map_err(|err| err.to_string())?
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -199,7 +209,8 @@ pub fn run() {
             pick_download_dir,
             open_folder,
             secure_vault_password,
-            delete_file
+            delete_file,
+            get_system_stats
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

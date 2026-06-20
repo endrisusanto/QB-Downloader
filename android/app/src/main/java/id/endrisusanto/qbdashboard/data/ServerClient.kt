@@ -9,12 +9,40 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
-data class PcJob(
+data class SystemStats(
+    val cpuUsage: Float,
+    val ramTotal: Long,
+    val ramUsed: Long,
+    val diskTotal: Long,
+    val diskAvailable: Long,
+    val totalSpeed: Long,
+)
+
+data class Artifact(
+    val id: String,
+    val name: String,
+    val size: Long,
+    val selected: Boolean,
+)
+
+data class BuildArtifactGroup(
+    val id: String,
+    val input: String,
+    val buildId: String?,
+    val name: String?,
+    val status: String,
+    val artifacts: List<Artifact>,
+)
+
+data class DownloadEvent(
+    val jobId: String,
     val artifactId: String,
+    val buildId: String,
     val name: String,
     val status: String,
     val downloaded: Long,
-    val total: Long?,
+    val total: Long,
+    val message: String?,
 )
 
 data class PcState(
@@ -23,7 +51,10 @@ data class PcState(
     val os: String,
     val online: Boolean,
     val lastSeen: String,
-    val jobs: List<PcJob>,
+    val sysStats: SystemStats?,
+    val presetTypes: List<String>,
+    val groups: List<BuildArtifactGroup>,
+    val rows: Map<String, DownloadEvent>,
 )
 
 enum class ConnectionStatus { DISCONNECTED, CONNECTING, CONNECTED }
@@ -102,12 +133,51 @@ class ServerClient(private val context: Context) {
     }
 
     /** Send a remote download command to a specific PC. */
-    fun sendRemoteDownload(pcId: String, qbId: String, artifactTypes: List<String>) {
+    fun sendRemoteDownload(pcId: String, qbId: String, artifactTypes: List<String>, autoStart: Boolean) {
         val payload = JSONObject().apply {
             put("type", "remote_download")
             put("pcId", pcId)
             put("qbId", qbId)
             put("artifactTypes", JSONArray(artifactTypes))
+            put("autoStart", autoStart)
+        }
+        ws?.send(payload.toString())
+    }
+
+    fun sendRemoteDeleteGroup(pcId: String, groupId: String) {
+        val payload = JSONObject().apply {
+            put("type", "remote_delete_group")
+            put("pcId", pcId)
+            put("groupId", groupId)
+        }
+        ws?.send(payload.toString())
+    }
+
+    fun sendRemoteDeleteArtifact(pcId: String, groupId: String, artifactId: String) {
+        val payload = JSONObject().apply {
+            put("type", "remote_delete_artifact")
+            put("pcId", pcId)
+            put("groupId", groupId)
+            put("artifactId", artifactId)
+        }
+        ws?.send(payload.toString())
+    }
+
+    fun sendRemoteRestartArtifact(pcId: String, groupId: String, artifactId: String) {
+        val payload = JSONObject().apply {
+            put("type", "remote_restart_artifact")
+            put("pcId", pcId)
+            put("groupId", groupId)
+            put("artifactId", artifactId)
+        }
+        ws?.send(payload.toString())
+    }
+
+    fun sendRemoteStartGroup(pcId: String, groupId: String) {
+        val payload = JSONObject().apply {
+            put("type", "remote_start_group")
+            put("pcId", pcId)
+            put("groupId", groupId)
         }
         ws?.send(payload.toString())
     }
@@ -116,24 +186,73 @@ class ServerClient(private val context: Context) {
         val arr = msg.getJSONArray("pcs")
         val list = (0 until arr.length()).map { i ->
             val pc = arr.getJSONObject(i)
-            val jobsArr = pc.optJSONArray("jobs") ?: JSONArray()
-            val jobs = (0 until jobsArr.length()).map { j ->
-                val job = jobsArr.getJSONObject(j)
-                PcJob(
-                    artifactId = job.optString("artifactId", ""),
-                    name = job.optString("name", ""),
-                    status = job.optString("status", ""),
-                    downloaded = job.optLong("downloaded", 0),
-                    total = job.optLong("total", -1).takeIf { it >= 0 },
+            
+            val sysStatsObj = pc.optJSONObject("sysStats")
+            val sysStats = if (sysStatsObj != null) {
+                SystemStats(
+                    cpuUsage = sysStatsObj.optDouble("cpuUsage", 0.0).toFloat(),
+                    ramTotal = sysStatsObj.optLong("ramTotal", 0),
+                    ramUsed = sysStatsObj.optLong("ramUsed", 0),
+                    diskTotal = sysStatsObj.optLong("diskTotal", 0),
+                    diskAvailable = sysStatsObj.optLong("diskAvailable", 0),
+                    totalSpeed = sysStatsObj.optLong("totalSpeed", 0),
+                )
+            } else null
+
+            val presetTypesArr = pc.optJSONArray("presetTypes") ?: JSONArray()
+            val presetTypes = (0 until presetTypesArr.length()).map { presetTypesArr.getString(it) }
+
+            val groupsArr = pc.optJSONArray("groups") ?: JSONArray()
+            val groups = (0 until groupsArr.length()).map { g ->
+                val groupObj = groupsArr.getJSONObject(g)
+                val artifactsArr = groupObj.optJSONArray("artifacts") ?: JSONArray()
+                val artifacts = (0 until artifactsArr.length()).map { a ->
+                    val artObj = artifactsArr.getJSONObject(a)
+                    Artifact(
+                        id = artObj.optString("id", ""),
+                        name = artObj.optString("name", ""),
+                        size = artObj.optLong("size", 0),
+                        selected = artObj.optBoolean("selected", true),
+                    )
+                }
+                BuildArtifactGroup(
+                    id = groupObj.optString("id", ""),
+                    input = groupObj.optString("input", ""),
+                    buildId = groupObj.optString("buildId", "").takeIf { it.isNotBlank() },
+                    name = groupObj.optString("name", "").takeIf { it.isNotBlank() },
+                    status = groupObj.optString("status", ""),
+                    artifacts = artifacts,
                 )
             }
+
+            val rowsObj = pc.optJSONObject("rows") ?: JSONObject()
+            val rows = mutableMapOf<String, DownloadEvent>()
+            val keys = rowsObj.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                val rowObj = rowsObj.getJSONObject(key)
+                rows[key] = DownloadEvent(
+                    jobId = rowObj.optString("jobId", ""),
+                    artifactId = rowObj.optString("artifactId", ""),
+                    buildId = rowObj.optString("buildId", ""),
+                    name = rowObj.optString("name", ""),
+                    status = rowObj.optString("status", ""),
+                    downloaded = rowObj.optLong("downloaded", 0),
+                    total = rowObj.optLong("total", 0),
+                    message = rowObj.optString("message", "").takeIf { it.isNotBlank() },
+                )
+            }
+
             PcState(
                 pcId = pc.getString("pcId"),
                 pcName = pc.optString("pcName", pc.getString("pcId").take(8)),
                 os = pc.optString("os", "Windows"),
                 online = pc.optBoolean("online", false),
                 lastSeen = pc.optString("lastSeen", ""),
-                jobs = jobs,
+                sysStats = sysStats,
+                presetTypes = presetTypes,
+                groups = groups,
+                rows = rows,
             )
         }
         pcs.value = list
