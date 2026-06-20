@@ -184,12 +184,13 @@ class ServerClient(private val context: Context) {
         ws?.send(payload.toString())
     }
 
-    fun sendRemoteToggleArtifact(pcId: String, groupId: String, artifactId: String) {
+    fun sendRemoteSetArtifactSelected(pcId: String, groupId: String, artifactId: String, selected: Boolean) {
         val payload = JSONObject().apply {
-            put("type", "remote_toggle_artifact")
+            put("type", "remote_set_artifact_selected")
             put("pcId", pcId)
             put("groupId", groupId)
             put("artifactId", artifactId)
+            put("selected", selected)
         }
         ws?.send(payload.toString())
     }

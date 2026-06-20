@@ -162,6 +162,12 @@ export function useBuilds(
     );
   }, []);
 
+  const setArtifactSelection = useCallback((groupId: string, artifactId: string, selected: boolean) => {
+    setGroups((current) => current.map((group) => group.id === groupId
+      ? { ...group, artifacts: group.artifacts.map((artifact) => artifact.id === artifactId ? { ...artifact, selected } : artifact) }
+      : group));
+  }, []);
+
   const setGroupsSelection = useCallback((targets: BuildArtifactGroup[], selected: boolean) => {
     const ids = new Set(targets.map((group) => group.id));
     setGroups((current) =>
@@ -210,6 +216,7 @@ export function useBuilds(
     setGroupSelection,
     setGroupsSelection,
     toggleArtifact,
+    setArtifactSelection,
     removeGroup,
     removeArtifact,
     setCustomFilters,

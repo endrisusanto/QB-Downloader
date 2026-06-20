@@ -1,7 +1,10 @@
 package id.endrisusanto.qbdashboard.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -63,7 +66,7 @@ fun classifyPcGroups(groups: List<BuildArtifactGroup>, rows: Map<String, Downloa
     return ClassifiedGroups(fetched, progress, completed, failed)
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun PcDetailScreen(pcId: String, serverClient: ServerClient, onBack: () -> Unit) {
     val pcs by serverClient.pcs.collectAsState()
@@ -104,9 +107,9 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient, onBack: () -> Unit)
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (pc.sysStats != null) {
-                    item {
+                    stickyHeader {
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
                         ) {
                             Column(Modifier.padding(16.dp)) {
@@ -279,10 +282,10 @@ fun FetchedGroupCard(pcId: String, group: BuildArtifactGroup, presetTypes: List<
                 Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(
                         checked = a.selected,
-                        onCheckedChange = { serverClient.sendRemoteToggleArtifact(pcId, group.id, a.id) },
+                        onCheckedChange = { selected -> serverClient.sendRemoteSetArtifactSelected(pcId, group.id, a.id, selected) },
                         modifier = Modifier.size(32.dp),
                     )
-                    Text(a.name, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    ArtifactName(a.name, Modifier.weight(1f))
                     TextButton(onClick = { serverClient.sendRemoteStartArtifact(pcId, group.id, a.id) }) { Text("Download") }
                     IconButton(onClick = { serverClient.sendRemoteDeleteArtifact(pcId, group.id, a.id) }, modifier = Modifier.size(32.dp)) {
                         Text("🗑️", style = MaterialTheme.typography.labelSmall)
@@ -346,7 +349,7 @@ fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String,
                 val row = rows[a.id]
                 val status = row?.status ?: "queued"
                 Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(a.name, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    ArtifactName(a.name, Modifier.weight(1f))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("${downloadPercent(row)}% · $status", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
                         IconButton(onClick = { serverClient.sendRemoteDeleteArtifact(pcId, group.id, a.id) }, modifier = Modifier.size(32.dp)) {
@@ -384,7 +387,7 @@ fun CompletedGroupCard(pcId: String, group: BuildArtifactGroup, serverClient: Se
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(a.name, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    ArtifactName(a.name, Modifier.weight(1f))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -430,7 +433,7 @@ fun FailedGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String, D
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(a.name, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        ArtifactName(a.name)
                         if (row?.message != null) {
                             Text(row.message, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                         }
@@ -468,6 +471,11 @@ private fun visibleArtifacts(group: BuildArtifactGroup, presetTypes: List<String
             else artifact.name.startsWith(filter, ignoreCase = true)
         }
     }
+}
+
+@Composable
+private fun ArtifactName(name: String, modifier: Modifier = Modifier) {
+    Text(name, style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip, modifier = modifier.horizontalScroll(rememberScrollState()))
 }
 
 private fun downloadPercent(row: DownloadEvent?): Int =

@@ -440,9 +440,10 @@ input:focus { border-color: var(--accent); }
 }
 .art-name {
   min-width: 0;
+  flex: 1;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-x: auto;
+  scrollbar-width: thin;
   color: var(--text-muted);
 }
 .art-right {

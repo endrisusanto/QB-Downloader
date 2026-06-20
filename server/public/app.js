@@ -140,8 +140,8 @@ window.remoteStartArtifact = (pcId, groupId, artifactId) => {
   sendCommand({ type: "remote_start_artifact", pcId, groupId, artifactId });
 };
 
-window.remoteToggleArtifact = (pcId, groupId, artifactId) => {
-  sendCommand({ type: "remote_toggle_artifact", pcId, groupId, artifactId });
+window.remoteSetArtifactSelected = (pcId, groupId, artifactId, selected) => {
+  sendCommand({ type: "remote_set_artifact_selected", pcId, groupId, artifactId, selected });
 };
 
 function openDownload(pcId, pcName) {
@@ -310,7 +310,7 @@ function renderGroupList(pc, groupList, type) {
 
       return `
         <div class="art-row">
-          ${isFetched ? `<input type="checkbox" ${a.selected !== false ? "checked" : ""} onchange="remoteToggleArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Select artifact">` : ""}
+          ${isFetched ? `<input type="checkbox" ${a.selected !== false ? "checked" : ""} onchange="remoteSetArtifactSelected('${pc.pcId}', '${g.id}', '${a.id}', this.checked)" title="Select artifact">` : ""}
           <div class="art-name" title="${a.name}">${a.name}</div>
           <div class="art-right">
             ${rowStatusHtml}

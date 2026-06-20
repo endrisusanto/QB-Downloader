@@ -97,9 +97,9 @@ function AppContent() {
     }
   }, [builds.groups, startSingle]);
 
-  const handleRemoteToggleArtifact = useCallback((groupId: string, artifactId: string) => {
-    builds.toggleArtifact(groupId, artifactId);
-  }, [builds.toggleArtifact]);
+  const handleRemoteToggleArtifact = useCallback((groupId: string, artifactId: string, selected: boolean) => {
+    builds.setArtifactSelection(groupId, artifactId, selected);
+  }, [builds.setArtifactSelection]);
 
   const handleRemoteStartGroup = useCallback((groupId: string) => {
     const group = builds.groups.find((g) => g.id === groupId);

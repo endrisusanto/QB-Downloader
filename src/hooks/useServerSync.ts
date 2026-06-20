@@ -27,7 +27,7 @@ export function getOrCreatePcId(): string {
 /**
  * Connects to the remote relay server via WebSocket.
  * - Broadcasts full Tauri state (groups, rows, presetTypes) and system stats.
- * - Handles remote commands: delete_group, delete_artifact, restart_artifact, start_group, toggle_artifact.
+ * - Handles remote commands: delete_group, delete_artifact, restart_artifact, start_group, set_artifact_selected.
  */
 export function useServerSync(
   serverUrl: string,
@@ -42,7 +42,7 @@ export function useServerSync(
   onRemoteDeleteArtifact: (groupId: string, artifactId: string) => void,
   onRemoteRestartArtifact: (groupId: string, artifactId: string) => void,
   onRemoteStartGroup: (groupId: string) => void,
-  onRemoteToggleArtifact: (groupId: string, artifactId: string) => void,
+  onRemoteToggleArtifact: (groupId: string, artifactId: string, selected: boolean) => void,
 ) {
   const [status, setStatus] = useState<SyncStatus>("disconnected");
   const [sysStats, setSysStats] = useState<SystemStats | null>(null);
@@ -157,8 +157,8 @@ export function useServerSync(
             onRemoteRestartArtifactRef.current(msg.groupId, msg.artifactId);
           } else if (msg.type === "start_group") {
             onRemoteStartGroupRef.current(msg.groupId);
-          } else if (msg.type === "toggle_artifact") {
-            onRemoteToggleArtifactRef.current(msg.groupId, msg.artifactId);
+          } else if (msg.type === "set_artifact_selected") {
+            onRemoteToggleArtifactRef.current(msg.groupId, msg.artifactId, Boolean(msg.selected));
           } else if (msg.type === "start_artifact") {
             onRemoteRestartArtifactRef.current(msg.groupId, msg.artifactId);
           }
