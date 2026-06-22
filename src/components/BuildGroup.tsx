@@ -62,7 +62,7 @@ export function BuildGroup({ group, rows, expanded, filters, onToggleExpanded, o
             const isCompleted = rowStatus === "completed";
             const progress = progressState(row);
             return (
-              <div className={`artifact-row ${active || isCompleted || rowStatus === "failed" ? "active-artifact" : ""}`} key={artifact.id}>
+              <div className={`artifact-row ${isCompleted || rowStatus === "failed" ? "active-artifact" : ""}`} key={artifact.id}>
                 {(!isCompleted && rowStatus !== "failed") && (
                   <button
                     className={`check-button ${artifact.selected ? "checked" : ""}`}
