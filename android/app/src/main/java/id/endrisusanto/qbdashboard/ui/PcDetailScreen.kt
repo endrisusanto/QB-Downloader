@@ -210,8 +210,8 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient, onBack: () -> Unit)
             pcName = pc.pcName,
             presetTypes = pc.presetTypes,
             onDismiss = { showDownload = false },
-            onConfirm = { qbId, types, autoStart ->
-                serverClient.sendRemoteDownload(pc.pcId, qbId, types, autoStart)
+            onConfirm = { qbIds, types, autoStart ->
+                serverClient.sendRemoteDownload(pc.pcId, qbIds, types, autoStart)
                 showDownload = false
             },
         )

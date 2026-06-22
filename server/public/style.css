@@ -137,6 +137,20 @@ body {
 .pc-card.online { border-top: 2px solid var(--green); }
 .pc-card.offline { border-top: 2px solid rgba(239,68,68,0.4); opacity: 0.6; }
 
+.active-download-summary {
+  margin: 0 20px 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(59,130,246,0.28);
+  border-radius: var(--radius-sm);
+  background: rgba(59,130,246,0.09);
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  min-width: 0;
+}
+.active-download-summary strong { color: #93c5fd; white-space: nowrap; }
+.active-download-summary span { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .pc-card-header {
   display: flex;
   align-items: center;

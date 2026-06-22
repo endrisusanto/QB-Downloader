@@ -171,14 +171,14 @@ function renderChips() {
 }
 
 function submitDownload() {
-  const qbId = document.getElementById("dl-qb-id").value.trim();
-  if (!qbId) { document.getElementById("dl-qb-id").focus(); return; }
+  const qbIds = document.getElementById("dl-qb-id").value.split(/[\s,]+/).filter(Boolean);
+  if (!qbIds.length) { document.getElementById("dl-qb-id").focus(); return; }
   if (!selectedTypes.size) { showToast("Select at least one artifact type", "error"); return; }
   if (!ws || ws.readyState !== WebSocket.OPEN) { showToast("Not connected to server", "error"); return; }
   const autoStart = !document.getElementById("dl-fetch-only").checked;
-  ws.send(JSON.stringify({ type: "remote_download", pcId: selectedPcId, qbId, artifactTypes: [...selectedTypes], autoStart }));
+  ws.send(JSON.stringify({ type: "remote_download", pcId: selectedPcId, qbIds, artifactTypes: [...selectedTypes], autoStart }));
   downloadModal.classList.add("hidden");
-  showToast("Download command sent!", "ok");
+  showToast(`${qbIds.length} download command${qbIds.length === 1 ? "" : "s"} sent!`, "ok");
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
@@ -380,6 +380,9 @@ function renderPc(pc) {
   }
 
   const { fetched, progress, completed, failed } = classifyGroups(pc.groups || [], pc.rows || {});
+  const activeRows = Object.values(pc.rows || {}).filter((row) => ["queued", "downloading", "retrying"].includes(row.status));
+  const activeFiles = activeRows.slice(0, 2).map((row) => row.name).join(" · ");
+  const activeSummaryHtml = activeRows.length ? `<div class="active-download-summary" title="${activeRows.map((row) => row.name).join("\n")}"><strong>Active (${activeRows.length})</strong><span>${activeFiles}${activeRows.length > 2 ? ` +${activeRows.length - 2} more` : ""}</span></div>` : "";
 
   card.innerHTML = `
     <div class="pc-card-header">
@@ -395,6 +398,7 @@ function renderPc(pc) {
     </div>
 
     ${sysStatsHtml}
+    ${activeSummaryHtml}
 
     <div class="pc-actions">
       <button class="btn-primary remote-dl-btn" ${!pc.online ? "disabled" : ""} data-pc-id="${pc.pcId}" data-pc-name="${pc.pcName}">

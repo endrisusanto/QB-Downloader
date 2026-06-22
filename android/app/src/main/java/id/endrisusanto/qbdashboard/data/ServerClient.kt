@@ -161,11 +161,11 @@ class ServerClient(private val context: Context) {
     }
 
     /** Send a remote download command to a specific PC. */
-    fun sendRemoteDownload(pcId: String, qbId: String, artifactTypes: List<String>, autoStart: Boolean) {
+    fun sendRemoteDownload(pcId: String, qbIds: List<String>, artifactTypes: List<String>, autoStart: Boolean) {
         val payload = JSONObject().apply {
             put("type", "remote_download")
             put("pcId", pcId)
-            put("qbId", qbId)
+            put("qbIds", JSONArray(qbIds))
             put("artifactTypes", JSONArray(artifactTypes))
             put("autoStart", autoStart)
         }
@@ -323,6 +323,13 @@ class ServerClient(private val context: Context) {
         val downloaded = active.sumOf { it.downloaded }
         val total = active.sumOf { it.total }
         val percent = if (total > 0) ((downloaded * 100) / total).toInt().coerceAtMost(100) else 0
+        val fileLines = active.sortedBy { if (it.status == "downloading") 0 else 1 }.take(3).map {
+            val filePercent = if (it.total > 0) ((it.downloaded * 100) / it.total).toInt().coerceAtMost(100) else 0
+            "${it.name} · ${it.status} · $filePercent%"
+        }
+        val detailStyle = Notification.InboxStyle().setBigContentTitle("Remote downloads in progress")
+        fileLines.forEach { detailStyle.addLine(it) }
+        if (active.size > fileLines.size) detailStyle.setSummaryText("+${active.size - fileLines.size} more files")
         val intent = PendingIntent.getActivity(
             context,
             0,
@@ -332,13 +339,14 @@ class ServerClient(private val context: Context) {
         val notification = Notification.Builder(context, DOWNLOAD_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle("Remote downloads in progress")
-            .setContentText("${active.size} file(s) · $percent%")
+            .setContentText(fileLines.firstOrNull() ?: "${active.size} file(s) · $percent%")
             .setContentIntent(intent)
             .setOnlyAlertOnce(true)
             .setOngoing(true)
             .setAutoCancel(false)
             .setCategory(Notification.CATEGORY_PROGRESS)
             .setProgress(100, percent, total == 0L)
+            .setStyle(detailStyle)
             .build()
         notificationManager.notify(DOWNLOAD_NOTIFICATION_ID, notification)
     }

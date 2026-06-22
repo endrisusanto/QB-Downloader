@@ -60,6 +60,10 @@ function sendTo(ws, obj) {
   if (ws.readyState === 1) ws.send(JSON.stringify(obj));
 }
 
+function buildIds(value) {
+  return (Array.isArray(value) ? value : [value]).flatMap((id) => String(id || "").split(/[\s,]+/)).filter(Boolean);
+}
+
 wss.on("connection", (ws, req) => {
   if (!checkAuth(req, ws)) return;
   const path = new URL(req.url, "http://localhost").pathname;
@@ -116,12 +120,9 @@ wss.on("connection", (ws, req) => {
         if (msg.type === "remote_download") {
           const pc = pcs.get(msg.pcId);
           if (pc?.ws?.readyState === 1) {
-            sendTo(pc.ws, {
-              type: "start_download",
-              commandId: randomUUID(),
-              qbId: msg.qbId,
-              artifactTypes: msg.artifactTypes,
-              autoStart: msg.autoStart !== false
+            for (const qbId of buildIds(msg.qbIds || msg.qbId)) sendTo(pc.ws, {
+              type: "start_download", commandId: randomUUID(), qbId,
+              artifactTypes: msg.artifactTypes, autoStart: msg.autoStart !== false
             });
           } else {
             sendTo(ws, { type: "error", message: "PC not online or not found" });
@@ -187,13 +188,17 @@ app.get("/api/state", (req, res) => {
 
 app.post("/api/download", (req, res) => {
   if (API_KEY && req.headers.authorization !== `Bearer ${API_KEY}`) return res.status(401).json({ error: "Unauthorized" });
-  const { pcId, qbId, artifactTypes, autoStart } = req.body || {};
-  if (!pcId || !qbId || !artifactTypes?.length) return res.status(400).json({ error: "Missing pcId, qbId, or artifactTypes" });
+  const { pcId, qbId, qbIds: requestedIds, artifactTypes, autoStart } = req.body || {};
+  const qbIds = buildIds(requestedIds || qbId);
+  if (!pcId || !qbIds.length || !artifactTypes?.length) return res.status(400).json({ error: "Missing pcId, qbIds, or artifactTypes" });
   const pc = pcs.get(pcId);
   if (!pc?.ws || pc.ws.readyState !== 1) return res.status(404).json({ error: "PC not online" });
-  const commandId = randomUUID();
-  sendTo(pc.ws, { type: "start_download", commandId, qbId, artifactTypes, autoStart: autoStart !== false });
-  res.json({ ok: true, commandId });
+  const commandIds = qbIds.map((qbId) => {
+    const commandId = randomUUID();
+    sendTo(pc.ws, { type: "start_download", commandId, qbId, artifactTypes, autoStart: autoStart !== false });
+    return commandId;
+  });
+  res.json({ ok: true, commandIds });
 });
 
 // SPA fallback

@@ -20,7 +20,7 @@ fun RemoteDownloadDialog(
     pcName: String,
     presetTypes: List<String>,
     onDismiss: () -> Unit,
-    onConfirm: (qbId: String, artifactTypes: List<String>, autoStart: Boolean) -> Unit,
+    onConfirm: (qbIds: List<String>, artifactTypes: List<String>, autoStart: Boolean) -> Unit,
 ) {
     var qbId by remember { mutableStateOf("") }
     var selectedTypes by remember(presetTypes) {
@@ -39,12 +39,12 @@ fun RemoteDownloadDialog(
                 OutlinedTextField(
                     value = qbId,
                     onValueChange = { qbId = it; error = "" },
-                    label = { Text("QB Build ID or URL") },
-                    placeholder = { Text("e.g. 12345678") },
+                    label = { Text("QB Build IDs or URLs") },
+                    placeholder = { Text("One per line, or separate with commas") },
                     isError = error.isNotBlank(),
                     supportingText = if (error.isNotBlank()) ({ Text(error) }) else null,
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
+                    minLines = 3,
                 )
 
                 Text("Artifact Types", style = MaterialTheme.typography.labelMedium)
@@ -86,9 +86,9 @@ fun RemoteDownloadDialog(
         confirmButton = {
             Button(onClick = {
                 when {
-                    qbId.isBlank() -> error = "Enter a build ID or URL"
+                    qbId.isBlank() -> error = "Enter at least one build ID or URL"
                     selectedTypes.isEmpty() -> error = "Select at least one artifact type"
-                    else -> onConfirm(qbId.trim(), selectedTypes.toList(), !fetchOnly)
+                    else -> onConfirm(qbId.split(Regex("[\\s,]+")).filter { it.isNotBlank() }, selectedTypes.toList(), !fetchOnly)
                 }
             }) { Text("Start Download") }
         },
