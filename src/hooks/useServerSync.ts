@@ -49,6 +49,7 @@ export function useServerSync(
   const [localIp, setLocalIp] = useState("");
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<number | null>(null);
+  const progressTimer = useRef<number | null>(null);
   const pcId = getOrCreatePcId();
   const displayName = pcName || `PC-${pcId.slice(0, 8)}`;
 
@@ -112,6 +113,27 @@ export function useServerSync(
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(msg));
     }
+  }, []);
+
+  const sendProgress = useCallback(() => {
+    progressTimer.current = null;
+    send({
+      type: "progress",
+      pcId,
+      pcName: displayName,
+      ip: localIpRef.current,
+      os: navigator.platform,
+      presetTypes: presetTypesRef.current,
+      groups: groupsRef.current,
+      rows: rowsRef.current,
+      sysStats: sysStatsRef.current
+        ? { ...sysStatsRef.current, totalSpeed: totalSpeedRef.current }
+        : { cpuUsage: 0, ramTotal: 0, ramUsed: 0, diskTotal: 0, diskAvailable: 0, totalSpeed: totalSpeedRef.current },
+    });
+  }, [send, pcId, displayName]);
+
+  useEffect(() => () => {
+    if (progressTimer.current) window.clearTimeout(progressTimer.current);
   }, []);
 
   const connect = useCallback(() => {
@@ -207,21 +229,14 @@ export function useServerSync(
     return () => window.clearInterval(timer);
   }, [send, pcId, displayName, serverUrl]);
 
-  // Forward full state whenever it changes
+  // Forward the latest full state, not every per-file progress event.
   useEffect(() => {
     if (!serverUrl || status !== "connected") return;
-    send({
-      type: "progress",
-      pcId,
-      pcName: displayName,
-      ip: localIp,
-      os: navigator.platform,
-      presetTypes,
-      groups,
-      rows,
-      sysStats: sysStats ? { ...sysStats, totalSpeed } : { cpuUsage: 0, ramTotal: 0, ramUsed: 0, diskTotal: 0, diskAvailable: 0, totalSpeed },
-    });
-  }, [serverUrl, status, pcId, displayName, localIp, presetTypes, groups, rows, sysStats, totalSpeed, send]);
+    if (progressTimer.current === null) {
+      // ponytail: 4 snapshots/s keeps bulk progress responsive without relaying every byte update.
+      progressTimer.current = window.setTimeout(sendProgress, 250);
+    }
+  }, [serverUrl, status, presetTypes, groups, rows, sysStats, totalSpeed, localIp, sendProgress]);
 
   return { status };
 }

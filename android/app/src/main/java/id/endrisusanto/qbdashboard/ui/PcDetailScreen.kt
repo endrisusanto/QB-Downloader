@@ -81,6 +81,7 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient, onBack: () -> Unit)
     var progressExpanded by remember { mutableStateOf(true) }
     var completedExpanded by remember { mutableStateOf(true) }
     var failedExpanded by remember { mutableStateOf(true) }
+    var confirmDeleteFetched by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -148,6 +149,22 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient, onBack: () -> Unit)
                     if (classified.fetched.isEmpty()) {
                         item { EmptyAccordionMessage() }
                     } else {
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Button(
+                                    onClick = { classified.fetched.forEach { serverClient.sendRemoteStartGroup(pc.pcId, it.id) } },
+                                    modifier = Modifier.weight(1f),
+                                ) { Text("Download all") }
+                                OutlinedButton(
+                                    onClick = { confirmDeleteFetched = true },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                                ) { Text("Delete all") }
+                            }
+                        }
                         items(classified.fetched, key = { "fetched-" + it.id }) { g ->
                             FetchedGroupCard(pcId = pc.pcId, group = g, presetTypes = pc.presetTypes, serverClient = serverClient)
                         }
@@ -214,6 +231,21 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient, onBack: () -> Unit)
                 serverClient.sendRemoteDownload(pc.pcId, qbIds, types, autoStart)
                 showDownload = false
             },
+        )
+    }
+    if (confirmDeleteFetched && pc != null) {
+        val fetched = classifyPcGroups(pc.groups, pc.rows).fetched
+        AlertDialog(
+            onDismissRequest = { confirmDeleteFetched = false },
+            title = { Text("Delete fetched builds?") },
+            text = { Text("This removes ${fetched.size} fetched build(s).") },
+            confirmButton = {
+                TextButton(onClick = {
+                    fetched.forEach { serverClient.sendRemoteDeleteGroup(pc.pcId, it.id) }
+                    confirmDeleteFetched = false
+                }) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { confirmDeleteFetched = false }) { Text("Cancel") } },
         )
     }
 }

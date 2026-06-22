@@ -126,6 +126,16 @@ window.remoteStartGroup = (pcId, groupId) => {
   sendCommand({ type: "remote_start_group", pcId, groupId });
 };
 
+window.remoteStartGroups = (pcId, groupIds) => {
+  groupIds.forEach((groupId) => sendCommand({ type: "remote_start_group", pcId, groupId }));
+};
+
+window.remoteDeleteGroups = (pcId, groupIds) => {
+  if (confirm(`Delete ${groupIds.length} fetched build${groupIds.length === 1 ? "" : "s"}?`)) {
+    groupIds.forEach((groupId) => sendCommand({ type: "remote_delete_group", pcId, groupId }));
+  }
+};
+
 window.remoteDeleteArtifact = (pcId, groupId, artifactId) => {
   if (confirm("Delete this artifact file from disk?")) {
     sendCommand({ type: "remote_delete_artifact", pcId, groupId, artifactId });
@@ -380,9 +390,7 @@ function renderPc(pc) {
   }
 
   const { fetched, progress, completed, failed } = classifyGroups(pc.groups || [], pc.rows || {});
-  const activeRows = Object.values(pc.rows || {}).filter((row) => ["queued", "downloading", "retrying"].includes(row.status));
-  const activeFiles = activeRows.slice(0, 2).map((row) => row.name).join(" · ");
-  const activeSummaryHtml = activeRows.length ? `<div class="active-download-summary" title="${activeRows.map((row) => row.name).join("\n")}"><strong>Active (${activeRows.length})</strong><span>${activeFiles}${activeRows.length > 2 ? ` +${activeRows.length - 2} more` : ""}</span></div>` : "";
+  const fetchedIds = fetched.map((group) => group.id).join(",");
 
   card.innerHTML = `
     <div class="pc-card-header">
@@ -398,8 +406,6 @@ function renderPc(pc) {
     </div>
 
     ${sysStatsHtml}
-    ${activeSummaryHtml}
-
     <div class="pc-actions">
       <button class="btn-primary remote-dl-btn" ${!pc.online ? "disabled" : ""} data-pc-id="${pc.pcId}" data-pc-name="${pc.pcName}">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -411,6 +417,7 @@ function renderPc(pc) {
       <details ${isExpanded(pc.pcId, "fetched") ? "open" : ""} ontoggle="window.setExpandedState('${pc.pcId}', 'fetched', this.open)">
         <summary>Fetched Builds (${fetched.length})</summary>
         <div class="accordion-content">
+          ${fetched.length ? `<div class="bulk-actions"><button class="btn-primary btn-sm bulk-start-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Download all</button><button class="btn-danger btn-sm bulk-delete-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Delete all</button></div>` : ""}
           ${renderGroupList(pc, fetched, "fetched")}
         </div>
       </details>
@@ -437,6 +444,12 @@ function renderPc(pc) {
 
   card.querySelectorAll(".remote-dl-btn").forEach((btn) => {
     btn.addEventListener("click", () => openDownload(btn.dataset.pcId, btn.dataset.pcName));
+  });
+  card.querySelectorAll(".bulk-start-btn").forEach((btn) => {
+    btn.addEventListener("click", () => remoteStartGroups(btn.dataset.pcId, btn.dataset.groupIds.split(",").filter(Boolean)));
+  });
+  card.querySelectorAll(".bulk-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", () => remoteDeleteGroups(btn.dataset.pcId, btn.dataset.groupIds.split(",").filter(Boolean)));
   });
   return card;
 }

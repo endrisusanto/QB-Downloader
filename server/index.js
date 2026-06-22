@@ -51,9 +51,15 @@ function stateMessage() {
   });
 }
 
+let stateBroadcastTimer = null;
 function broadcastState() {
-  const msg = stateMessage();
-  for (const v of viewers) if (v.readyState === 1) v.send(msg);
+  if (stateBroadcastTimer) return;
+  // ponytail: cap full snapshots at 4/s; add a delta protocol only if payloads still dominate.
+  stateBroadcastTimer = setTimeout(() => {
+    stateBroadcastTimer = null;
+    const msg = stateMessage();
+    for (const v of viewers) if (v.readyState === 1) v.send(msg);
+  }, 250);
 }
 
 function sendTo(ws, obj) {
