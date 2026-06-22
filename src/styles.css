@@ -1908,8 +1908,8 @@ button {
 
 .info-grid-table td:first-child {
   color: #a1a1aa;
-  width: 150px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .info-grid-table td:nth-child(2) {
