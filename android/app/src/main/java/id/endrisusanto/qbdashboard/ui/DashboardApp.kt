@@ -26,44 +26,41 @@ fun DashboardApp(serverClient: ServerClient) {
         if (serverClient.serverUrl.isNotBlank()) serverClient.connect()
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("QB Remote Dashboard") },
-                actions = {
-                    ConnectionBadge(connectionStatus)
-                    Spacer(Modifier.width(8.dp))
-                    IconButton(onClick = { showSettings = true }) {
-                        Icon(Icons.Default.Settings, "Settings")
-                    }
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+    NavHost(navController = navController, startDestination = "pcs") {
+        composable("pcs") {
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = { Text("QB Remote Dashboard") },
+                        actions = {
+                            ConnectionBadge(connectionStatus)
+                            Spacer(Modifier.width(8.dp))
+                            IconButton(onClick = { showSettings = true }) {
+                                Icon(Icons.Default.Settings, "Settings")
+                            }
+                        },
+                    )
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                )
-            )
-        }
-    ) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize()) {
-            NavHost(navController = navController, startDestination = "pcs") {
-                composable("pcs") {
+            ) { padding ->
+                Box(Modifier.padding(padding).fillMaxSize()) {
                     PcListScreen(
                         serverClient = serverClient,
                         onPcClick = { pcId -> navController.navigate("pc/$pcId") },
                     )
                 }
-                composable(
-                    "pc/{pcId}",
-                    arguments = listOf(navArgument("pcId") { type = NavType.StringType })
-                ) { back ->
-                    PcDetailScreen(
-                        pcId = back.arguments?.getString("pcId") ?: "",
-                        serverClient = serverClient,
-                        onBack = { navController.popBackStack() },
-                    )
-                }
             }
         }
+        composable(
+            "pc/{pcId}",
+            arguments = listOf(navArgument("pcId") { type = NavType.StringType })
+        ) { back ->
+            PcDetailScreen(
+                pcId = back.arguments?.getString("pcId") ?: "",
+                serverClient = serverClient,
+            )
+        }
+    }
     }
 
     if (showSettings) {

@@ -15,7 +15,7 @@ export function BuildGroup({ group, rows, expanded, filters, onToggleExpanded, o
 }) {
   const artifacts = group.artifacts;
   const selected = selectedArtifacts(group);
-  const statuses = selected.map((artifact) => rows[artifact.id]?.status);
+  const statuses = artifacts.map((artifact) => rows[artifact.id]?.status);
   const watching = group.status === "watching";
   const active = statuses.some((status) => status === "queued" || status === "downloading" || status === "retrying");
   const failed = statuses.includes("failed");
@@ -24,7 +24,7 @@ export function BuildGroup({ group, rows, expanded, filters, onToggleExpanded, o
   const hasRows = statuses.some(Boolean);
   const allSelected = artifacts.length > 0 && selected.length === artifacts.length;
   const visibleArtifacts = getVisibleArtifacts(group, filters);
-  const cardProgress = groupProgress(selected, rows);
+  const cardProgress = groupProgress(artifacts, rows);
   const nextCheck = group.nextCheckAt ? new Date(group.nextCheckAt).toLocaleTimeString() : "";
   const subtitle = watching
     ? `Build is running. Waiting for artifacts${nextCheck ? ` - next check ${nextCheck}` : ""}.`
@@ -63,7 +63,7 @@ export function BuildGroup({ group, rows, expanded, filters, onToggleExpanded, o
             const progress = progressState(row);
             return (
               <div className={`artifact-row ${active || isCompleted || rowStatus === "failed" ? "active-artifact" : ""}`} key={artifact.id}>
-                {!active && !isCompleted && rowStatus !== "failed" && (
+                {(!isCompleted && rowStatus !== "failed") && (
                   <button
                     className={`check-button ${artifact.selected ? "checked" : ""}`}
                     title={artifact.selected ? "Selected" : "Not selected"}

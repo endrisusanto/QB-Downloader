@@ -181,6 +181,23 @@ class ServerClient(private val context: Context) {
         ws?.send(payload.toString())
     }
 
+    fun sendRemoteCancelGroup(pcId: String, groupId: String) {
+        val payload = JSONObject().apply {
+            put("type", "remote_cancel_group")
+            put("pcId", pcId)
+            put("groupId", groupId)
+        }
+        ws?.send(payload.toString())
+    }
+
+    fun sendRemoteCancelAll(pcId: String) {
+        val payload = JSONObject().apply {
+            put("type", "remote_cancel_all")
+            put("pcId", pcId)
+        }
+        ws?.send(payload.toString())
+    }
+
     fun sendRemoteDeleteArtifact(pcId: String, groupId: String, artifactId: String) {
         val payload = JSONObject().apply {
             put("type", "remote_delete_artifact")
@@ -323,13 +340,12 @@ class ServerClient(private val context: Context) {
         val downloaded = active.sumOf { it.downloaded }
         val total = active.sumOf { it.total }
         val percent = if (total > 0) ((downloaded * 100) / total).toInt().coerceAtMost(100) else 0
-        val fileLines = active.sortedBy { if (it.status == "downloading") 0 else 1 }.take(3).map {
+        val fileLines = active.sortedBy { if (it.status == "downloading") 0 else 1 }.map {
             val filePercent = if (it.total > 0) ((it.downloaded * 100) / it.total).toInt().coerceAtMost(100) else 0
-            "${it.name} · ${it.status} · $filePercent%"
+            "$filePercent% · ${it.name} · ${it.status}"
         }
         val detailStyle = Notification.InboxStyle().setBigContentTitle("Remote downloads in progress")
         fileLines.forEach { detailStyle.addLine(it) }
-        if (active.size > fileLines.size) detailStyle.setSummaryText("+${active.size - fileLines.size} more files")
         val intent = PendingIntent.getActivity(
             context,
             0,

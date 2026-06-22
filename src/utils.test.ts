@@ -56,6 +56,11 @@ describe("download state", () => {
     expect(categories.fetched).toHaveLength(0);
   });
 
+  it("keeps an unchecked active artifact in progress", () => {
+    const unchecked = { ...group, artifacts: [{ ...group.artifacts[0], selected: false }] };
+    expect(classifyGroups([unchecked], { a: row("a", "downloading") }).progress[0].artifacts[0].id).toBe("a");
+  });
+
   it("aggregates raw bytes over five seconds and becomes idle", () => {
     const samples = [{ at: 1_000, bytes: 0 }, { at: 3_000, bytes: 4_000 }, { at: 5_000, bytes: 8_000 }];
     expect(calculateRollingSpeed(samples, 5_000)).toBe(2_000);

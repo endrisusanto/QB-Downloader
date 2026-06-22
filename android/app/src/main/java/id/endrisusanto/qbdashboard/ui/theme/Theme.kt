@@ -19,10 +19,18 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Color(0xFF2563EB),
-    secondary = Color(0xFF059669),
-    tertiary = Color(0xFFD97706),
-    surfaceVariant = Color(0xFFEFF4FB),
+    primary = Color(0xFF6C8FF5),
+    secondary = Color(0xFF63BFA5),
+    tertiary = Color(0xFFE8AD72),
+    error = Color(0xFFC76B7D),
+    background = Color(0xFFF9FAFF),
+    surface = Color(0xFFFFFCFA),
+    surfaceVariant = Color(0xFFF0F3FF),
+    primaryContainer = Color(0xFFE2E9FF),
+    secondaryContainer = Color(0xFFE0F5EE),
+    tertiaryContainer = Color(0xFFFFF0DD),
+    errorContainer = Color(0xFFFFE9ED),
+    outlineVariant = Color(0xFFD9DFEE),
 )
 
 @Composable

@@ -39,6 +39,8 @@ export function useServerSync(
   totalSpeed: number,
   onRemoteDownload: (qbIds: string | string[], artifactTypes: string[], autoStart: boolean) => void | Promise<void>,
   onRemoteDeleteGroup: (groupId: string) => void,
+  onRemoteCancelGroup: (groupId: string) => void,
+  onRemoteCancelAll: () => void,
   onRemoteDeleteArtifact: (groupId: string, artifactId: string) => void,
   onRemoteRestartArtifact: (groupId: string, artifactId: string) => void,
   onRemoteStartGroup: (groupId: string) => void,
@@ -56,6 +58,8 @@ export function useServerSync(
   // Keep stable refs to handlers to prevent socket reconnection loops
   const onRemoteDownloadRef = useRef(onRemoteDownload);
   const onRemoteDeleteGroupRef = useRef(onRemoteDeleteGroup);
+  const onRemoteCancelGroupRef = useRef(onRemoteCancelGroup);
+  const onRemoteCancelAllRef = useRef(onRemoteCancelAll);
   const onRemoteDeleteArtifactRef = useRef(onRemoteDeleteArtifact);
   const onRemoteRestartArtifactRef = useRef(onRemoteRestartArtifact);
   const onRemoteStartGroupRef = useRef(onRemoteStartGroup);
@@ -71,11 +75,13 @@ export function useServerSync(
   useEffect(() => {
     onRemoteDownloadRef.current = onRemoteDownload;
     onRemoteDeleteGroupRef.current = onRemoteDeleteGroup;
+    onRemoteCancelGroupRef.current = onRemoteCancelGroup;
+    onRemoteCancelAllRef.current = onRemoteCancelAll;
     onRemoteDeleteArtifactRef.current = onRemoteDeleteArtifact;
     onRemoteRestartArtifactRef.current = onRemoteRestartArtifact;
     onRemoteStartGroupRef.current = onRemoteStartGroup;
     onRemoteToggleArtifactRef.current = onRemoteToggleArtifact;
-  }, [onRemoteDownload, onRemoteDeleteGroup, onRemoteDeleteArtifact, onRemoteRestartArtifact, onRemoteStartGroup, onRemoteToggleArtifact]);
+  }, [onRemoteDownload, onRemoteDeleteGroup, onRemoteCancelGroup, onRemoteCancelAll, onRemoteDeleteArtifact, onRemoteRestartArtifact, onRemoteStartGroup, onRemoteToggleArtifact]);
 
   useEffect(() => {
     groupsRef.current = groups;
@@ -181,6 +187,10 @@ export function useServerSync(
             );
           } else if (msg.type === "delete_group") {
             onRemoteDeleteGroupRef.current(msg.groupId);
+          } else if (msg.type === "cancel_group") {
+            onRemoteCancelGroupRef.current(msg.groupId);
+          } else if (msg.type === "cancel_all") {
+            onRemoteCancelAllRef.current();
           } else if (msg.type === "delete_artifact") {
             onRemoteDeleteArtifactRef.current(msg.groupId, msg.artifactId);
           } else if (msg.type === "restart_artifact") {

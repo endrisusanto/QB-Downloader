@@ -122,6 +122,18 @@ window.remoteDeleteGroup = (pcId, groupId) => {
   }
 };
 
+window.remoteCancelGroup = (pcId, groupId) => {
+  sendCommand({ type: "remote_cancel_group", pcId, groupId });
+};
+
+window.remoteCancelAll = (pcId) => {
+  if (confirm("Cancel all active downloads?")) sendCommand({ type: "remote_cancel_all", pcId });
+};
+
+window.remoteCancelGroups = (pcId, groupIds) => {
+  window.remoteCancelAll(pcId);
+};
+
 window.remoteStartGroup = (pcId, groupId) => {
   sendCommand({ type: "remote_start_group", pcId, groupId });
 };
@@ -205,8 +217,8 @@ function classifyGroups(groups, rows) {
   const completed = [];
   const failed = [];
   for (const group of groups) {
-    const selected = (group.artifacts || []).filter((a) => a.selected !== false);
-    const hasActiveOrFinished = selected.some((a) => {
+    const artifacts = group.artifacts || [];
+    const hasActiveOrFinished = artifacts.some((a) => {
       const status = rows[a.id]?.status;
       return status === "queued" || status === "downloading" || status === "retrying" || status === "completed" || status === "failed";
     });
@@ -214,7 +226,7 @@ function classifyGroups(groups, rows) {
       fetched.push(group);
     }
 
-    const failedSelected = selected.filter((a) => rows[a.id]?.status === "failed");
+    const failedSelected = artifacts.filter((a) => rows[a.id]?.status === "failed");
     if (failedSelected.length > 0) {
       failed.push({
         ...group,
@@ -222,7 +234,7 @@ function classifyGroups(groups, rows) {
       });
     }
 
-    const progressSelected = selected.filter((a) => {
+    const progressSelected = artifacts.filter((a) => {
       const status = rows[a.id]?.status;
       return status === "queued" || status === "downloading" || status === "retrying";
     });
@@ -233,7 +245,7 @@ function classifyGroups(groups, rows) {
       });
     }
 
-    const completedSelected = selected.filter((a) => rows[a.id]?.status === "completed");
+    const completedSelected = artifacts.filter((a) => rows[a.id]?.status === "completed");
     if (completedSelected.length > 0) {
       completed.push({
         ...group,
@@ -284,7 +296,7 @@ function renderGroupList(pc, groupList, type) {
           </div>
           <div class="progress-meta">
             <span>${p}% (${formatBytes(downloaded)} / ${formatBytes(total)})</span>
-            <button class="btn-danger btn-sm" onclick="remoteDeleteGroup('${pc.pcId}', '${g.id}')">Cancel</button>
+            <button class="btn-danger btn-sm" onclick="remoteCancelGroup('${pc.pcId}', '${g.id}')">Cancel</button>
           </div>
         </div>
       `;
@@ -323,7 +335,7 @@ function renderGroupList(pc, groupList, type) {
 
       return `
         <div class="art-row ${isProgress ? "art-progress-row" : ""}">
-          ${isFetched ? `<input type="checkbox" ${a.selected !== false ? "checked" : ""} onchange="remoteSetArtifactSelected('${pc.pcId}', '${g.id}', '${a.id}', this.checked)" title="Select artifact">` : ""}
+          ${(isFetched || isProgress) ? `<input type="checkbox" ${a.selected !== false ? "checked" : ""} onchange="remoteSetArtifactSelected('${pc.pcId}', '${g.id}', '${a.id}', this.checked)" title="Select artifact">` : ""}
           <div class="art-name" title="${a.name}">${a.name}</div>
           <div class="art-right ${isProgress ? "art-progress-actions" : ""}">
             ${rowStatusHtml}
@@ -391,6 +403,7 @@ function renderPc(pc) {
 
   const { fetched, progress, completed, failed } = classifyGroups(pc.groups || [], pc.rows || {});
   const fetchedIds = fetched.map((group) => group.id).join(",");
+  const progressIds = progress.map((group) => group.id).join(",");
 
   card.innerHTML = `
     <div class="pc-card-header">
@@ -424,6 +437,7 @@ function renderPc(pc) {
       <details ${isExpanded(pc.pcId, "progress") ? "open" : ""} ontoggle="window.setExpandedState('${pc.pcId}', 'progress', this.open)">
         <summary>Progress (${progress.length})</summary>
         <div class="accordion-content">
+          ${progress.length ? `<div class="bulk-actions"><button class="btn-danger btn-sm bulk-cancel-btn" data-pc-id="${pc.pcId}" data-group-ids="${progressIds}">Cancel all</button></div>` : ""}
           ${renderGroupList(pc, progress, "progress")}
         </div>
       </details>
@@ -450,6 +464,9 @@ function renderPc(pc) {
   });
   card.querySelectorAll(".bulk-delete-btn").forEach((btn) => {
     btn.addEventListener("click", () => remoteDeleteGroups(btn.dataset.pcId, btn.dataset.groupIds.split(",").filter(Boolean)));
+  });
+  card.querySelectorAll(".bulk-cancel-btn").forEach((btn) => {
+    btn.addEventListener("click", () => remoteCancelGroups(btn.dataset.pcId, btn.dataset.groupIds.split(",").filter(Boolean)));
   });
   return card;
 }

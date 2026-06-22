@@ -71,12 +71,6 @@ fun PcCard(pc: PcState, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
     val total = pc.groups.flatMap { it.artifacts }.size
     val active = pc.rows.values.count { it.status in listOf("queued", "downloading", "retrying") }
     val completed = pc.rows.values.count { it.status == "completed" }
-    val activeFiles = pc.rows.values
-        .filter { it.status in listOf("queued", "downloading", "retrying") }
-        .sortedBy { if (it.status == "downloading") 0 else 1 }
-        .take(2)
-        .joinToString(" · ") { it.name }
-
     ElevatedCard(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -112,23 +106,6 @@ fun PcCard(pc: PcState, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
                 StatChip("Active", "$active")
                 StatChip("Done", "$completed")
                 StatChip("Total", "$total")
-            }
-
-            if (activeFiles.isNotBlank()) {
-                Spacer(Modifier.height(8.dp))
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        "Active: $activeFiles${if (active > 2) " +${active - 2} more" else ""}",
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    )
-                }
             }
 
             if (pc.sysStats != null) {

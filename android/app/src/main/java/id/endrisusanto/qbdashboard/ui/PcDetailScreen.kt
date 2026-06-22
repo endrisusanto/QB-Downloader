@@ -3,6 +3,12 @@ package id.endrisusanto.qbdashboard.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -11,14 +17,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import id.endrisusanto.qbdashboard.data.Artifact
@@ -42,8 +49,8 @@ fun classifyPcGroups(groups: List<BuildArtifactGroup>, rows: Map<String, Downloa
     val failed = mutableListOf<BuildArtifactGroup>()
 
     for (group in groups) {
-        val selected = group.artifacts.filter { it.selected }
-        val hasActiveOrFinished = selected.any { a ->
+        val artifacts = group.artifacts
+        val hasActiveOrFinished = artifacts.any { a ->
             val status = rows[a.id]?.status
             status in listOf("queued", "downloading", "retrying", "completed", "failed")
         }
@@ -51,17 +58,17 @@ fun classifyPcGroups(groups: List<BuildArtifactGroup>, rows: Map<String, Downloa
             fetched.add(group)
         }
 
-        val failedSelected = selected.filter { rows[it.id]?.status == "failed" }
+        val failedSelected = artifacts.filter { rows[it.id]?.status == "failed" }
         if (failedSelected.isNotEmpty()) {
             failed.add(group.copy(artifacts = failedSelected))
         }
 
-        val progressSelected = selected.filter { rows[it.id]?.status in listOf("queued", "downloading", "retrying") }
+        val progressSelected = artifacts.filter { rows[it.id]?.status in listOf("queued", "downloading", "retrying") }
         if (progressSelected.isNotEmpty()) {
             progress.add(group.copy(artifacts = progressSelected))
         }
 
-        val completedSelected = selected.filter { rows[it.id]?.status == "completed" }
+        val completedSelected = artifacts.filter { rows[it.id]?.status == "completed" }
         if (completedSelected.isNotEmpty()) {
             completed.add(group.copy(artifacts = completedSelected))
         }
@@ -72,7 +79,7 @@ fun classifyPcGroups(groups: List<BuildArtifactGroup>, rows: Map<String, Downloa
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun PcDetailScreen(pcId: String, serverClient: ServerClient, onBack: () -> Unit) {
+fun PcDetailScreen(pcId: String, serverClient: ServerClient) {
     val pcs by serverClient.pcs.collectAsState()
     val pc = pcs.firstOrNull { it.pcId == pcId }
     var showDownload by remember { mutableStateOf(false) }
@@ -82,56 +89,53 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient, onBack: () -> Unit)
     var completedExpanded by remember { mutableStateOf(true) }
     var failedExpanded by remember { mutableStateOf(true) }
     var confirmDeleteFetched by remember { mutableStateOf(false) }
+    var confirmCancelAll by remember { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(pc?.pcName ?: pcId) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
-                    }
-                },
-                actions = {
-                    if (pc?.online == true) {
-                        TextButton(onClick = { showDownload = true }) { Text("Remote Download") }
-                    }
-                },
-            )
-        }
-    ) { padding ->
+    Box(Modifier.fillMaxSize()) {
         if (pc == null) {
-            Box(Modifier.padding(padding).fillMaxSize()) {
+            Box(Modifier.fillMaxSize()) {
                 Text("PC not found", modifier = Modifier.padding(16.dp))
             }
         } else {
             val classified = remember(pc.groups, pc.rows) { classifyPcGroups(pc.groups, pc.rows) }
+            val listState = rememberLazyListState()
+            val headerPinned by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
 
             LazyColumn(
-                modifier = Modifier.padding(padding),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+                modifier = Modifier.fillMaxSize().statusBarsPadding(),
+                state = listState,
+                contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                if (pc.sysStats != null) {
-                    stickyHeader {
+                stickyHeader {
+                    val headerInset by animateDpAsState(if (headerPinned) 0.dp else 16.dp, label = "header inset")
+                    AnimatedVisibility(
+                        visible = true,
+                        enter = fadeIn(tween(220)) + expandVertically(tween(220)),
+                    ) {
                         Card(
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = headerInset).animateContentSize(),
+                            shape = if (headerPinned) RoundedCornerShape(0.dp) else MaterialTheme.shapes.medium,
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         ) {
-                            Column(Modifier.padding(16.dp)) {
-                                Text("System Resources", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Column(Modifier.padding(12.dp)) {
+                                Text(pc.pcName, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                                 Spacer(Modifier.height(8.dp))
-                                Row(
+                                Button(
+                                    onClick = { showDownload = true },
+                                    enabled = pc.online,
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column(Modifier.weight(1f)) {
-                                        Text("💻 CPU: ${String.format(java.util.Locale.US, "%.1f", pc.sysStats.cpuUsage)}%", style = MaterialTheme.typography.bodySmall)
-                                        Text("🧠 RAM: ${formatBytes(pc.sysStats.ramUsed)} / ${formatBytes(pc.sysStats.ramTotal)}", style = MaterialTheme.typography.bodySmall)
+                                ) { Text("Remote Download") }
+                                pc.sysStats?.let { stats ->
+                                    Spacer(Modifier.height(10.dp))
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        ResourceBadge("CPU", "${String.format(java.util.Locale.US, "%.1f", stats.cpuUsage)}%")
+                                        ResourceBadge("RAM", "${formatBytes(stats.ramUsed)} / ${formatBytes(stats.ramTotal)}")
                                     }
-                                    Column(Modifier.weight(1f)) {
-                                        Text("💾 Storage: ${formatBytes(pc.sysStats.diskAvailable)} free", style = MaterialTheme.typography.bodySmall)
-                                        Text("⚡ Speed: ${formatBytes(pc.sysStats.totalSpeed)}/s", style = MaterialTheme.typography.bodySmall)
+                                    Spacer(Modifier.height(8.dp))
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        ResourceBadge("Storage", "${formatBytes(stats.diskAvailable)} free")
+                                        ResourceBadge("Speed", "${formatBytes(stats.totalSpeed)}/s")
                                     }
                                 }
                             }
@@ -139,83 +143,33 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient, onBack: () -> Unit)
                     }
                 }
 
-                // 1. Fetched Builds Accordion
                 item {
-                    AccordionHeader("Fetched Builds", classified.fetched.size, fetchedExpanded) {
-                        fetchedExpanded = !fetchedExpanded
-                    }
-                }
-                if (fetchedExpanded) {
-                    if (classified.fetched.isEmpty()) {
-                        item { EmptyAccordionMessage() }
-                    } else {
-                        item {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                Button(
-                                    onClick = { classified.fetched.forEach { serverClient.sendRemoteStartGroup(pc.pcId, it.id) } },
-                                    modifier = Modifier.weight(1f),
-                                ) { Text("Download all") }
-                                OutlinedButton(
-                                    onClick = { confirmDeleteFetched = true },
-                                    modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                                ) { Text("Delete all") }
+                    AccordionSection("Fetched Builds", classified.fetched.size, fetchedExpanded, { fetchedExpanded = !fetchedExpanded }) {
+                        if (classified.fetched.isEmpty()) EmptyAccordionMessage() else {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button({ classified.fetched.forEach { serverClient.sendRemoteStartGroup(pc.pcId, it.id) } }, Modifier.weight(1f)) { Text("Download all") }
+                                OutlinedButton({ confirmDeleteFetched = true }, Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Delete all") }
                             }
-                        }
-                        items(classified.fetched, key = { "fetched-" + it.id }) { g ->
-                            FetchedGroupCard(pcId = pc.pcId, group = g, presetTypes = pc.presetTypes, serverClient = serverClient)
+                            classified.fetched.forEach { FetchedGroupCard(pc.pcId, it, pc.presetTypes, serverClient) }
                         }
                     }
                 }
-
-                // 2. Progress Accordion
                 item {
-                    AccordionHeader("Progress", classified.progress.size, progressExpanded) {
-                        progressExpanded = !progressExpanded
-                    }
-                }
-                if (progressExpanded) {
-                    if (classified.progress.isEmpty()) {
-                        item { EmptyAccordionMessage() }
-                    } else {
-                        items(classified.progress, key = { "progress-" + it.id }) { g ->
-                            ProgressGroupCard(pcId = pc.pcId, group = g, rows = pc.rows, serverClient = serverClient)
+                    AccordionSection("Progress", classified.progress.size, progressExpanded, { progressExpanded = !progressExpanded }) {
+                        if (classified.progress.isEmpty()) EmptyAccordionMessage() else {
+                            OutlinedButton({ confirmCancelAll = true }, Modifier.fillMaxWidth(), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error), border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))) { Text("Cancel all") }
+                            classified.progress.forEach { ProgressGroupCard(pc.pcId, it, pc.rows, serverClient) }
                         }
                     }
                 }
-
-                // 3. Completed Accordion
                 item {
-                    AccordionHeader("Completed", classified.completed.size, completedExpanded) {
-                        completedExpanded = !completedExpanded
+                    AccordionSection("Completed", classified.completed.size, completedExpanded, { completedExpanded = !completedExpanded }) {
+                        if (classified.completed.isEmpty()) EmptyAccordionMessage() else classified.completed.forEach { CompletedGroupCard(pc.pcId, it, serverClient) }
                     }
                 }
-                if (completedExpanded) {
-                    if (classified.completed.isEmpty()) {
-                        item { EmptyAccordionMessage() }
-                    } else {
-                        items(classified.completed, key = { "completed-" + it.id }) { g ->
-                            CompletedGroupCard(pcId = pc.pcId, group = g, serverClient = serverClient)
-                        }
-                    }
-                }
-
-                // 4. Failed Accordion
                 item {
-                    AccordionHeader("Failed", classified.failed.size, failedExpanded) {
-                        failedExpanded = !failedExpanded
-                    }
-                }
-                if (failedExpanded) {
-                    if (classified.failed.isEmpty()) {
-                        item { EmptyAccordionMessage() }
-                    } else {
-                        items(classified.failed, key = { "failed-" + it.id }) { g ->
-                            FailedGroupCard(pcId = pc.pcId, group = g, rows = pc.rows, serverClient = serverClient)
-                        }
+                    AccordionSection("Failed", classified.failed.size, failedExpanded, { failedExpanded = !failedExpanded }) {
+                        if (classified.failed.isEmpty()) EmptyAccordionMessage() else classified.failed.forEach { FailedGroupCard(pc.pcId, it, pc.rows, serverClient) }
                     }
                 }
             }
@@ -248,14 +202,65 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient, onBack: () -> Unit)
             dismissButton = { TextButton(onClick = { confirmDeleteFetched = false }) { Text("Cancel") } },
         )
     }
+    if (confirmCancelAll && pc != null) {
+        AlertDialog(
+            onDismissRequest = { confirmCancelAll = false },
+            title = { Text("Cancel all downloads?") },
+            text = { Text("This cancels every active download on ${pc.pcName}.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    serverClient.sendRemoteCancelAll(pc.pcId)
+                    confirmCancelAll = false
+                }) { Text("Cancel all") }
+            },
+            dismissButton = { TextButton(onClick = { confirmCancelAll = false }) { Text("Keep downloading") } },
+        )
+    }
 }
 
 @Composable
-fun AccordionHeader(
+private fun RowScope.ResourceBadge(label: String, value: String) {
+    Surface(
+        modifier = Modifier.weight(1f),
+        color = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.small,
+    ) {
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun AccordionSection(
     title: String,
     count: Int,
     isExpanded: Boolean,
-    onToggle: () -> Unit
+    onToggle: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column {
+            AccordionHeader(title, count, isExpanded, onToggle)
+            if (isExpanded) Column(
+                Modifier.fillMaxWidth().padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                content = content,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AccordionHeader(
+    title: String,
+    count: Int,
+    isExpanded: Boolean,
+    onToggle: () -> Unit,
 ) {
     val color = when (title) {
         "Fetched Builds" -> MaterialTheme.colorScheme.secondaryContainer
@@ -263,9 +268,9 @@ fun AccordionHeader(
         "Completed" -> MaterialTheme.colorScheme.tertiaryContainer
         else -> MaterialTheme.colorScheme.errorContainer
     }
-    Card(
+    Surface(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle),
-        colors = CardDefaults.cardColors(containerColor = color)
+        color = color,
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
@@ -366,13 +371,13 @@ fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String,
             ) {
                 CopyableBuildId(group.buildId ?: group.input)
                 OutlinedButton(
-                    onClick = { serverClient.sendRemoteDeleteGroup(pcId, group.id) },
+                    onClick = { serverClient.sendRemoteCancelGroup(pcId, group.id) },
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
                     modifier = Modifier.height(32.dp)
                 ) {
-                    Text("Delete", style = MaterialTheme.typography.labelMedium)
+                    Text("Cancel", style = MaterialTheme.typography.labelMedium)
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -392,7 +397,14 @@ fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String,
                 val row = rows[a.id]
                 val status = row?.status ?: "queued"
                 Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                    ArtifactName(a.name)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = a.selected,
+                            onCheckedChange = { selected -> serverClient.sendRemoteSetArtifactSelected(pcId, group.id, a.id, selected) },
+                            modifier = Modifier.size(32.dp),
+                        )
+                        ArtifactName(a.name, Modifier.weight(1f))
+                    }
                     Spacer(Modifier.height(4.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
