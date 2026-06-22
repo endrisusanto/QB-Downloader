@@ -82,9 +82,20 @@ export function BuildGroup({ group, rows, expanded, filters, onToggleExpanded, o
                     {row?.message || (row ? `${progress.mode === "indeterminate" ? "Downloading" : `${progress.percent}%`} · ${formatBytes(row.downloaded)} / ${formatBytes(row.total)}` : "Ready")}
                   </span>
                 </div>
-                <span className={`pill ${row?.status || "ready"}`}>
-                  {statusLabel(row)}
-                </span>
+                <div className="artifact-status">
+                  <span className={`pill ${row?.status || "ready"}`}>
+                    {statusLabel(row)}
+                  </span>
+                  {onRemoveArtifact && (
+                    <button
+                      className="icon-button compact-icon danger-icon"
+                      title="Delete this artifact"
+                      onClick={() => onRemoveArtifact(artifact.id)}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
                 <div className="artifact-action">
                   {!isDownloading && !isCompleted && onDownloadArtifact && (
                     <button
@@ -93,15 +104,6 @@ export function BuildGroup({ group, rows, expanded, filters, onToggleExpanded, o
                       onClick={() => onDownloadArtifact(artifact)}
                     >
                       <Download size={14} />
-                    </button>
-                  )}
-                  {onRemoveArtifact && (
-                    <button
-                      className="icon-button compact-icon danger-icon"
-                      title="Delete this artifact"
-                      onClick={() => onRemoveArtifact(artifact.id)}
-                    >
-                      <Trash2 size={14} />
                     </button>
                   )}
                 </div>
