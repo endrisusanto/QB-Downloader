@@ -37,7 +37,7 @@ export function useServerSync(
   groups: BuildArtifactGroup[],
   rows: Record<string, DownloadEvent>,
   totalSpeed: number,
-  onRemoteDownload: (qbId: string, artifactTypes: string[], autoStart: boolean) => void,
+  onRemoteDownload: (qbIds: string | string[], artifactTypes: string[], autoStart: boolean) => void | Promise<void>,
   onRemoteDeleteGroup: (groupId: string) => void,
   onRemoteDeleteArtifact: (groupId: string, artifactId: string) => void,
   onRemoteRestartArtifact: (groupId: string, artifactId: string) => void,
@@ -152,8 +152,8 @@ export function useServerSync(
         try {
           const msg = JSON.parse(event.data as string);
           if (msg.type === "start_download") {
-            onRemoteDownloadRef.current(
-              msg.qbId,
+            void onRemoteDownloadRef.current(
+              msg.qbIds ?? msg.qbId,
               msg.artifactTypes ?? [],
               msg.autoStart !== false && msg.autoStart !== "false"
             );

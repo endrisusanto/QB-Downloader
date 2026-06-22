@@ -77,6 +77,13 @@ function AppContent() {
     [credentials, config, settings, settingsError, builds, downloads],
   );
 
+  const handleRemoteDownloads = useCallback(
+    async (qbIds: string | string[], artifactTypes: string[], autoStart: boolean = true) => {
+      for (const qbId of (Array.isArray(qbIds) ? qbIds : [qbIds])) await handleRemoteDownload(qbId, artifactTypes, autoStart);
+    },
+    [handleRemoteDownload],
+  );
+
   const handleRemoteDeleteGroup = useCallback((groupId: string) => {
     const group = builds.groups.find((g) => g.id === groupId);
     if (group) {
@@ -116,7 +123,7 @@ function AppContent() {
     builds.groups,
     downloads.rows,
     downloads.totalSpeed,
-    handleRemoteDownload,
+    handleRemoteDownloads,
     handleRemoteDeleteGroup,
     handleRemoteDeleteArtifact,
     handleRemoteRestartArtifact,
