@@ -21,4 +21,5 @@ export const defaultSettings: SettingsState = {
   darkMode: false,
   serverUrl: "",
   pcName: "",
+  remoteCancelPin: "",
 };

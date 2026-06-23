@@ -90,6 +90,8 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient) {
     var failedExpanded by remember { mutableStateOf(true) }
     var confirmDeleteFetched by remember { mutableStateOf(false) }
     var confirmCancelAll by remember { mutableStateOf(false) }
+    var cancelGroupId by remember { mutableStateOf<String?>(null) }
+    var cancelPin by remember { mutableStateOf("") }
 
     Box(Modifier.fillMaxSize()) {
         if (pc == null) {
@@ -157,8 +159,8 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient) {
                 item {
                     AccordionSection("Progress", classified.progress.size, progressExpanded, { progressExpanded = !progressExpanded }) {
                         if (classified.progress.isEmpty()) EmptyAccordionMessage() else {
-                            OutlinedButton({ confirmCancelAll = true }, Modifier.fillMaxWidth(), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error), border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))) { Text("Cancel all") }
-                            classified.progress.forEach { ProgressGroupCard(pc.pcId, it, pc.rows, serverClient) }
+                            OutlinedButton({ confirmCancelAll = true; cancelPin = "" }, Modifier.fillMaxWidth(), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error), border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))) { Text("Cancel all") }
+                            classified.progress.forEach { ProgressGroupCard(pc.pcId, it, pc.rows, serverClient) { cancelGroupId = it.id; cancelPin = "" } }
                         }
                     }
                 }
@@ -204,16 +206,26 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient) {
     }
     if (confirmCancelAll && pc != null) {
         AlertDialog(
-            onDismissRequest = { confirmCancelAll = false },
+            onDismissRequest = { confirmCancelAll = false; cancelPin = "" },
             title = { Text("Cancel all downloads?") },
-            text = { Text("This cancels every active download on ${pc.pcName}.") },
+            text = { Column { Text("This cancels every active download on ${pc.pcName}."); OutlinedTextField(cancelPin, { cancelPin = it }, label = { Text("Tauri cancel PIN") }, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), singleLine = true) } },
             confirmButton = {
                 TextButton(onClick = {
-                    serverClient.sendRemoteCancelAll(pc.pcId)
+                    serverClient.sendRemoteCancelAll(pc.pcId, cancelPin)
                     confirmCancelAll = false
+                    cancelPin = ""
                 }) { Text("Cancel all") }
             },
-            dismissButton = { TextButton(onClick = { confirmCancelAll = false }) { Text("Keep downloading") } },
+            dismissButton = { TextButton(onClick = { confirmCancelAll = false; cancelPin = "" }) { Text("Keep downloading") } },
+        )
+    }
+    if (cancelGroupId != null && pc != null) {
+        AlertDialog(
+            onDismissRequest = { cancelGroupId = null; cancelPin = "" },
+            title = { Text("Cancel download?") },
+            text = { OutlinedTextField(cancelPin, { cancelPin = it }, label = { Text("Tauri cancel PIN") }, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), singleLine = true) },
+            confirmButton = { TextButton(onClick = { serverClient.sendRemoteCancelGroup(pc.pcId, cancelGroupId!!, cancelPin); cancelGroupId = null; cancelPin = "" }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { cancelGroupId = null; cancelPin = "" }) { Text("Keep downloading") } },
         )
     }
 }
@@ -345,7 +357,7 @@ fun FetchedGroupCard(pcId: String, group: BuildArtifactGroup, presetTypes: List<
 }
 
 @Composable
-fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String, DownloadEvent>, serverClient: ServerClient) {
+fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String, DownloadEvent>, serverClient: ServerClient, onCancel: () -> Unit) {
     var totalSize = 0L
     var downloaded = 0L
     group.artifacts.forEach { a ->
@@ -371,7 +383,7 @@ fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String,
             ) {
                 CopyableBuildId(group.buildId ?: group.input)
                 OutlinedButton(
-                    onClick = { serverClient.sendRemoteCancelGroup(pcId, group.id) },
+                    onClick = onCancel,
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),

@@ -7,7 +7,7 @@ import type { SettingsState } from "../types";
 import { sanitizePreferences } from "../utils";
 
 const CLIENT_NAME = "quickbuild-settings";
-const SECRET_KEYS = ["username", "accessToken", "apiSuffix"] as const;
+const SECRET_KEYS = ["username", "accessToken", "apiSuffix", "remoteCancelPin"] as const;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -76,11 +76,13 @@ async function bootstrap() {
     username: await readSecret(store, "username"),
     accessToken: await readSecret(store, "accessToken"),
     apiSuffix: await readSecret(store, "apiSuffix"),
+    remoteCancelPin: await readSecret(store, "remoteCancelPin"),
   };
   const migrated = {
     username: storedSecrets.username ?? String(legacy.username || ""),
     accessToken: storedSecrets.accessToken ?? String(legacy.accessToken || ""),
     apiSuffix: storedSecrets.apiSuffix ?? (legacy.apiSuffix == null ? defaultSettings.apiSuffix : String(legacy.apiSuffix)),
+    remoteCancelPin: storedSecrets.remoteCancelPin ?? "",
   };
 
   if (SECRET_KEYS.some((key) => migrated[key] !== storedSecrets[key])) {

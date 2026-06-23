@@ -143,12 +143,12 @@ wss.on("connection", (ws, req) => {
         } else if (msg.type === "remote_cancel_group") {
           const pc = pcs.get(msg.pcId);
           if (pc?.ws?.readyState === 1) {
-            sendTo(pc.ws, { type: "cancel_group", groupId: msg.groupId });
+            sendTo(pc.ws, { type: "cancel_group", groupId: msg.groupId, pin: String(msg.pin || "") });
           }
         } else if (msg.type === "remote_cancel_all") {
           const pc = pcs.get(msg.pcId);
           if (pc?.ws?.readyState === 1) {
-            sendTo(pc.ws, { type: "cancel_all" });
+            sendTo(pc.ws, { type: "cancel_all", pin: String(msg.pin || "") });
           }
         } else if (msg.type === "remote_delete_artifact") {
           const pc = pcs.get(msg.pcId);

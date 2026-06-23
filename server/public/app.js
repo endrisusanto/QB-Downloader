@@ -123,11 +123,14 @@ window.remoteDeleteGroup = (pcId, groupId) => {
 };
 
 window.remoteCancelGroup = (pcId, groupId) => {
-  sendCommand({ type: "remote_cancel_group", pcId, groupId });
+  const pin = prompt("Enter the Tauri cancel PIN:");
+  if (pin !== null) sendCommand({ type: "remote_cancel_group", pcId, groupId, pin });
 };
 
 window.remoteCancelAll = (pcId) => {
-  if (confirm("Cancel all active downloads?")) sendCommand({ type: "remote_cancel_all", pcId });
+  if (!confirm("Cancel all active downloads?")) return;
+  const pin = prompt("Enter the Tauri cancel PIN:");
+  if (pin !== null) sendCommand({ type: "remote_cancel_all", pcId, pin });
 };
 
 window.remoteCancelGroups = (pcId, groupIds) => {
@@ -473,6 +476,8 @@ function renderPc(pc) {
 
 function render() {
   emptyUrl.textContent = config.serverUrl || window.location.origin;
+  const selection = window.getSelection();
+  const keepSelection = selection && !selection.isCollapsed;
 
   const currentIds = new Set(pcs.map((p) => p.pcId));
   document.querySelectorAll(".pc-card").forEach((el) => {
@@ -488,8 +493,9 @@ function render() {
   for (const pc of pcs) {
     const existing = document.getElementById(`pc-${pc.pcId}`);
     const newCard = renderPc(pc);
-    if (existing) existing.replaceWith(newCard);
-    else pcList.appendChild(newCard);
+    if (existing) {
+      if (!(keepSelection && selection.containsNode(existing, true))) existing.replaceWith(newCard);
+    } else pcList.appendChild(newCard);
   }
 }
 

@@ -94,6 +94,7 @@ export type SettingsState = {
   darkMode: boolean;
   serverUrl: string;
   pcName: string;
+  remoteCancelPin: string;
 };
 
 export type ProgressMode = "determinate" | "indeterminate" | "completed";

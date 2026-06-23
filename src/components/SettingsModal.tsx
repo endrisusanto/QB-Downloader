@@ -60,6 +60,7 @@ export function SettingsModal({ value, secureError, onSave, onClose, onPickFolde
         <label className="toggle-row"><input type="checkbox" checked={draft.darkMode} onChange={(event) => patch({ darkMode: event.target.checked })} />Dark mode</label>
         <label>Dashboard server URL<input value={draft.serverUrl} onChange={(event) => patch({ serverUrl: event.target.value })} placeholder="https://qd.endrisusanto.my.id" /></label>
         <label>PC display name<input value={draft.pcName} onChange={(event) => patch({ pcName: event.target.value })} placeholder="Auto (hostname)" /></label>
+        <label>Remote cancel PIN<div className="secret-input"><input type="password" inputMode="numeric" value={draft.remoteCancelPin} onChange={(event) => patch({ remoteCancelPin: event.target.value })} placeholder="Required for Web and Android cancel" /></div></label>
         <div className="type-grid">{FILTER_OPTIONS.map((filter) => <button key={filter} className={`type-chip ${draft.selectedTypes.includes(filter) ? "selected" : ""}`} onClick={() => patch({ selectedTypes: draft.selectedTypes.includes(filter) ? draft.selectedTypes.filter((item) => item !== filter) : [...draft.selectedTypes, filter] })}>{filter}</button>)}</div>
         <div className="modal-actions"><button className="primary-button" disabled={saving || Boolean(secureError)} onClick={save}>{saving ? "Saving..." : "Save"}</button></div>
       </div>

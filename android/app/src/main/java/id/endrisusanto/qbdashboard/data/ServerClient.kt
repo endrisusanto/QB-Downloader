@@ -181,19 +181,21 @@ class ServerClient(private val context: Context) {
         ws?.send(payload.toString())
     }
 
-    fun sendRemoteCancelGroup(pcId: String, groupId: String) {
+    fun sendRemoteCancelGroup(pcId: String, groupId: String, pin: String) {
         val payload = JSONObject().apply {
             put("type", "remote_cancel_group")
             put("pcId", pcId)
             put("groupId", groupId)
+            put("pin", pin)
         }
         ws?.send(payload.toString())
     }
 
-    fun sendRemoteCancelAll(pcId: String) {
+    fun sendRemoteCancelAll(pcId: String, pin: String) {
         val payload = JSONObject().apply {
             put("type", "remote_cancel_all")
             put("pcId", pcId)
+            put("pin", pin)
         }
         ws?.send(payload.toString())
     }
