@@ -46,10 +46,11 @@ const cancelPin = document.getElementById("cancel-pin");
 const cancelMessage = document.getElementById("cancel-message");
 let cancelRequest = null;
 function closeCancelModal() { cancelModal.classList.add("hidden"); cancelRequest = null; }
-function openCancelModal(pcId, groupId) {
-  cancelRequest = { pcId, groupId, requestId: crypto.randomUUID() };
-  document.getElementById("cancel-title").textContent = groupId ? "Cancel download" : "Cancel all downloads";
-  document.getElementById("submit-cancel").textContent = groupId ? "Cancel download" : "Cancel all";
+function openCancelModal(pcId, groupId, artifactId) {
+  cancelRequest = { pcId, groupId, artifactId, requestId: crypto.randomUUID() };
+  const label = artifactId ? "Cancel artifact" : groupId ? "Cancel download" : "Cancel all downloads";
+  document.getElementById("cancel-title").textContent = label;
+  document.getElementById("submit-cancel").textContent = artifactId ? "Cancel artifact" : groupId ? "Cancel download" : "Cancel all";
   cancelMessage.hidden = true;
   cancelPin.value = "";
   cancelModal.classList.remove("hidden");
@@ -61,7 +62,7 @@ document.getElementById("cancel-form").addEventListener("submit", (event) => {
   event.preventDefault();
   if (!cancelRequest) return;
   cancelMessage.hidden = true;
-  sendCommand({ type: cancelRequest.groupId ? "remote_cancel_group" : "remote_cancel_all", ...cancelRequest, pin: cancelPin.value });
+  sendCommand({ type: cancelRequest.artifactId ? "remote_cancel_artifact" : cancelRequest.groupId ? "remote_cancel_group" : "remote_cancel_all", ...cancelRequest, pin: cancelPin.value });
 });
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
@@ -151,6 +152,10 @@ window.remoteDeleteGroup = (pcId, groupId) => {
 
 window.remoteCancelGroup = (pcId, groupId) => {
   openCancelModal(pcId, groupId);
+};
+
+window.remoteCancelArtifact = (pcId, groupId, artifactId) => {
+  openCancelModal(pcId, groupId, artifactId);
 };
 
 window.remoteCancelAll = (pcId) => {
@@ -349,7 +354,7 @@ function renderGroupList(pc, groupList, type) {
         const total = row.total || a.size || 0;
         const percent = total > 0 ? Math.min(100, Math.round(((row.downloaded || 0) / total) * 100)) : 0;
         rowStatusHtml = `<span class="art-status ${row.status || "queued"}">${row.status || "queued"} · ${percent}%</span>`;
-        artActionsHtml = `<button class="btn-danger btn-sm" onclick="remoteDeleteArtifact('${pc.pcId}', '${g.id}', '${a.id}')">Cancel</button>`;
+        artActionsHtml = `<button class="btn-danger btn-sm" onclick="remoteCancelArtifact('${pc.pcId}', '${g.id}', '${a.id}')">Cancel</button>`;
       } else {
         rowStatusHtml = `<span class="art-status pending">pending</span>`;
         artActionsHtml = `

@@ -200,6 +200,17 @@ class ServerClient(private val context: Context) {
         ws?.send(payload.toString())
     }
 
+    fun sendRemoteCancelArtifact(pcId: String, groupId: String, artifactId: String, pin: String) {
+        val payload = JSONObject().apply {
+            put("type", "remote_cancel_artifact")
+            put("pcId", pcId)
+            put("groupId", groupId)
+            put("artifactId", artifactId)
+            put("pin", pin)
+        }
+        ws?.send(payload.toString())
+    }
+
     fun sendRemoteDeleteArtifact(pcId: String, groupId: String, artifactId: String) {
         val payload = JSONObject().apply {
             put("type", "remote_delete_artifact")

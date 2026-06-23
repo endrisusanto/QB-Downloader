@@ -153,6 +153,11 @@ wss.on("connection", (ws, req) => {
           if (pc?.ws?.readyState === 1) {
             sendTo(pc.ws, { type: "cancel_all", pin: String(msg.pin || ""), requestId: msg.requestId });
           }
+        } else if (msg.type === "remote_cancel_artifact") {
+          const pc = pcs.get(msg.pcId);
+          if (pc?.ws?.readyState === 1) {
+            sendTo(pc.ws, { type: "cancel_artifact", groupId: msg.groupId, artifactId: msg.artifactId, pin: String(msg.pin || ""), requestId: msg.requestId });
+          }
         } else if (msg.type === "remote_delete_artifact") {
           const pc = pcs.get(msg.pcId);
           if (pc?.ws?.readyState === 1) {

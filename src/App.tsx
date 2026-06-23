@@ -107,6 +107,14 @@ function AppContent() {
     return true;
   }, [downloads, settings.remoteCancelPin]);
 
+  const handleRemoteCancelArtifact = useCallback((groupId: string, artifactId: string, pin: string) => {
+    if (!settings.remoteCancelPin || pin !== settings.remoteCancelPin) return false;
+    const group = builds.groups.find((g) => g.id === groupId);
+    const artifact = group?.artifacts.find((a) => a.id === artifactId);
+    if (group && artifact) void removeArtifact(groupId, artifactId);
+    return Boolean(artifact);
+  }, [builds.groups, settings.remoteCancelPin, removeArtifact]);
+
   const handleRemoteDeleteArtifact = useCallback((groupId: string, artifactId: string) => {
     void removeArtifact(groupId, artifactId);
   }, [removeArtifact]);
@@ -143,6 +151,7 @@ function AppContent() {
     handleRemoteDeleteGroup,
     handleRemoteCancelGroup,
     handleRemoteCancelAll,
+    handleRemoteCancelArtifact,
     handleRemoteDeleteArtifact,
     handleRemoteRestartArtifact,
     handleRemoteStartGroup,

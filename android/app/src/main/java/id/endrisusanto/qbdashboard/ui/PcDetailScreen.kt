@@ -91,6 +91,7 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient) {
     var confirmDeleteFetched by remember { mutableStateOf(false) }
     var confirmCancelAll by remember { mutableStateOf(false) }
     var cancelGroupId by remember { mutableStateOf<String?>(null) }
+    var cancelArtifact by remember { mutableStateOf<Pair<String, String>?>(null) }
     var cancelPin by remember { mutableStateOf("") }
 
     Box(Modifier.fillMaxSize()) {
@@ -160,7 +161,12 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient) {
                     AccordionSection("Progress", classified.progress.size, progressExpanded, { progressExpanded = !progressExpanded }) {
                         if (classified.progress.isEmpty()) EmptyAccordionMessage() else {
                             OutlinedButton({ confirmCancelAll = true; cancelPin = "" }, Modifier.fillMaxWidth(), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error), border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))) { Text("Cancel all") }
-                            classified.progress.forEach { ProgressGroupCard(pc.pcId, it, pc.rows, serverClient) { cancelGroupId = it.id; cancelPin = "" } }
+                            classified.progress.forEach {
+                                ProgressGroupCard(pc.pcId, it, pc.rows, serverClient,
+                                    onCancel = { cancelGroupId = it.id; cancelPin = "" },
+                                    onCancelArtifact = { artifactId -> cancelArtifact = it.id to artifactId; cancelPin = "" },
+                                )
+                            }
                         }
                     }
                 }
@@ -226,6 +232,15 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient) {
             text = { OutlinedTextField(cancelPin, { cancelPin = it }, label = { Text("Tauri cancel PIN") }, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), singleLine = true) },
             confirmButton = { TextButton(onClick = { serverClient.sendRemoteCancelGroup(pc.pcId, cancelGroupId!!, cancelPin); cancelGroupId = null; cancelPin = "" }) { Text("Cancel") } },
             dismissButton = { TextButton(onClick = { cancelGroupId = null; cancelPin = "" }) { Text("Keep downloading") } },
+        )
+    }
+    if (cancelArtifact != null && pc != null) {
+        AlertDialog(
+            onDismissRequest = { cancelArtifact = null; cancelPin = "" },
+            title = { Text("Cancel artifact?") },
+            text = { OutlinedTextField(cancelPin, { cancelPin = it }, label = { Text("Tauri cancel PIN") }, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), singleLine = true) },
+            confirmButton = { TextButton(onClick = { cancelArtifact?.let { (groupId, artifactId) -> serverClient.sendRemoteCancelArtifact(pc.pcId, groupId, artifactId, cancelPin) }; cancelArtifact = null; cancelPin = "" }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { cancelArtifact = null; cancelPin = "" }) { Text("Keep downloading") } },
         )
     }
 }
@@ -357,7 +372,7 @@ fun FetchedGroupCard(pcId: String, group: BuildArtifactGroup, presetTypes: List<
 }
 
 @Composable
-fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String, DownloadEvent>, serverClient: ServerClient, onCancel: () -> Unit) {
+fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String, DownloadEvent>, serverClient: ServerClient, onCancel: () -> Unit, onCancelArtifact: (String) -> Unit) {
     var totalSize = 0L
     var downloaded = 0L
     group.artifacts.forEach { a ->
@@ -435,7 +450,7 @@ fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String,
                             )
                         }
                         OutlinedButton(
-                            onClick = { serverClient.sendRemoteDeleteArtifact(pcId, group.id, a.id) },
+                            onClick = { onCancelArtifact(a.id) },
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),

@@ -41,6 +41,7 @@ export function useServerSync(
   onRemoteDeleteGroup: (groupId: string) => void,
   onRemoteCancelGroup: (groupId: string, pin: string) => boolean,
   onRemoteCancelAll: (pin: string) => boolean,
+  onRemoteCancelArtifact: (groupId: string, artifactId: string, pin: string) => boolean,
   onRemoteDeleteArtifact: (groupId: string, artifactId: string) => void,
   onRemoteRestartArtifact: (groupId: string, artifactId: string) => void,
   onRemoteStartGroup: (groupId: string) => void,
@@ -60,6 +61,7 @@ export function useServerSync(
   const onRemoteDeleteGroupRef = useRef(onRemoteDeleteGroup);
   const onRemoteCancelGroupRef = useRef(onRemoteCancelGroup);
   const onRemoteCancelAllRef = useRef(onRemoteCancelAll);
+  const onRemoteCancelArtifactRef = useRef(onRemoteCancelArtifact);
   const onRemoteDeleteArtifactRef = useRef(onRemoteDeleteArtifact);
   const onRemoteRestartArtifactRef = useRef(onRemoteRestartArtifact);
   const onRemoteStartGroupRef = useRef(onRemoteStartGroup);
@@ -77,11 +79,12 @@ export function useServerSync(
     onRemoteDeleteGroupRef.current = onRemoteDeleteGroup;
     onRemoteCancelGroupRef.current = onRemoteCancelGroup;
     onRemoteCancelAllRef.current = onRemoteCancelAll;
+    onRemoteCancelArtifactRef.current = onRemoteCancelArtifact;
     onRemoteDeleteArtifactRef.current = onRemoteDeleteArtifact;
     onRemoteRestartArtifactRef.current = onRemoteRestartArtifact;
     onRemoteStartGroupRef.current = onRemoteStartGroup;
     onRemoteToggleArtifactRef.current = onRemoteToggleArtifact;
-  }, [onRemoteDownload, onRemoteDeleteGroup, onRemoteCancelGroup, onRemoteCancelAll, onRemoteDeleteArtifact, onRemoteRestartArtifact, onRemoteStartGroup, onRemoteToggleArtifact]);
+  }, [onRemoteDownload, onRemoteDeleteGroup, onRemoteCancelGroup, onRemoteCancelAll, onRemoteCancelArtifact, onRemoteDeleteArtifact, onRemoteRestartArtifact, onRemoteStartGroup, onRemoteToggleArtifact]);
 
   useEffect(() => {
     groupsRef.current = groups;
@@ -191,6 +194,8 @@ export function useServerSync(
             send({ type: "cancel_result", requestId: msg.requestId, ok: onRemoteCancelGroupRef.current(msg.groupId, String(msg.pin || "")) });
           } else if (msg.type === "cancel_all") {
             send({ type: "cancel_result", requestId: msg.requestId, ok: onRemoteCancelAllRef.current(String(msg.pin || "")) });
+          } else if (msg.type === "cancel_artifact") {
+            send({ type: "cancel_result", requestId: msg.requestId, ok: onRemoteCancelArtifactRef.current(msg.groupId, msg.artifactId, String(msg.pin || "")) });
           } else if (msg.type === "delete_artifact") {
             onRemoteDeleteArtifactRef.current(msg.groupId, msg.artifactId);
           } else if (msg.type === "restart_artifact") {
