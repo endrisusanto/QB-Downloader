@@ -39,8 +39,8 @@ export function useServerSync(
   totalSpeed: number,
   onRemoteDownload: (qbIds: string | string[], artifactTypes: string[], autoStart: boolean) => void | Promise<void>,
   onRemoteDeleteGroup: (groupId: string) => void,
-  onRemoteCancelGroup: (groupId: string, pin: string) => void,
-  onRemoteCancelAll: (pin: string) => void,
+  onRemoteCancelGroup: (groupId: string, pin: string) => boolean,
+  onRemoteCancelAll: (pin: string) => boolean,
   onRemoteDeleteArtifact: (groupId: string, artifactId: string) => void,
   onRemoteRestartArtifact: (groupId: string, artifactId: string) => void,
   onRemoteStartGroup: (groupId: string) => void,
@@ -188,9 +188,9 @@ export function useServerSync(
           } else if (msg.type === "delete_group") {
             onRemoteDeleteGroupRef.current(msg.groupId);
           } else if (msg.type === "cancel_group") {
-            onRemoteCancelGroupRef.current(msg.groupId, String(msg.pin || ""));
+            send({ type: "cancel_result", requestId: msg.requestId, ok: onRemoteCancelGroupRef.current(msg.groupId, String(msg.pin || "")) });
           } else if (msg.type === "cancel_all") {
-            onRemoteCancelAllRef.current(String(msg.pin || ""));
+            send({ type: "cancel_result", requestId: msg.requestId, ok: onRemoteCancelAllRef.current(String(msg.pin || "")) });
           } else if (msg.type === "delete_artifact") {
             onRemoteDeleteArtifactRef.current(msg.groupId, msg.artifactId);
           } else if (msg.type === "restart_artifact") {

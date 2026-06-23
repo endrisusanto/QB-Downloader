@@ -41,6 +41,29 @@ document.getElementById("close-download").addEventListener("click", () => downlo
 document.getElementById("cancel-download").addEventListener("click", () => downloadModal.classList.add("hidden"));
 document.getElementById("submit-download").addEventListener("click", submitDownload);
 
+const cancelModal = document.getElementById("cancel-modal");
+const cancelPin = document.getElementById("cancel-pin");
+const cancelMessage = document.getElementById("cancel-message");
+let cancelRequest = null;
+function closeCancelModal() { cancelModal.classList.add("hidden"); cancelRequest = null; }
+function openCancelModal(pcId, groupId) {
+  cancelRequest = { pcId, groupId, requestId: crypto.randomUUID() };
+  document.getElementById("cancel-title").textContent = groupId ? "Cancel download" : "Cancel all downloads";
+  document.getElementById("submit-cancel").textContent = groupId ? "Cancel download" : "Cancel all";
+  cancelMessage.hidden = true;
+  cancelPin.value = "";
+  cancelModal.classList.remove("hidden");
+  cancelPin.focus();
+}
+document.getElementById("close-cancel").addEventListener("click", closeCancelModal);
+document.getElementById("dismiss-cancel").addEventListener("click", closeCancelModal);
+document.getElementById("cancel-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (!cancelRequest) return;
+  cancelMessage.hidden = true;
+  sendCommand({ type: cancelRequest.groupId ? "remote_cancel_group" : "remote_cancel_all", ...cancelRequest, pin: cancelPin.value });
+});
+
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 function setBadge(state) {
   connBadge.className = `badge badge-${state}`;
@@ -72,6 +95,10 @@ function connect() {
       if (msg.type === "state_update") { pcs = msg.pcs; render(); }
       else if (msg.type === "error") showToast(msg.message, "error");
       else if (msg.type === "download_ack" && msg.status === "accepted") showToast("Download started on PC!", "ok");
+      else if (msg.type === "cancel_result" && cancelRequest?.requestId === msg.requestId) {
+        if (msg.ok) { closeCancelModal(); showToast("PIN correct. Cancellation requested", "ok"); }
+        else { cancelMessage.textContent = "Incorrect cancel PIN"; cancelMessage.hidden = false; showToast("PIN incorrect", "error"); cancelPin.select(); }
+      }
     } catch { /**/ }
   };
 }
@@ -123,14 +150,11 @@ window.remoteDeleteGroup = (pcId, groupId) => {
 };
 
 window.remoteCancelGroup = (pcId, groupId) => {
-  const pin = prompt("Enter the Tauri cancel PIN:");
-  if (pin !== null) sendCommand({ type: "remote_cancel_group", pcId, groupId, pin });
+  openCancelModal(pcId, groupId);
 };
 
 window.remoteCancelAll = (pcId) => {
-  if (!confirm("Cancel all active downloads?")) return;
-  const pin = prompt("Enter the Tauri cancel PIN:");
-  if (pin !== null) sendCommand({ type: "remote_cancel_all", pcId, pin });
+  openCancelModal(pcId);
 };
 
 window.remoteCancelGroups = (pcId, groupIds) => {
@@ -433,7 +457,7 @@ function renderPc(pc) {
       <details ${isExpanded(pc.pcId, "fetched") ? "open" : ""} ontoggle="window.setExpandedState('${pc.pcId}', 'fetched', this.open)">
         <summary>Fetched Builds (${fetched.length})</summary>
         <div class="accordion-content">
-          ${fetched.length ? `<div class="bulk-actions"><button class="btn-primary btn-sm bulk-start-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Download all</button><button class="btn-danger btn-sm bulk-delete-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Delete all</button></div>` : ""}
+          ${fetched.length ? `<div class="bulk-actions"><button class="btn-primary btn-sm bulk-start-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Download all</button><button class="btn-secondary btn-sm bulk-deselect-btn">Deselect all</button><button class="btn-danger btn-sm bulk-delete-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Delete all</button></div>` : ""}
           ${renderGroupList(pc, fetched, "fetched")}
         </div>
       </details>
@@ -467,6 +491,9 @@ function renderPc(pc) {
   });
   card.querySelectorAll(".bulk-delete-btn").forEach((btn) => {
     btn.addEventListener("click", () => remoteDeleteGroups(btn.dataset.pcId, btn.dataset.groupIds.split(",").filter(Boolean)));
+  });
+  card.querySelectorAll(".bulk-deselect-btn").forEach((btn) => {
+    btn.addEventListener("click", () => fetched.forEach((group) => group.artifacts.filter((artifact) => artifact.selected !== false).forEach((artifact) => remoteSetArtifactSelected(pc.pcId, group.id, artifact.id, false))));
   });
   card.querySelectorAll(".bulk-cancel-btn").forEach((btn) => {
     btn.addEventListener("click", () => remoteCancelGroups(btn.dataset.pcId, btn.dataset.groupIds.split(",").filter(Boolean)));

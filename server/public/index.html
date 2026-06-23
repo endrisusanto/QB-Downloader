@@ -88,6 +88,23 @@
     </div>
   </div>
 
+  <div class="modal-backdrop hidden" id="cancel-modal">
+    <form class="modal" id="cancel-form">
+      <div class="modal-header">
+        <h2 id="cancel-title">Cancel download</h2>
+        <button class="icon-btn" type="button" id="close-cancel">✕</button>
+      </div>
+      <label>Cancel PIN
+        <input id="cancel-pin" type="password" inputmode="numeric" autocomplete="one-time-code" required />
+      </label>
+      <p class="modal-subtitle" id="cancel-message" hidden></p>
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" id="dismiss-cancel">Back</button>
+        <button class="btn-danger btn-sm" id="submit-cancel" type="submit">Cancel download</button>
+      </div>
+    </form>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>

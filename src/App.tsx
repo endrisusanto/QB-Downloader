@@ -92,17 +92,19 @@ function AppContent() {
   }, [builds.groups, remove]);
 
   const handleRemoteCancelGroup = useCallback((groupId: string, pin: string) => {
-    if (!settings.remoteCancelPin || pin !== settings.remoteCancelPin) return;
+    if (!settings.remoteCancelPin || pin !== settings.remoteCancelPin) return false;
     const group = builds.groups.find((g) => g.id === groupId);
     if (group) void downloads.cancel(group);
+    return true;
   }, [builds.groups, downloads, settings.remoteCancelPin]);
 
   const handleRemoteCancelAll = useCallback((pin: string) => {
-    if (!settings.remoteCancelPin || pin !== settings.remoteCancelPin) return;
+    if (!settings.remoteCancelPin || pin !== settings.remoteCancelPin) return false;
     void Promise.all(downloads.categories.progress.map((group) => downloads.cancel({
       ...group,
       artifacts: group.artifacts.map((artifact) => ({ ...artifact, selected: true })),
     })));
+    return true;
   }, [downloads, settings.remoteCancelPin]);
 
   const handleRemoteDeleteArtifact = useCallback((groupId: string, artifactId: string) => {

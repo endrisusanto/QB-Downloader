@@ -103,6 +103,9 @@ wss.on("connection", (ws, req) => {
           // Forward ack to all viewers
           const payload = JSON.stringify({ type: "download_ack", ...msg });
           for (const v of viewers) if (v.readyState === 1) v.send(payload);
+        } else if (msg.type === "cancel_result") {
+          const payload = JSON.stringify({ type: "cancel_result", ...msg });
+          for (const v of viewers) if (v.readyState === 1) v.send(payload);
         }
       } catch { /* ignore malformed */ }
     });
@@ -143,12 +146,12 @@ wss.on("connection", (ws, req) => {
         } else if (msg.type === "remote_cancel_group") {
           const pc = pcs.get(msg.pcId);
           if (pc?.ws?.readyState === 1) {
-            sendTo(pc.ws, { type: "cancel_group", groupId: msg.groupId, pin: String(msg.pin || "") });
+            sendTo(pc.ws, { type: "cancel_group", groupId: msg.groupId, pin: String(msg.pin || ""), requestId: msg.requestId });
           }
         } else if (msg.type === "remote_cancel_all") {
           const pc = pcs.get(msg.pcId);
           if (pc?.ws?.readyState === 1) {
-            sendTo(pc.ws, { type: "cancel_all", pin: String(msg.pin || "") });
+            sendTo(pc.ws, { type: "cancel_all", pin: String(msg.pin || ""), requestId: msg.requestId });
           }
         } else if (msg.type === "remote_delete_artifact") {
           const pc = pcs.get(msg.pcId);
