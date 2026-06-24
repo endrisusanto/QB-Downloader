@@ -19,11 +19,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import id.endrisusanto.qbdashboard.data.PcState
 import id.endrisusanto.qbdashboard.data.ServerClient
+import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -158,20 +160,34 @@ fun PcCard(pc: PcState, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
 
 @Composable
 private fun Modifier.galaxyStars(): Modifier {
-    val stars = remember { List(18) { Triple(Random.nextFloat(), Random.nextFloat(), Random.nextFloat()) } }
+    val stars = remember {
+        List(30) {
+            floatArrayOf(
+                Random.nextFloat(), Random.nextFloat(), Random.nextFloat() * 6.28f,
+                0.006f + Random.nextFloat() * 0.014f, Random.nextFloat() * 6.28f, Random.nextFloat(),
+            )
+        }
+    }
     val transition = rememberInfiniteTransition(label = "galaxyStars")
-    val motion by transition.animateFloat(
+    val time by transition.animateFloat(
         initialValue = 0f,
-        targetValue = 6.28f,
-        animationSpec = infiniteRepeatable(tween(7000, easing = LinearEasing), RepeatMode.Restart),
-        label = "galaxyStarsMotion",
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing), RepeatMode.Restart),
+        label = "galaxyStarsTime",
     )
-    val color = if (isSystemInDarkTheme()) Color.White.copy(alpha = 0.38f) else Color(0xFF3B82F6).copy(alpha = 0.22f)
+    val darkTheme = isSystemInDarkTheme()
+    val color = if (darkTheme) Color.White else Color(0xFF3B82F6)
     return drawWithCache {
         onDrawWithContent {
             drawContent()
-            stars.forEach { (x, y, phase) ->
-                drawCircle(color, size.minDimension * (0.006f + phase * 0.006f), Offset(size.width * (x + sin(motion + phase * 6.28f) * 0.012f), size.height * (y + sin(motion * 1.3f + phase * 6.28f) * 0.012f)))
+            stars.forEach { star ->
+                val x = (star[0] + cos(star[2]) * star[3] * time) % 1f
+                val y = (star[1] + sin(star[2]) * star[3] * time) % 1f
+                val center = Offset(size.width * x, size.height * y)
+                val radius = size.minDimension * (0.004f + star[5] * 0.006f)
+                val alpha = (0.18f + sin(time * 6.28f + star[4]) * 0.1f) * if (darkTheme) 1f else 0.6f
+                drawCircle(Brush.radialGradient(listOf(color.copy(alpha = alpha), Color.Transparent), center, radius * 3f), radius * 3f, center)
+                drawCircle(color.copy(alpha = alpha + 0.2f), radius, center)
             }
         }
     }
