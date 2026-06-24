@@ -1,11 +1,5 @@
 package id.endrisusanto.qbdashboard.ui
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.BorderStroke
@@ -17,17 +11,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import id.endrisusanto.qbdashboard.data.PcState
 import id.endrisusanto.qbdashboard.data.ServerClient
-import kotlin.math.cos
-import kotlin.math.sin
-import kotlin.random.Random
 
 fun formatBytes(bytes: Long): String {
     if (bytes <= 0) return "0 B"
@@ -86,7 +74,7 @@ fun PcCard(pc: PcState, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
     val darkTheme = isSystemInDarkTheme()
     val classified = remember(pc.groups, pc.rows) { classifyPcGroups(pc.groups, pc.rows) }
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).galaxyStars(),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface.copy(alpha = if (darkTheme) 0.62f else 1f),
         ),
@@ -153,41 +141,6 @@ fun PcCard(pc: PcState, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text("Remote Download")
-            }
-        }
-    }
-}
-
-@Composable
-private fun Modifier.galaxyStars(): Modifier {
-    val stars = remember {
-        List(30) {
-            floatArrayOf(
-                Random.nextFloat(), Random.nextFloat(), Random.nextFloat() * 6.28f,
-                0.006f + Random.nextFloat() * 0.014f, Random.nextFloat() * 6.28f, Random.nextFloat(),
-            )
-        }
-    }
-    val transition = rememberInfiniteTransition(label = "galaxyStars")
-    val time by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing), RepeatMode.Restart),
-        label = "galaxyStarsTime",
-    )
-    val darkTheme = isSystemInDarkTheme()
-    val color = if (darkTheme) Color.White else Color(0xFF3B82F6)
-    return drawWithCache {
-        onDrawWithContent {
-            drawContent()
-            stars.forEach { star ->
-                val x = (star[0] + cos(star[2]) * star[3] * time) % 1f
-                val y = (star[1] + sin(star[2]) * star[3] * time) % 1f
-                val center = Offset(size.width * x, size.height * y)
-                val radius = size.minDimension * (0.004f + star[5] * 0.006f)
-                val alpha = (0.18f + sin(time * 6.28f + star[4]) * 0.1f) * if (darkTheme) 1f else 0.6f
-                drawCircle(Brush.radialGradient(listOf(color.copy(alpha = alpha), Color.Transparent), center, radius * 3f), radius * 3f, center)
-                drawCircle(color.copy(alpha = alpha + 0.2f), radius, center)
             }
         }
     }
