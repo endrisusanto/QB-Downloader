@@ -19,12 +19,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import id.endrisusanto.qbdashboard.data.PcState
 import id.endrisusanto.qbdashboard.data.ServerClient
+import kotlin.math.sin
+import kotlin.random.Random
 
 fun formatBytes(bytes: Long): String {
     if (bytes <= 0) return "0 B"
@@ -83,7 +84,7 @@ fun PcCard(pc: PcState, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
     val darkTheme = isSystemInDarkTheme()
     val classified = remember(pc.groups, pc.rows) { classifyPcGroups(pc.groups, pc.rows) }
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).lensFlare(),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).galaxyStars(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface.copy(alpha = if (darkTheme) 0.62f else 1f),
         ),
@@ -156,23 +157,22 @@ fun PcCard(pc: PcState, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
 }
 
 @Composable
-private fun Modifier.lensFlare(): Modifier {
-    val transition = rememberInfiniteTransition(label = "lensFlare")
-    val position by transition.animateFloat(
-        initialValue = -0.25f,
-        targetValue = 1.25f,
-        animationSpec = infiniteRepeatable(tween(4800, easing = LinearEasing), RepeatMode.Restart),
-        label = "lensFlarePosition",
+private fun Modifier.galaxyStars(): Modifier {
+    val stars = remember { List(18) { Triple(Random.nextFloat(), Random.nextFloat(), Random.nextFloat()) } }
+    val transition = rememberInfiniteTransition(label = "galaxyStars")
+    val motion by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 6.28f,
+        animationSpec = infiniteRepeatable(tween(7000, easing = LinearEasing), RepeatMode.Restart),
+        label = "galaxyStarsMotion",
     )
+    val color = if (isSystemInDarkTheme()) Color.White.copy(alpha = 0.38f) else Color(0xFF3B82F6).copy(alpha = 0.22f)
     return drawWithCache {
-        val center = Offset(size.width * position, size.height * 0.2f)
         onDrawWithContent {
             drawContent()
-            drawCircle(
-                brush = Brush.radialGradient(listOf(Color.White.copy(alpha = 0.18f), Color.Transparent), center),
-                radius = size.minDimension * 0.42f,
-                center = center,
-            )
+            stars.forEach { (x, y, phase) ->
+                drawCircle(color, size.minDimension * (0.006f + phase * 0.006f), Offset(size.width * (x + sin(motion + phase * 6.28f) * 0.012f), size.height * (y + sin(motion * 1.3f + phase * 6.28f) * 0.012f)))
+            }
         }
     }
 }
