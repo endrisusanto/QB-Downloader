@@ -1,6 +1,8 @@
 package id.endrisusanto.qbdashboard.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.lazy.LazyColumn
@@ -68,13 +70,17 @@ fun PcListScreen(serverClient: ServerClient, onPcClick: (String) -> Unit) {
 
 @Composable
 fun PcCard(pc: PcState, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
-    val total = pc.groups.flatMap { it.artifacts }.size
+    val darkTheme = isSystemInDarkTheme()
     val active = pc.rows.values.count { it.status in listOf("queued", "downloading", "retrying") }
     val completed = pc.rows.values.count { it.status == "completed" }
-    ElevatedCard(
+    val failed = pc.rows.values.count { it.status == "failed" }
+    Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = if (darkTheme) 0.62f else 1f),
+        ),
+        border = if (darkTheme) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)) else null,
+        elevation = CardDefaults.cardElevation(defaultElevation = if (darkTheme) 0.dp else 2.dp),
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -103,9 +109,9 @@ fun PcCard(pc: PcState, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                StatChip("Active", "$active")
-                StatChip("Done", "$completed")
-                StatChip("Total", "$total")
+                StatChip("Sedang Download", "$active")
+                StatChip("Sukses Download", "$completed")
+                StatChip("Gagal Download", "$failed")
             }
 
             if (pc.sysStats != null) {
@@ -143,10 +149,12 @@ fun PcCard(pc: PcState, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
 
 @Composable
 fun RowScope.StatChip(label: String, value: String) {
+    val darkTheme = isSystemInDarkTheme()
     Surface(
         modifier = Modifier.weight(1f),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (darkTheme) 0.35f else 0.65f),
         shape = MaterialTheme.shapes.small,
+        border = if (darkTheme) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)) else null,
     ) {
         Column(
             modifier = Modifier.padding(vertical = 8.dp),

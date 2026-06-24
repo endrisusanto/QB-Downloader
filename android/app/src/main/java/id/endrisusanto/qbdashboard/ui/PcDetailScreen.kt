@@ -334,12 +334,20 @@ fun FetchedGroupCard(pcId: String, group: BuildArtifactGroup, presetTypes: List<
             ) {
                 CopyableBuildId(group.buildId ?: group.input)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = { serverClient.sendRemoteStartGroup(pcId, group.id) },
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                        modifier = Modifier.height(32.dp)
-                    ) {
-                        Text("Download", style = MaterialTheme.typography.labelMedium)
+                    if (group.status == "watching") {
+                        AssistChip(
+                            onClick = {},
+                            enabled = false,
+                            label = { Text("Waiting") },
+                        )
+                    } else {
+                        Button(
+                            onClick = { serverClient.sendRemoteStartGroup(pcId, group.id) },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text("Download", style = MaterialTheme.typography.labelMedium)
+                        }
                     }
                     OutlinedButton(
                         onClick = { serverClient.sendRemoteDeleteGroup(pcId, group.id) },
@@ -353,6 +361,14 @@ fun FetchedGroupCard(pcId: String, group: BuildArtifactGroup, presetTypes: List<
                 }
             }
             Spacer(Modifier.height(8.dp))
+            if (group.status == "watching") {
+                Text(
+                    "Build is running. Waiting for artifacts.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                Spacer(Modifier.height(8.dp))
+            }
             visibleArtifacts(group, presetTypes).forEach { a ->
                 Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(

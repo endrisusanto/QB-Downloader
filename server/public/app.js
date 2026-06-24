@@ -298,12 +298,20 @@ function renderGroupList(pc, groupList, type) {
   if (groupList.length === 0) return `<div class="empty-accordion-msg">No builds in this category</div>`;
   return groupList.map((g) => {
     const isFetched = type === "fetched";
+    const isWaiting = g.status === "watching";
     const isProgress = type === "progress";
     const isCompleted = type === "completed";
     const isFailed = type === "failed";
 
     let actionHtml = "";
-    if (isFetched) {
+    if (isWaiting) {
+      actionHtml = `
+        <div class="group-actions">
+          <span class="art-status pending">Waiting for artifacts</span>
+          <button class="btn-danger btn-sm" onclick="remoteDeleteGroup('${pc.pcId}', '${g.id}')">Delete</button>
+        </div>
+      `;
+    } else if (isFetched) {
       actionHtml = `
         <div class="group-actions">
           <button class="btn-primary btn-sm" onclick="remoteStartGroup('${pc.pcId}', '${g.id}')">Start Download</button>
@@ -380,7 +388,7 @@ function renderGroupList(pc, groupList, type) {
     return `
       <div class="group-box">
         <div class="group-box-header">
-          <div class="group-box-title">${g.buildId || g.input}</div>
+          <div class="group-box-title">${g.buildId || g.input}${isWaiting ? '<div class="group-waiting-message">Build is running. Waiting for artifacts.</div>' : ""}</div>
           ${actionHtml}
         </div>
         <div class="group-box-artifacts">
