@@ -1,5 +1,11 @@
 package id.endrisusanto.qbdashboard.ui
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.BorderStroke
@@ -11,6 +17,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import id.endrisusanto.qbdashboard.data.PcState
@@ -71,11 +81,9 @@ fun PcListScreen(serverClient: ServerClient, onPcClick: (String) -> Unit) {
 @Composable
 fun PcCard(pc: PcState, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
     val darkTheme = isSystemInDarkTheme()
-    val active = pc.rows.values.count { it.status in listOf("queued", "downloading", "retrying") }
-    val completed = pc.rows.values.count { it.status == "completed" }
-    val failed = pc.rows.values.count { it.status == "failed" }
+    val classified = remember(pc.groups, pc.rows) { classifyPcGroups(pc.groups, pc.rows) }
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).lensFlare(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface.copy(alpha = if (darkTheme) 0.62f else 1f),
         ),
@@ -109,9 +117,9 @@ fun PcCard(pc: PcState, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                StatChip("Sedang Download", "$active")
-                StatChip("Sukses Download", "$completed")
-                StatChip("Gagal Download", "$failed")
+                StatChip("Downloading", "${classified.progress.size}")
+                StatChip("Downloaded", "${classified.completed.size}")
+                StatChip("Failed", "${classified.failed.size}")
             }
 
             if (pc.sysStats != null) {
@@ -143,6 +151,28 @@ fun PcCard(pc: PcState, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
             ) {
                 Text("Remote Download")
             }
+        }
+    }
+}
+
+@Composable
+private fun Modifier.lensFlare(): Modifier {
+    val transition = rememberInfiniteTransition(label = "lensFlare")
+    val position by transition.animateFloat(
+        initialValue = -0.25f,
+        targetValue = 1.25f,
+        animationSpec = infiniteRepeatable(tween(4800, easing = LinearEasing), RepeatMode.Restart),
+        label = "lensFlarePosition",
+    )
+    return drawWithCache {
+        val center = Offset(size.width * position, size.height * 0.2f)
+        onDrawWithContent {
+            drawContent()
+            drawCircle(
+                brush = Brush.radialGradient(listOf(Color.White.copy(alpha = 0.18f), Color.Transparent), center),
+                radius = size.minDimension * 0.42f,
+                center = center,
+            )
         }
     }
 }
