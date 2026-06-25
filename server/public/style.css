@@ -454,6 +454,9 @@ input:focus { border-color: var(--accent); }
 .art-row:not(:last-child) {
   border-bottom: 1px solid rgba(255, 255, 255, 0.03);
 }
+.art-empty {
+  color: var(--text-muted);
+}
 .art-name {
   min-width: 0;
   flex: 1;

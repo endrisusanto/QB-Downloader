@@ -342,7 +342,10 @@ function renderGroupList(pc, groupList, type) {
       `;
     }
 
-    const artHtml = g.artifacts.filter((a) => matchesArtifactFilter(a, g.customFilters || pc.presetTypes)).map((a) => {
+    const noArtifactsHtml = !isWaiting && g.artifacts.length === 0
+      ? `<div class="art-row art-empty">Artifacts tidak ada. Mungkin QB ID sudah expired.</div>`
+      : "";
+    const artHtml = noArtifactsHtml || g.artifacts.filter((a) => matchesArtifactFilter(a, g.customFilters || pc.presetTypes)).map((a) => {
       const row = pc.rows[a.id] || {};
       let rowStatusHtml = "";
       let artActionsHtml = "";

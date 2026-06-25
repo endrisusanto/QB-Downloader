@@ -321,6 +321,16 @@ fun EmptyAccordionMessage() {
 }
 
 @Composable
+fun NoArtifactsNotice() {
+    Text(
+        "Artifacts tidak ada. Mungkin QB ID sudah expired.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(vertical = 6.dp)
+    )
+}
+
+@Composable
 fun FetchedGroupCard(pcId: String, group: BuildArtifactGroup, presetTypes: List<String>, serverClient: ServerClient) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -368,6 +378,9 @@ fun FetchedGroupCard(pcId: String, group: BuildArtifactGroup, presetTypes: List<
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
                 Spacer(Modifier.height(8.dp))
+            }
+            if (group.status != "watching" && group.artifacts.isEmpty()) {
+                NoArtifactsNotice()
             }
             visibleArtifacts(group, presetTypes).forEach { a ->
                 Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -640,6 +640,10 @@ button {
   grid-template-columns: minmax(260px, 1.25fr) minmax(240px, 1fr) 144px 34px;
 }
 
+.artifact-row.artifact-empty {
+  grid-template-columns: 1fr;
+}
+
 .artifact-status {
   display: flex;
   justify-content: flex-end;

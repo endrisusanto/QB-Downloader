@@ -4,6 +4,8 @@ import type { Artifact, BuildArtifactGroup, DownloadEvent } from "../types";
 import { formatBytes, groupProgress, kindLabel, progressState, selectedArtifacts, statusLabel, visibleArtifacts as getVisibleArtifacts } from "../utils";
 import { ProgressBar } from "./ProgressBar";
 
+const NO_ARTIFACTS_NOTICE = "Artifacts tidak ada. Mungkin QB ID sudah expired.";
+
 export function BuildGroup({ group, rows, expanded, filters, onToggleExpanded, onToggleArtifact, onToggleAll, onDownload, onCancel, onRetry, onRemove, onProgress, onConfigureFilters, onDownloadArtifact, onRemoveArtifact }: {
   group: BuildArtifactGroup; rows: Record<string, DownloadEvent>; expanded: boolean;
   filters: string[];
@@ -24,6 +26,7 @@ export function BuildGroup({ group, rows, expanded, filters, onToggleExpanded, o
   const hasRows = statuses.some(Boolean);
   const allSelected = artifacts.length > 0 && selected.length === artifacts.length;
   const visibleArtifacts = getVisibleArtifacts(group, filters);
+  const noArtifacts = !watching && artifacts.length === 0;
   const cardProgress = groupProgress(artifacts, rows);
   const nextCheck = group.nextCheckAt ? new Date(group.nextCheckAt).toLocaleTimeString() : "";
   const subtitle = watching
@@ -53,8 +56,16 @@ export function BuildGroup({ group, rows, expanded, filters, onToggleExpanded, o
           <button className="icon-button" title="Delete build" onClick={onRemove}><Trash2 size={16} /></button>
         </div>
       </div>
-      {expanded && visibleArtifacts.length > 0 && (
+      {expanded && (visibleArtifacts.length > 0 || noArtifacts) && (
         <div className="artifact-table">
+          {noArtifacts && (
+            <div className="artifact-row artifact-empty">
+              <div className="artifact-name">
+                <strong>{NO_ARTIFACTS_NOTICE}</strong>
+                <span>Fetch berhasil, tapi QuickBuild tidak mengembalikan artifact.</span>
+              </div>
+            </div>
+          )}
           {visibleArtifacts.map((artifact) => {
             const row = rows[artifact.id];
             const rowStatus = row?.status;
