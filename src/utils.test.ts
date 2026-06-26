@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { calculateAverageThreadSpeed, classifyGroups, calculateRollingSpeed } from "./hooks/useDownload";
 import type { BuildArtifactGroup, DownloadEvent } from "./types";
-import { areAllBuildsExpanded, migrateFilters, normalizeGroup, progressState, sanitizePreferences, splitBulkInput, statusLabel, visibleArtifacts } from "./utils";
+import { areAllBuildsExpanded, migrateFilters, normalizeGroup, progressState, rowsForGroupArtifacts, sanitizePreferences, splitBulkInput, statusLabel, visibleArtifacts } from "./utils";
 
 const group: BuildArtifactGroup = {
   id: "g1",
@@ -33,6 +33,10 @@ describe("input and settings migration", () => {
 
   it("sorts artifacts by name case-insensitively", () => {
     expect(normalizeGroup(group, "1").artifacts.map((artifact) => artifact.name)).toEqual(["ALL_z.zip", "AP_a.zip"]);
+  });
+
+  it("keeps only rows referenced by current groups", () => {
+    expect(Object.keys(rowsForGroupArtifacts([group], { a: row("a", "completed"), old: row("old", "failed") }))).toEqual(["a"]);
   });
 });
 

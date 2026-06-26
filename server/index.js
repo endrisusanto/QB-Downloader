@@ -70,6 +70,16 @@ function buildIds(value) {
   return (Array.isArray(value) ? value : [value]).flatMap((id) => String(id || "").split(/[\s,]+/)).filter(Boolean);
 }
 
+function rowsForGroups(groups, rows) {
+  const ids = new Set((Array.isArray(groups) ? groups : []).flatMap((g) => (g.artifacts || []).map((a) => a.id)));
+  return Object.fromEntries(Object.entries(rows || {}).filter(([id]) => ids.has(id)));
+}
+
+function trimInfo(info) {
+  const groups = Array.isArray(info.groups) ? info.groups : [];
+  return { ...info, groups, rows: rowsForGroups(groups, info.rows) };
+}
+
 wss.on("connection", (ws, req) => {
   if (!checkAuth(req, ws)) return;
   const path = new URL(req.url, "http://localhost").pathname;
@@ -86,7 +96,7 @@ wss.on("connection", (ws, req) => {
           const existing = pcs.get(pcId);
           pcs.set(pcId, {
             ws,
-            info: { ...existing?.info, ...msg, ip: msg.ip || existing?.info?.ip || clientIp(req) },
+            info: trimInfo({ ...existing?.info, ...msg, ip: msg.ip || existing?.info?.ip || clientIp(req) }),
             lastSeen: new Date().toISOString()
           });
           broadcastState();
@@ -94,7 +104,7 @@ wss.on("connection", (ws, req) => {
         } else if (msg.type === "progress" && msg.pcId) {
           const pc = pcs.get(msg.pcId);
           if (pc) {
-            pc.info = { ...pc.info, ...msg };
+            pc.info = trimInfo({ ...pc.info, ...msg });
             pc.lastSeen = new Date().toISOString();
           }
           broadcastState();

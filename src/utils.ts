@@ -92,6 +92,11 @@ export function selectedArtifacts(group: BuildArtifactGroup) {
   return group.artifacts.filter((artifact) => artifact.selected);
 }
 
+export function rowsForGroupArtifacts(groups: BuildArtifactGroup[], rows: Record<string, DownloadEvent>) {
+  const ids = new Set(groups.flatMap((group) => group.artifacts.map((artifact) => artifact.id)));
+  return Object.fromEntries(Object.entries(rows).filter(([artifactId]) => ids.has(artifactId)));
+}
+
 export function visibleArtifacts(group: BuildArtifactGroup, filters: string[]) {
   const enabled = new Set(filters);
   return group.artifacts.filter((artifact) => filterForKind(artifact.kind, artifact.name, enabled));

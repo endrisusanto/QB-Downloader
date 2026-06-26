@@ -12,6 +12,9 @@
     "core:window:allow-set-size",
     "dialog:default",
     "dialog:allow-open",
-    "stronghold:default"
+    "stronghold:default",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled"
   ]
 }
