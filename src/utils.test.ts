@@ -27,6 +27,8 @@ describe("input and settings migration", () => {
     expect(migrateFilters(["ALL", "AP", "md5"])).toEqual(["ALL_", "AP_", "md5"]);
     expect(sanitizePreferences({ username: "secret", accessToken: "token" })).not.toHaveProperty("username");
     expect(sanitizePreferences({}).hideUncheckedArtifacts).toBe(false);
+    expect(sanitizePreferences({}).showCompleteDialog).toBe(false);
+    expect(sanitizePreferences({ showCompleteDialog: true }).showCompleteDialog).toBe(true);
   });
 
   it("sorts artifacts by name case-insensitively", () => {

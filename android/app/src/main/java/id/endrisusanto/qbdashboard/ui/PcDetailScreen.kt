@@ -79,7 +79,12 @@ fun classifyPcGroups(groups: List<BuildArtifactGroup>, rows: Map<String, Downloa
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun PcDetailScreen(pcId: String, serverClient: ServerClient) {
+fun PcDetailScreen(
+    pcId: String,
+    serverClient: ServerClient,
+    modifier: Modifier = Modifier,
+    statusBarsPadding: Boolean = true,
+) {
     val pcs by serverClient.pcs.collectAsState()
     val pc = pcs.firstOrNull { it.pcId == pcId }
     var showDownload by remember { mutableStateOf(false) }
@@ -94,7 +99,7 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient) {
     var cancelArtifact by remember { mutableStateOf<Pair<String, String>?>(null) }
     var cancelPin by remember { mutableStateOf("") }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(modifier.fillMaxSize()) {
         if (pc == null) {
             Box(Modifier.fillMaxSize()) {
                 Text("PC not found", modifier = Modifier.padding(16.dp))
@@ -105,7 +110,7 @@ fun PcDetailScreen(pcId: String, serverClient: ServerClient) {
             val headerPinned by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
 
             LazyColumn(
-                modifier = Modifier.fillMaxSize().statusBarsPadding(),
+                modifier = if (statusBarsPadding) Modifier.fillMaxSize().statusBarsPadding() else Modifier.fillMaxSize(),
                 state = listState,
                 contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),

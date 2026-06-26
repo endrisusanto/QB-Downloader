@@ -16,7 +16,7 @@ export const defaultSettings: SettingsState = {
   maxConcurrent: 3,
   selectedTypes: FILTER_OPTIONS,
   showProgressDialog: false,
-  showCompleteDialog: true,
+  showCompleteDialog: false,
   hideUncheckedArtifacts: false,
   darkMode: false,
   serverUrl: "",

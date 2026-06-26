@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavType
@@ -20,52 +21,84 @@ import id.endrisusanto.qbdashboard.data.ServerClient
 fun DashboardApp(serverClient: ServerClient) {
     val navController = rememberNavController()
     val connectionStatus by serverClient.connectionStatus.collectAsState()
+    val pcs by serverClient.pcs.collectAsState()
     var showSettings by remember { mutableStateOf(false) }
+    var selectedPcId by remember { mutableStateOf<String?>(null) }
+    val activePcId = selectedPcId?.takeIf { id -> pcs.any { it.pcId == id } } ?: pcs.firstOrNull()?.pcId
 
     LaunchedEffect(serverClient.serverUrl) {
         if (serverClient.serverUrl.isNotBlank()) serverClient.connect()
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-    NavHost(navController = navController, startDestination = "pcs") {
-        composable("pcs") {
-            Scaffold(
-                topBar = {
-                    TopAppBar(
-                        title = { Text("QB Remote Dashboard") },
-                        actions = {
-                            ConnectionBadge(connectionStatus)
-                            Spacer(Modifier.width(8.dp))
-                            IconButton(onClick = { showSettings = true }) {
-                                Icon(Icons.Default.Settings, "Settings")
-                            }
-                        },
-                    )
-                },
-            ) { padding ->
-                Box(Modifier.padding(padding).fillMaxSize()) {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+        val isWide = maxWidth >= 840.dp
+        if (isWide) {
+            Scaffold(topBar = { DashboardTopBar(connectionStatus) { showSettings = true } }) { padding ->
+                Row(Modifier.padding(padding).fillMaxSize()) {
                     PcListScreen(
                         serverClient = serverClient,
-                        onPcClick = { pcId -> navController.navigate("pc/$pcId") },
+                        selectedPcId = activePcId,
+                        onPcClick = { selectedPcId = it },
+                        modifier = Modifier.width(360.dp).fillMaxHeight(),
+                    )
+                    VerticalDivider()
+                    activePcId?.let {
+                        PcDetailScreen(
+                            pcId = it,
+                            serverClient = serverClient,
+                            modifier = Modifier.weight(1f),
+                            statusBarsPadding = false,
+                        )
+                    } ?: Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                        Text("No PCs connected")
+                    }
+                }
+            }
+        } else {
+            NavHost(navController = navController, startDestination = "pcs") {
+                composable("pcs") {
+                    Scaffold(topBar = { DashboardTopBar(connectionStatus) { showSettings = true } }) { padding ->
+                        Box(Modifier.padding(padding).fillMaxSize()) {
+                            PcListScreen(
+                                serverClient = serverClient,
+                                onPcClick = { pcId -> navController.navigate("pc/$pcId") },
+                            )
+                        }
+                    }
+                }
+                composable(
+                    "pc/{pcId}",
+                    arguments = listOf(navArgument("pcId") { type = NavType.StringType })
+                ) { back ->
+                    PcDetailScreen(
+                        pcId = back.arguments?.getString("pcId") ?: "",
+                        serverClient = serverClient,
                     )
                 }
             }
         }
-        composable(
-            "pc/{pcId}",
-            arguments = listOf(navArgument("pcId") { type = NavType.StringType })
-        ) { back ->
-            PcDetailScreen(
-                pcId = back.arguments?.getString("pcId") ?: "",
-                serverClient = serverClient,
-            )
         }
-    }
     }
 
     if (showSettings) {
         SettingsDialog(serverClient = serverClient, onDismiss = { showSettings = false })
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DashboardTopBar(status: ConnectionStatus, onSettingsClick: () -> Unit) {
+    TopAppBar(
+        title = { Text("QB Remote Dashboard") },
+        actions = {
+            ConnectionBadge(status)
+            Spacer(Modifier.width(8.dp))
+            IconButton(onClick = onSettingsClick) {
+                Icon(Icons.Default.Settings, "Settings")
+            }
+        },
+    )
 }
 
 @Composable

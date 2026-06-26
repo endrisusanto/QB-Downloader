@@ -27,7 +27,7 @@ export function sanitizePreferences(raw: Partial<SettingsState> = {}) {
     maxConcurrent: Math.min(16, Math.max(1, Number(raw.maxConcurrent) || 3)),
     selectedTypes: migrateFilters(raw.selectedTypes),
     showProgressDialog: Boolean(raw.showProgressDialog),
-    showCompleteDialog: raw.showCompleteDialog !== false,
+    showCompleteDialog: raw.showCompleteDialog === true,
     hideUncheckedArtifacts: Boolean(raw.hideUncheckedArtifacts),
     darkMode: Boolean(raw.darkMode),
     serverUrl: raw.serverUrl || "",

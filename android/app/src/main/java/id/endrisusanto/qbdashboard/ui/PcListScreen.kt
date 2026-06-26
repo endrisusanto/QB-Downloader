@@ -26,12 +26,17 @@ fun formatBytes(bytes: Long): String {
 }
 
 @Composable
-fun PcListScreen(serverClient: ServerClient, onPcClick: (String) -> Unit) {
+fun PcListScreen(
+    serverClient: ServerClient,
+    onPcClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    selectedPcId: String? = null,
+) {
     val pcs by serverClient.pcs.collectAsState()
     var downloadTarget by remember { mutableStateOf<PcState?>(null) }
 
     if (pcs.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("📡", style = MaterialTheme.typography.displayMedium)
                 Spacer(Modifier.height(16.dp))
@@ -48,11 +53,17 @@ fun PcListScreen(serverClient: ServerClient, onPcClick: (String) -> Unit) {
     }
 
     LazyColumn(
+        modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         items(pcs, key = { it.pcId }) { pc ->
-            PcCard(pc = pc, onClick = { onPcClick(pc.pcId) }, onRemoteDownload = { downloadTarget = pc })
+            PcCard(
+                pc = pc,
+                selected = pc.pcId == selectedPcId,
+                onClick = { onPcClick(pc.pcId) },
+                onRemoteDownload = { downloadTarget = pc },
+            )
         }
     }
 
@@ -70,7 +81,7 @@ fun PcListScreen(serverClient: ServerClient, onPcClick: (String) -> Unit) {
 }
 
 @Composable
-fun PcCard(pc: PcState, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
+fun PcCard(pc: PcState, selected: Boolean = false, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
     val darkTheme = isSystemInDarkTheme()
     val classified = remember(pc.groups, pc.rows) { classifyPcGroups(pc.groups, pc.rows) }
     Card(
@@ -78,7 +89,11 @@ fun PcCard(pc: PcState, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface.copy(alpha = if (darkTheme) 0.62f else 1f),
         ),
-        border = if (darkTheme) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)) else null,
+        border = when {
+            selected -> BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+            darkTheme -> BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+            else -> null
+        },
         elevation = CardDefaults.cardElevation(defaultElevation = if (darkTheme) 0.dp else 2.dp),
     ) {
         Column(Modifier.padding(16.dp)) {
