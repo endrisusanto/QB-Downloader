@@ -35,6 +35,35 @@ describe("input and settings migration", () => {
     expect(normalizeGroup(group, "1").artifacts.map((artifact) => artifact.name)).toEqual(["ALL_z.zip", "AP_a.zip"]);
   });
 
+  it("filters userdata by SEA priority first, then EUR", () => {
+    const rawGroup: BuildArtifactGroup = {
+      id: "g2",
+      input: "2",
+      buildId: "2",
+      status: "ready",
+      artifacts: [
+        { id: "u1", buildId: "2", name: "USERDATA_EUR_F776BXXU1AZFW_MQB111318285_REV00.tar.md5", kind: "userdata", selected: true },
+        { id: "u2", buildId: "2", name: "USERDATA_SEA_F776BXXU1AZFW_MQB111318285_REV00.tar.md5", kind: "userdata", selected: true },
+        { id: "u3", buildId: "2", name: "USERDATA_OTHER_F776BXXU1AZFW_MQB111318285_REV00.tar.md5", kind: "userdata", selected: true },
+      ],
+    };
+    const norm = normalizeGroup(rawGroup, "2");
+    expect(norm.artifacts.map(a => a.name)).toEqual(["USERDATA_SEA_F776BXXU1AZFW_MQB111318285_REV00.tar.md5"]);
+
+    const rawGroupEur: BuildArtifactGroup = {
+      id: "g3",
+      input: "3",
+      buildId: "3",
+      status: "ready",
+      artifacts: [
+        { id: "u1", buildId: "3", name: "USERDATA_EUR_F776BXXU1AZFW_MQB111318285_REV00.tar.md5", kind: "userdata", selected: true },
+        { id: "u3", buildId: "3", name: "USERDATA_OTHER_F776BXXU1AZFW_MQB111318285_REV00.tar.md5", kind: "userdata", selected: true },
+      ],
+    };
+    const normEur = normalizeGroup(rawGroupEur, "3");
+    expect(normEur.artifacts.map(a => a.name)).toEqual(["USERDATA_EUR_F776BXXU1AZFW_MQB111318285_REV00.tar.md5"]);
+  });
+
   it("keeps only rows referenced by current groups", () => {
     expect(Object.keys(rowsForGroupArtifacts([group], { a: row("a", "completed"), old: row("old", "failed") }))).toEqual(["a"]);
   });

@@ -46,7 +46,7 @@ export function applyArtifactFilters(artifacts: Artifact[]): Artifact[] {
     return true;
   });
 
-  const filterByPriority = (items: Artifact[]) => {
+  const filterByPriorityAll = (items: Artifact[]) => {
     if (items.some(a => a.name.toUpperCase().includes("OLE"))) {
       return items.filter(a => a.name.toUpperCase().includes("OLE"));
     }
@@ -59,8 +59,18 @@ export function applyArtifactFilters(artifacts: Artifact[]): Artifact[] {
     return items;
   };
 
-  const allArtifacts = filterByPriority(pass1.filter(a => a.kind === "all"));
-  const userdataArtifacts = filterByPriority(pass1.filter(a => a.kind === "userdata"));
+  const filterByPriorityUserdata = (items: Artifact[]) => {
+    if (items.some(a => a.name.toUpperCase().includes("SEA"))) {
+      return items.filter(a => a.name.toUpperCase().includes("SEA"));
+    }
+    if (items.some(a => a.name.toUpperCase().includes("EUR"))) {
+      return items.filter(a => a.name.toUpperCase().includes("EUR"));
+    }
+    return items;
+  };
+
+  const allArtifacts = filterByPriorityAll(pass1.filter(a => a.kind === "all"));
+  const userdataArtifacts = filterByPriorityUserdata(pass1.filter(a => a.kind === "userdata"));
   const otherArtifacts = pass1.filter(a => a.kind !== "all" && a.kind !== "userdata");
 
   return [...otherArtifacts, ...allArtifacts, ...userdataArtifacts];
