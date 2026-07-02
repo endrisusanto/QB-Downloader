@@ -3,12 +3,8 @@ package id.endrisusanto.qbdashboard.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -16,7 +12,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -117,15 +112,27 @@ fun PcDetailScreen(
             ) {
                 stickyHeader {
                     val headerInset by animateDpAsState(if (headerPinned) 0.dp else 16.dp, label = "header inset")
-                    AnimatedVisibility(
-                        visible = true,
-                        enter = fadeIn(tween(220)) + expandVertically(tween(220)),
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = headerInset).animateContentSize(),
+                        shape = if (headerPinned) RoundedCornerShape(0.dp) else MaterialTheme.shapes.medium,
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                     ) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = headerInset).animateContentSize(),
-                            shape = if (headerPinned) RoundedCornerShape(0.dp) else MaterialTheme.shapes.medium,
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                        ) {
+                        if (headerPinned) {
+                            // ponytail: compact single-line sticky strip
+                            val stats = pc.sysStats
+                            val activeCount = classified.progress.sumOf { it.artifacts.size }
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                CompactChip("⬇ $activeCount")
+                                CompactChip("💻 ${stats?.let { String.format(java.util.Locale.US, "%.0f", it.cpuUsage) } ?: "0"}%")
+                                CompactChip("🧠 ${stats?.let { formatBytes(it.ramUsed) } ?: "0 B"}")
+                                CompactChip("💾 ${stats?.let { formatBytes(it.diskAvailable) } ?: "0 B"}")
+                                CompactChip("⚡ ${stats?.let { formatBytes(it.totalSpeed) } ?: "0 B"}/s")
+                            }
+                        } else {
                             Column(Modifier.padding(12.dp)) {
                                 Text(pc.pcName, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                                 Spacer(Modifier.height(8.dp))
@@ -261,6 +268,23 @@ private fun RowScope.ResourceBadge(label: String, value: String) {
             Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
+    }
+}
+
+// ponytail: compact chip for collapsed sticky header
+@Composable
+private fun CompactChip(text: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(6.dp),
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+        )
     }
 }
 

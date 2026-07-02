@@ -666,10 +666,21 @@ button {
 }
 
 .artifact-name strong {
-  overflow: hidden;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
   color: #172033;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+}
+
+.artifact-name strong::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
 }
 
 .artifact-name span,

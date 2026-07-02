@@ -519,8 +519,6 @@ function renderPc(pc) {
 
 function render() {
   emptyUrl.textContent = config.serverUrl || window.location.origin;
-  const selection = window.getSelection();
-  const keepSelection = selection && !selection.isCollapsed;
 
   const currentIds = new Set(pcs.map((p) => p.pcId));
   document.querySelectorAll(".pc-card").forEach((el) => {
@@ -535,11 +533,105 @@ function render() {
 
   for (const pc of pcs) {
     const existing = document.getElementById(`pc-${pc.pcId}`);
-    const newCard = renderPc(pc);
     if (existing) {
-      if (!(keepSelection && selection.containsNode(existing, true))) existing.replaceWith(newCard);
-    } else pcList.appendChild(newCard);
+      patchPcCard(existing, pc);
+    } else {
+      pcList.appendChild(renderPc(pc));
+    }
   }
+}
+
+// ponytail: targeted DOM patching — only touch elements whose text actually changed
+function patchPcCard(card, pc) {
+  // Update online/offline status
+  card.className = `pc-card ${pc.online ? "online" : "offline"}`;
+  const statusBadge = card.querySelector(".pc-status-badge");
+  if (statusBadge) {
+    statusBadge.className = `pc-status-badge ${pc.online ? "online" : "offline"}`;
+    statusBadge.textContent = pc.online ? "Online" : "Offline";
+  }
+
+  // Patch sys stats values only
+  if (pc.sysStats) {
+    const stats = card.querySelectorAll(".stat-val");
+    if (stats.length >= 4) {
+      const s = pc.sysStats;
+      patchText(stats[0], `${(s.cpuUsage || 0).toFixed(1)}%`);
+      const ramPct = s.ramTotal ? Math.round((s.ramUsed / s.ramTotal) * 100) : 0;
+      patchText(stats[1], `${formatBytes(s.ramUsed)} / ${formatBytes(s.ramTotal)} (${ramPct}%)`);
+      patchText(stats[2], `${formatBytes(s.diskAvailable)} free of ${formatBytes(s.diskTotal)}`);
+      patchText(stats[3], `${formatBytes(s.totalSpeed || 0)}/s`);
+    }
+  }
+
+  // Patch remote download button disabled state
+  const dlBtn = card.querySelector(".remote-dl-btn");
+  if (dlBtn) dlBtn.disabled = !pc.online;
+
+  // Patch accordion contents — full replace only inside accordion-content divs
+  const { fetched, progress, completed, failed } = classifyGroups(pc.groups || [], pc.rows || {});
+  const categories = [
+    { list: fetched, type: "fetched" },
+    { list: progress, type: "progress" },
+    { list: completed, type: "completed" },
+    { list: failed, type: "failed" },
+  ];
+
+  const accordions = card.querySelectorAll(".pc-accordions > details");
+  categories.forEach(({ list, type }, i) => {
+    const detail = accordions[i];
+    if (!detail) return;
+
+    // Update summary count
+    const summary = detail.querySelector("summary");
+    const labels = ["Fetched Builds", "Progress", "Completed", "Failed"];
+    const newSummary = `${labels[i]} (${list.length})`;
+    if (summary && summary.textContent !== newSummary) summary.textContent = newSummary;
+
+    // Only patch accordion-content if this section is open
+    if (!detail.open) return;
+
+    const content = detail.querySelector(".accordion-content");
+    if (!content) return;
+
+    // Build new HTML for this accordion
+    const fetchedIds = type === "fetched" ? list.map((g) => g.id).join(",") : "";
+    const progressIds = type === "progress" ? list.map((g) => g.id).join(",") : "";
+    let bulkHtml = "";
+    if (type === "fetched" && list.length) {
+      bulkHtml = `<div class="bulk-actions"><button class="btn-primary btn-sm bulk-start-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Download all</button><button class="btn-secondary btn-sm bulk-deselect-btn">Deselect all</button><button class="btn-danger btn-sm bulk-delete-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Delete all</button></div>`;
+    } else if (type === "progress" && list.length) {
+      bulkHtml = `<div class="bulk-actions"><button class="btn-danger btn-sm bulk-cancel-btn" data-pc-id="${pc.pcId}" data-group-ids="${progressIds}">Cancel all</button></div>`;
+    }
+    const groupHtml = renderGroupList(pc, list, type);
+    const newInner = bulkHtml + groupHtml;
+
+    // Compare and only replace if changed
+    if (content.innerHTML !== newInner) {
+      content.innerHTML = newInner;
+      // Re-bind event listeners
+      content.querySelectorAll(".bulk-start-btn").forEach((btn) => {
+        btn.addEventListener("click", () => remoteStartGroups(btn.dataset.pcId, btn.dataset.groupIds.split(",").filter(Boolean)));
+      });
+      content.querySelectorAll(".bulk-delete-btn").forEach((btn) => {
+        btn.addEventListener("click", () => remoteDeleteGroups(btn.dataset.pcId, btn.dataset.groupIds.split(",").filter(Boolean)));
+      });
+      content.querySelectorAll(".bulk-deselect-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const ft = classifyGroups(pc.groups || [], pc.rows || {}).fetched;
+          ft.forEach((group) => group.artifacts.filter((a) => a.selected !== false).forEach((a) => remoteSetArtifactSelected(pc.pcId, group.id, a.id, false)));
+        });
+      });
+      content.querySelectorAll(".bulk-cancel-btn").forEach((btn) => {
+        btn.addEventListener("click", () => remoteCancelGroups(btn.dataset.pcId, btn.dataset.groupIds.split(",").filter(Boolean)));
+      });
+    }
+  });
+}
+
+// ponytail: only touch DOM if text actually changed
+function patchText(el, text) {
+  if (el && el.textContent !== text) el.textContent = text;
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────

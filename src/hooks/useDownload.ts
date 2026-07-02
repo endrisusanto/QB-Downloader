@@ -141,6 +141,9 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
     })();
   }, [refreshGroupJobStatus]);
 
+  const pendingRows = useRef<Record<string, DownloadEvent>>({});
+  const rafId = useRef<number | null>(null);
+
   useEffect(() => {
     const unlisten = Promise.all(
       ["queued", "progress", "retrying", "completed", "failed", "cancelled"].map((name) =>
@@ -158,7 +161,17 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
           const samples = slotSamples.current[payload.artifactId] || [];
           samples.push({ at: now, bytes: slotTotals.current[payload.artifactId] || 0 });
           slotSamples.current[payload.artifactId] = samples;
-          setRows((current) => ({ ...current, [payload.artifactId]: payload }));
+          
+          pendingRows.current[payload.artifactId] = payload;
+          
+          if (!rafId.current) {
+            rafId.current = window.setTimeout(() => {
+              rafId.current = null;
+              setRows((current) => ({ ...current, ...pendingRows.current }));
+              pendingRows.current = {};
+            }, 100); // Throttle to 10fps
+          }
+          
           persistDownloadHistory(payload, TERMINAL_STATUSES.has(payload.status));
 
           if (TERMINAL_STATUSES.has(payload.status)) {
@@ -175,7 +188,10 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
         }),
       ),
     );
-    return () => void unlisten.then((items) => items.forEach((item) => item()));
+    return () => {
+      void unlisten.then((items) => items.forEach((item) => item()));
+      if (rafId.current) window.clearTimeout(rafId.current);
+    };
   }, [pumpQueue, refreshGroupJobStatus]);
 
   useEffect(() => {

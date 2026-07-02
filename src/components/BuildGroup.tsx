@@ -4,6 +4,17 @@ import type { Artifact, BuildArtifactGroup, DownloadEvent } from "../types";
 import { formatBytes, groupProgress, kindLabel, progressState, selectedArtifacts, statusLabel, visibleArtifacts as getVisibleArtifacts } from "../utils";
 import { ProgressBar } from "./ProgressBar";
 
+import { memo } from "react";
+
+const ArtifactName = memo(function ArtifactName({ name, kindLabelText }: { name: string; kindLabelText: string }) {
+  return (
+    <div className="artifact-name">
+      <strong>{name}</strong>
+      <span>{kindLabelText}</span>
+    </div>
+  );
+});
+
 const NO_ARTIFACTS_NOTICE = "Artifacts tidak ada. Mungkin QB ID sudah expired.";
 
 export function BuildGroup({ group, rows, expanded, filters, onToggleExpanded, onToggleArtifact, onToggleAll, onDownload, onCancel, onRetry, onRemove, onProgress, onConfigureFilters, onDownloadArtifact, onRemoveArtifact }: {
@@ -25,7 +36,7 @@ export function BuildGroup({ group, rows, expanded, filters, onToggleExpanded, o
   const hasFailed = statuses.includes("failed");
   const hasRows = statuses.some(Boolean);
   const allSelected = artifacts.length > 0 && selected.length === artifacts.length;
-  const visibleArtifacts = getVisibleArtifacts(group, filters);
+  const visibleArtifacts = getVisibleArtifacts(group, filters, rows);
   const noArtifacts = !watching && artifacts.length === 0;
   const cardProgress = groupProgress(artifacts, rows);
   const nextCheck = group.nextCheckAt ? new Date(group.nextCheckAt).toLocaleTimeString() : "";
@@ -83,10 +94,7 @@ export function BuildGroup({ group, rows, expanded, filters, onToggleExpanded, o
                     {artifact.selected && <Check size={16} strokeWidth={3} />}
                   </button>
                 )}
-                <div className="artifact-name">
-                  <strong>{artifact.name}</strong>
-                  <span>{kindLabel(artifact.kind)}</span>
-                </div>
+                <ArtifactName name={artifact.name} kindLabelText={kindLabel(artifact.kind)} />
                 <div className="progress-cell">
                   <ProgressBar progress={progress} />
                   <span title={row?.message}>

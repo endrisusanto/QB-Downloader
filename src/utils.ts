@@ -35,8 +35,44 @@ export function sanitizePreferences(raw: Partial<SettingsState> = {}) {
   };
 }
 
+export function applyArtifactFilters(artifacts: Artifact[]): Artifact[] {
+  const pass1 = artifacts.filter(artifact => {
+    const kind = artifact.kind;
+    const name = artifact.name.toUpperCase();
+    if (kind === "all" || kind === "userdata") {
+      if (name.includes("SUP")) return false;
+      if (name.includes("QB") && !name.includes("MQB")) return false;
+    }
+    return true;
+  });
+
+  const filterByPriority = (items: Artifact[]) => {
+    if (items.some(a => a.name.toUpperCase().includes("OLE"))) {
+      return items.filter(a => a.name.toUpperCase().includes("OLE"));
+    }
+    if (items.some(a => a.name.toUpperCase().includes("OLM"))) {
+      return items.filter(a => a.name.toUpperCase().includes("OLM"));
+    }
+    if (items.some(a => a.name.toUpperCase().includes("OXM"))) {
+      return items.filter(a => a.name.toUpperCase().includes("OXM"));
+    }
+    return items;
+  };
+
+  const allArtifacts = filterByPriority(pass1.filter(a => a.kind === "all"));
+  const userdataArtifacts = filterByPriority(pass1.filter(a => a.kind === "userdata"));
+  const otherArtifacts = pass1.filter(a => a.kind !== "all" && a.kind !== "userdata");
+
+  return [...otherArtifacts, ...allArtifacts, ...userdataArtifacts];
+}
+
 export function normalizeGroup(raw: BuildArtifactGroup, fallbackInput: string): BuildArtifactGroup {
   const buildId = raw?.buildId || "";
+  let artifacts = (Array.isArray(raw?.artifacts) ? raw.artifacts : [])
+    .map((artifact, index) => normalizeArtifact(artifact, buildId, index));
+
+  artifacts = applyArtifactFilters(artifacts);
+
   return {
     id: raw?.id || crypto.randomUUID(),
     input: raw?.input || fallbackInput,
@@ -46,9 +82,7 @@ export function normalizeGroup(raw: BuildArtifactGroup, fallbackInput: string): 
     error: raw?.error,
     lastCheckedAt: raw?.lastCheckedAt,
     nextCheckAt: raw?.nextCheckAt,
-    artifacts: (Array.isArray(raw?.artifacts) ? raw.artifacts : [])
-      .map((artifact, index) => normalizeArtifact(artifact, buildId, index))
-      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })),
+    artifacts: artifacts.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })),
   };
 }
 
@@ -97,9 +131,12 @@ export function rowsForGroupArtifacts(groups: BuildArtifactGroup[], rows: Record
   return Object.fromEntries(Object.entries(rows).filter(([artifactId]) => ids.has(artifactId)));
 }
 
-export function visibleArtifacts(group: BuildArtifactGroup, filters: string[]) {
+export function visibleArtifacts(group: BuildArtifactGroup, filters: string[], rows?: Record<string, DownloadEvent>) {
   const enabled = new Set(filters);
-  return group.artifacts.filter((artifact) => filterForKind(artifact.kind, artifact.name, enabled));
+  return group.artifacts.filter((artifact) => {
+    if (rows && rows[artifact.id]) return true;
+    return filterForKind(artifact.kind, artifact.name, enabled);
+  });
 }
 
 export function areAllBuildsExpanded(groupIds: string[], expanded: Record<string, boolean>) {
