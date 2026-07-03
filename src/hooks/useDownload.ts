@@ -410,31 +410,35 @@ function eventFromQueueItem(item: QueueItem, artifact: Artifact, status: Downloa
 }
 
 function persistDownloadHistory(event: DownloadEvent, immediate = false) {
-  if (typeof localStorage === "undefined") return;
-  const now = new Date().toISOString();
-  const id = `${event.jobId}:${event.artifactId}`;
-  const current = getDownloadHistoryCache();
-  const existingIndex = current.findIndex((item) => item.id === id);
-  const existing = existingIndex >= 0 ? current[existingIndex] : undefined;
-  const entry: DownloadHistoryEntry = {
-    id,
-    artifactId: event.artifactId,
-    buildId: event.buildId,
-    name: event.name,
-    status: event.status,
-    downloaded: event.downloaded,
-    total: event.total,
-    path: event.path,
-    message: event.message,
-    jobId: event.jobId,
-    startedAt: existing?.startedAt || now,
-    updatedAt: now,
-  };
-  const next = existingIndex >= 0
-    ? current.map((item, index) => (index === existingIndex ? entry : item))
-    : [entry, ...current];
-  downloadHistoryCache = next.slice(0, 1000);
-  scheduleHistoryFlush(immediate);
+  try {
+    if (typeof localStorage === "undefined") return;
+    const now = new Date().toISOString();
+    const id = `${event.jobId}:${event.artifactId}`;
+    const current = getDownloadHistoryCache();
+    const existingIndex = current.findIndex((item) => item.id === id);
+    const existing = existingIndex >= 0 ? current[existingIndex] : undefined;
+    const entry: DownloadHistoryEntry = {
+      id,
+      artifactId: event.artifactId,
+      buildId: event.buildId,
+      name: event.name,
+      status: event.status,
+      downloaded: event.downloaded,
+      total: event.total,
+      path: event.path,
+      message: event.message,
+      jobId: event.jobId,
+      startedAt: existing?.startedAt || now,
+      updatedAt: now,
+    };
+    const next = existingIndex >= 0
+      ? current.map((item, index) => (index === existingIndex ? entry : item))
+      : [entry, ...current];
+    downloadHistoryCache = next.slice(0, 1000);
+    scheduleHistoryFlush(immediate);
+  } catch (err) {
+    console.error("Failed to persist download history:", err);
+  }
 }
 
 function getDownloadHistoryCache() {
@@ -459,8 +463,12 @@ function flushDownloadHistory() {
     window.clearTimeout(historyFlushTimer);
     historyFlushTimer = null;
   }
-  if (downloadHistoryCache) {
-    localStorage.setItem(DOWNLOAD_HISTORY_KEY, JSON.stringify(downloadHistoryCache));
+  try {
+    if (downloadHistoryCache) {
+      localStorage.setItem(DOWNLOAD_HISTORY_KEY, JSON.stringify(downloadHistoryCache));
+    }
+  } catch (err) {
+    console.error("Failed to flush download history to localStorage:", err);
   }
 }
 

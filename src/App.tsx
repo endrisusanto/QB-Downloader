@@ -65,11 +65,6 @@ function AppContent() {
           credentials,
           quickBuildConfig: config,
         });
-        if (settings.showProgressDialog) {
-          void openDialogWindow("progress", finalGroup, downloads.rows, downloads.slotSpeeds).then((opened) => {
-            if (!opened) setProgressGroup(finalGroup);
-          });
-        }
       } catch (err) {
         console.error("Remote download failed:", err);
       }
@@ -244,12 +239,10 @@ function AppContent() {
   async function start(group: BuildArtifactGroup) {
     if (!settings.downloadTargetDir) { setSettingsOpen(true); return; }
     await downloads.start(group, { targetDir: settings.downloadTargetDir, maxConcurrent: settings.maxConcurrent, credentials, quickBuildConfig: config });
-    if (settings.showProgressDialog) void openDialogWindow("progress", group, downloads.rows, downloads.slotSpeeds).then((opened) => { if (!opened) setProgressGroup(group); });
   }
   async function startSingle(group: BuildArtifactGroup, artifact: Artifact) {
     if (!settings.downloadTargetDir) { setSettingsOpen(true); return; }
     await downloads.startSingle(group, artifact, { targetDir: settings.downloadTargetDir, maxConcurrent: settings.maxConcurrent, credentials, quickBuildConfig: config });
-    if (settings.showProgressDialog) void openDialogWindow("progress", group, downloads.rows, downloads.slotSpeeds).then((opened) => { if (!opened) setProgressGroup(group); });
   }
   async function remove(group: BuildArtifactGroup) {
     if (downloads.categories.progress.some((item) => item.id === group.id)) await downloads.cancel(group);

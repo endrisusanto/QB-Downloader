@@ -88,7 +88,6 @@ export type SettingsState = {
   downloadTargetDir: string;
   maxConcurrent: number;
   selectedTypes: string[];
-  showProgressDialog: boolean;
   showCompleteDialog: boolean;
   hideUncheckedArtifacts: boolean;
   darkMode: boolean;

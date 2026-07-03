@@ -15,7 +15,6 @@ export const defaultSettings: SettingsState = {
   downloadTargetDir: "",
   maxConcurrent: 3,
   selectedTypes: FILTER_OPTIONS,
-  showProgressDialog: false,
   showCompleteDialog: false,
   hideUncheckedArtifacts: false,
   darkMode: false,
