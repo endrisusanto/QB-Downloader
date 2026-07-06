@@ -35,7 +35,11 @@ pub struct QbClient {
 impl QbClient {
     pub fn new(credentials: Credentials, config: QuickBuildConfig) -> Result<Self, QbError> {
         Ok(Self {
-            http: Client::new(),
+            http: Client::builder()
+                .connect_timeout(std::time::Duration::from_secs(30))
+                .timeout(std::time::Duration::from_secs(300))
+                .build()
+                .unwrap_or_default(),
             credentials,
             config: config.normalized().map_err(QbError::Other)?,
         })

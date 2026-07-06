@@ -112,45 +112,51 @@ fun PcDetailScreen(
             ) {
                 stickyHeader {
                     val headerInset by animateDpAsState(if (headerPinned) 0.dp else 16.dp, label = "header inset")
+                    val cornerRadius by animateDpAsState(if (headerPinned) 0.dp else 12.dp, label = "header corner")
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = headerInset).animateContentSize(),
-                        shape = if (headerPinned) RoundedCornerShape(0.dp) else MaterialTheme.shapes.medium,
+                        shape = RoundedCornerShape(cornerRadius),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                     ) {
-                        if (headerPinned) {
-                            // ponytail: compact single-line sticky strip
-                            val stats = pc.sysStats
-                            val activeCount = classified.progress.sumOf { it.artifacts.size }
-                            Row(
-                                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                CompactChip("⬇ $activeCount")
-                                CompactChip("💻 ${stats?.let { String.format(java.util.Locale.US, "%.0f", it.cpuUsage) } ?: "0"}%")
-                                CompactChip("🧠 ${stats?.let { formatBytes(it.ramUsed) } ?: "0 B"}")
-                                CompactChip("💾 ${stats?.let { formatBytes(it.diskAvailable) } ?: "0 B"}")
-                                CompactChip("⚡ ${stats?.let { formatBytes(it.totalSpeed) } ?: "0 B"}/s")
-                            }
-                        } else {
-                            Column(Modifier.padding(12.dp)) {
-                                Text(pc.pcName, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                                Spacer(Modifier.height(8.dp))
-                                Button(
-                                    onClick = { showDownload = true },
-                                    enabled = pc.online,
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) { Text("Remote Download") }
-                                pc.sysStats?.let { stats ->
-                                    Spacer(Modifier.height(10.dp))
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        ResourceBadge("CPU", "${String.format(java.util.Locale.US, "%.1f", stats.cpuUsage)}%")
-                                        ResourceBadge("RAM", "${formatBytes(stats.ramUsed)} / ${formatBytes(stats.ramTotal)}")
-                                    }
+                        androidx.compose.animation.Crossfade(
+                            targetState = headerPinned,
+                            label = "header fade",
+                        ) { isPinned ->
+                            if (isPinned) {
+                                // ponytail: compact single-line sticky strip
+                                val stats = pc.sysStats
+                                val activeCount = classified.progress.sumOf { it.artifacts.size }
+                                Row(
+                                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.SpaceEvenly,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    CompactChip("⬇ $activeCount")
+                                    CompactChip("💻 ${stats?.let { String.format(java.util.Locale.US, "%.0f", it.cpuUsage) } ?: "0"}%")
+                                    CompactChip("🧠 ${stats?.let { formatBytes(it.ramUsed) } ?: "0 B"}")
+                                    CompactChip("💾 ${stats?.let { formatBytes(it.diskAvailable) } ?: "0 B"}")
+                                    CompactChip("⚡ ${stats?.let { formatBytes(it.totalSpeed) } ?: "0 B"}/s")
+                                }
+                            } else {
+                                Column(Modifier.padding(12.dp)) {
+                                    Text(pc.pcName, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                                     Spacer(Modifier.height(8.dp))
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        ResourceBadge("Storage", "${formatBytes(stats.diskAvailable)} free")
-                                        ResourceBadge("Speed", "${formatBytes(stats.totalSpeed)}/s")
+                                    Button(
+                                        onClick = { showDownload = true },
+                                        enabled = pc.online,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) { Text("Remote Download") }
+                                    pc.sysStats?.let { stats ->
+                                        Spacer(Modifier.height(10.dp))
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            ResourceBadge("CPU", "${String.format(java.util.Locale.US, "%.1f", stats.cpuUsage)}%")
+                                            ResourceBadge("RAM", "${formatBytes(stats.ramUsed)} / ${formatBytes(stats.ramTotal)}")
+                                        }
+                                        Spacer(Modifier.height(8.dp))
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            ResourceBadge("Storage", "${formatBytes(stats.diskAvailable)} free")
+                                            ResourceBadge("Speed", "${formatBytes(stats.totalSpeed)}/s")
+                                        }
                                     }
                                 }
                             }

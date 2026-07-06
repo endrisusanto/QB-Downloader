@@ -43,7 +43,11 @@ impl Default for DownloadManager {
     fn default() -> Self {
         Self {
             jobs: Arc::new(Mutex::new(HashMap::new())),
-            http: Client::new(),
+            http: Client::builder()
+                .connect_timeout(Duration::from_secs(30))
+                .timeout(Duration::from_secs(3600))
+                .build()
+                .unwrap_or_default(),
         }
     }
 }
@@ -381,10 +385,26 @@ async fn download_one(
     let emit_interval = std::time::Duration::from_millis(800);
 
     let mut stream = response.bytes_stream();
-    while let Some(chunk) = futures_util::TryStreamExt::try_next(&mut stream)
-        .await
-        .map_err(|err| DownloadError::Network(err.to_string()))?
-    {
+    loop {
+        if let Some(t) = total {
+            if downloaded >= t {
+                break; // We have all the expected bytes, no need to wait for EOF
+            }
+        }
+
+        let chunk_result = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            futures_util::TryStreamExt::try_next(&mut stream),
+        )
+        .await;
+
+        let chunk = match chunk_result {
+            Ok(Ok(Some(c))) => c,
+            Ok(Ok(None)) => break,
+            Ok(Err(err)) => return Err(DownloadError::Network(err.to_string())),
+            Err(_) => return Err(DownloadError::Network("Connection stalled (idle timeout).".to_string())),
+        };
+
         if control.cancelled.load(Ordering::Relaxed) {
             emit_event(
                 &app,
