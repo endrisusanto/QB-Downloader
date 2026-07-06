@@ -30,7 +30,7 @@ export function BuildGroup({ group, rows, expanded, filters, onToggleExpanded, o
   const selected = selectedArtifacts(group);
   const statuses = artifacts.map((artifact) => rows[artifact.id]?.status);
   const watching = group.status === "watching";
-  const active = statuses.some((status) => status === "queued" || status === "downloading" || status === "retrying");
+  const active = statuses.some((status) => status === "downloading" || status === "retrying");
   const failed = statuses.includes("failed");
   const hasCompleted = statuses.includes("completed");
   const hasFailed = statuses.includes("failed");
@@ -80,7 +80,7 @@ export function BuildGroup({ group, rows, expanded, filters, onToggleExpanded, o
           {visibleArtifacts.map((artifact) => {
             const row = rows[artifact.id];
             const rowStatus = row?.status;
-            const isDownloading = rowStatus === "queued" || rowStatus === "downloading" || rowStatus === "retrying";
+            const isDownloading = rowStatus === "downloading" || rowStatus === "retrying";
             const isCompleted = rowStatus === "completed";
             const progress = progressState(row);
             return (

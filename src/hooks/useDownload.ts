@@ -7,7 +7,6 @@ import { selectedArtifacts } from "../utils";
 
 type StartOptions = {
   targetDir: string;
-  maxConcurrent: number;
   credentials: Credentials;
   quickBuildConfig: QuickBuildConfig;
 };
@@ -28,7 +27,7 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
     const history = readDownloadHistory();
     const sortedHistory = [...history].sort((a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime());
     for (const entry of sortedHistory) {
-      const isInterrupted = entry.status === "downloading" || entry.status === "queued" || entry.status === "retrying";
+      const isInterrupted = entry.status === "downloading" || entry.status === "retrying";
       initialRows[entry.artifactId] = {
         jobId: entry.jobId,
         artifactId: entry.artifactId,
@@ -72,7 +71,7 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
 
   useEffect(() => {
     const unlisten = Promise.all(
-      ["queued", "progress", "retrying", "completed", "failed", "cancelled"].map((name) =>
+      ["progress", "retrying", "completed", "failed", "cancelled"].map((name) =>
         listen<DownloadEvent>(`download://${name}`, ({ payload }) => {
           if (!payload.artifactId) return;
           const now = Date.now();
@@ -150,7 +149,7 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
     if (!group.buildId || artifacts.length === 0) return;
     groupOptions.current[group.id] = options;
 
-    // Set rows to "queued" immediately for responsive UI
+    // Set rows to "downloading" immediately for responsive UI
     setRows((current) => {
       const next = omitRows(current, artifacts.map((artifact) => artifact.id));
       for (const artifact of artifacts) {
@@ -159,7 +158,7 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
           artifactId: artifact.id,
           buildId: group.buildId as string,
           name: artifact.name,
-          status: "queued",
+          status: "downloading",
           downloaded: 0,
           total: artifact.size,
           resumable: false,
@@ -176,7 +175,6 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
           buildId: group.buildId,
           targetDir: options.targetDir,
           credentials: options.credentials,
-          maxConcurrent: options.maxConcurrent,
           artifacts: artifacts.map((a) => ({ ...a, selected: true })),
           quickBuildConfig: options.quickBuildConfig,
         },
@@ -300,7 +298,7 @@ export function classifyGroups(groups: BuildArtifactGroup[], rows: Record<string
     const artifacts = group.artifacts;
     const hasActiveOrFinished = artifacts.some((a) => {
       const status = rows[a.id]?.status;
-      return status === "queued" || status === "downloading" || status === "retrying" || status === "completed" || status === "failed";
+      return status === "downloading" || status === "retrying" || status === "completed" || status === "failed";
     });
     if (!hasActiveOrFinished) {
       fetched.push(group);
@@ -316,7 +314,7 @@ export function classifyGroups(groups: BuildArtifactGroup[], rows: Record<string
     
     const progressSelected = artifacts.filter((a) => {
       const status = rows[a.id]?.status;
-      return status === "queued" || status === "downloading" || status === "retrying";
+      return status === "downloading" || status === "retrying";
     });
     if (progressSelected.length > 0) {
       progress.push({

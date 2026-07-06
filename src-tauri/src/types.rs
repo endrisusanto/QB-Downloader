@@ -104,7 +104,6 @@ pub struct DownloadRequest {
     pub build_id: String,
     pub target_dir: String,
     pub credentials: Credentials,
-    pub max_concurrent: usize,
     pub artifacts: Vec<Artifact>,
     pub quick_build_config: QuickBuildConfig,
 }

@@ -11,7 +11,7 @@ use std::sync::{
 use tauri::Emitter;
 use thiserror::Error;
 use tokio::io::AsyncWriteExt;
-use tokio::sync::{Mutex, Semaphore};
+use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
 
 const MAX_ATTEMPTS: u8 = 4;
@@ -93,42 +93,18 @@ impl DownloadManager {
             .await
             .insert(job_id.clone(), control.clone());
 
-        let concurrent = request.max_concurrent.max(1);
-        let semaphore = Arc::new(Semaphore::new(concurrent));
         let http = self.http.clone();
         let remaining = Arc::new(AtomicUsize::new(artifacts.len()));
 
         for artifact in artifacts {
-            emit_event(
-                &app,
-                "download://queued",
-                DownloadEvent {
-                    job_id: job_id.clone(),
-                    artifact_id: artifact.id.clone(),
-                    build_id: request.build_id.clone(),
-                    name: artifact.name.clone(),
-                    status: "queued".to_string(),
-                    downloaded: 0,
-                    total: artifact.size,
-                    path: None,
-                    message: None,
-                    resumable: false,
-                    attempt: 0,
-                    max_attempts: MAX_ATTEMPTS,
-                    next_retry_ms: None,
-                },
-            );
-
             let app = app.clone();
             let job_id = job_id.clone();
             let request = request.clone();
             let control = control.clone();
             let http = http.clone();
-            let semaphore = semaphore.clone();
             let jobs = self.jobs.clone();
             let remaining = remaining.clone();
             tokio::spawn(async move {
-                let _permit = semaphore.acquire_owned().await.expect("semaphore open");
                 if control.cancelled.load(Ordering::Relaxed) {
                     emit_event(
                         &app,

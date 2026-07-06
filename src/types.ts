@@ -36,7 +36,6 @@ export type BuildArtifactGroup = {
 };
 
 export type DownloadStatus =
-  | "queued"
   | "downloading"
   | "retrying"
   | "completed"
@@ -86,7 +85,6 @@ export type SettingsState = {
   apiSuffix: string;
   quickBuildUrl: string;
   downloadTargetDir: string;
-  maxConcurrent: number;
   selectedTypes: string[];
   showCompleteDialog: boolean;
   hideUncheckedArtifacts: boolean;

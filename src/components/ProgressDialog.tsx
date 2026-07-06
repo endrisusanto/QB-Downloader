@@ -46,14 +46,11 @@ export function ProgressDialog({
 
   const statuses = artifacts.map((art) => rows[art.id]?.status);
   const isDownloading = statuses.some((s) => s === "downloading" || s === "retrying");
-  const isQueued = statuses.some((s) => s === "queued");
 
   const statusText = isCompleted
     ? "Completed"
     : isDownloading
     ? "Downloading"
-    : isQueued
-    ? "Queued"
     : "Idle";
 
   const totalSize = artifacts.reduce(

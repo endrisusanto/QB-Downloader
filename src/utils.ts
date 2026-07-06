@@ -24,7 +24,6 @@ export function sanitizePreferences(raw: Partial<SettingsState> = {}) {
   return {
     quickBuildUrl: raw.quickBuildUrl || defaultSettings.quickBuildUrl,
     downloadTargetDir: raw.downloadTargetDir || "",
-    maxConcurrent: Math.min(16, Math.max(1, Number(raw.maxConcurrent) || 3)),
     selectedTypes: migrateFilters(raw.selectedTypes),
     showCompleteDialog: raw.showCompleteDialog === true,
     hideUncheckedArtifacts: Boolean(raw.hideUncheckedArtifacts),

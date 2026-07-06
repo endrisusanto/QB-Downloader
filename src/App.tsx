@@ -61,7 +61,6 @@ function AppContent() {
         if (!settings.downloadTargetDir) return;
         await downloads.start(finalGroup, {
           targetDir: settings.downloadTargetDir,
-          maxConcurrent: settings.maxConcurrent,
           credentials,
           quickBuildConfig: config,
         });
@@ -228,7 +227,7 @@ function AppContent() {
       builds.consumeReadyAutoDownload(groupId);
       void start(group);
     }
-  }, [builds, credentials, config, downloads, settings.downloadTargetDir, settings.maxConcurrent]);
+  }, [builds, credentials, config, downloads, settings.downloadTargetDir]);
 
   if (settingsLoading) return <main className="app-shell"><div className="empty-state"><span className="spinner" /><h1>Unlocking secure settings</h1></div></main>;
 
@@ -238,11 +237,11 @@ function AppContent() {
   }
   async function start(group: BuildArtifactGroup) {
     if (!settings.downloadTargetDir) { setSettingsOpen(true); return; }
-    await downloads.start(group, { targetDir: settings.downloadTargetDir, maxConcurrent: settings.maxConcurrent, credentials, quickBuildConfig: config });
+    await downloads.start(group, { targetDir: settings.downloadTargetDir, credentials, quickBuildConfig: config });
   }
   async function startSingle(group: BuildArtifactGroup, artifact: Artifact) {
     if (!settings.downloadTargetDir) { setSettingsOpen(true); return; }
-    await downloads.startSingle(group, artifact, { targetDir: settings.downloadTargetDir, maxConcurrent: settings.maxConcurrent, credentials, quickBuildConfig: config });
+    await downloads.startSingle(group, artifact, { targetDir: settings.downloadTargetDir, credentials, quickBuildConfig: config });
   }
   async function remove(group: BuildArtifactGroup) {
     if (downloads.categories.progress.some((item) => item.id === group.id)) await downloads.cancel(group);

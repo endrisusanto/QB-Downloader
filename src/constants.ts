@@ -13,7 +13,6 @@ export const defaultSettings: SettingsState = {
   apiSuffix: DEFAULT_API_SUFFIX,
   quickBuildUrl: DEFAULT_QB_URL,
   downloadTargetDir: "",
-  maxConcurrent: 3,
   selectedTypes: FILTER_OPTIONS,
   showCompleteDialog: false,
   hideUncheckedArtifacts: false,
