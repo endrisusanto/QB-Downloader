@@ -357,6 +357,24 @@ async fn download_one(
         .await
         .map_err(|err| DownloadError::Io(err.to_string()))?;
 
+    emit_event(
+        &app,
+        "download://progress",
+        event(
+            &job_id,
+            &request.build_id,
+            &artifact,
+            "downloading",
+            downloaded,
+            total,
+            Some(output.display().to_string()),
+            None,
+            resumable,
+            attempt,
+            None,
+        ),
+    );
+
     let mut last_emit = std::time::Instant::now();
     let emit_interval = std::time::Duration::from_millis(800);
 
