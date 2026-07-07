@@ -6,11 +6,14 @@ import { ProgressBar } from "./ProgressBar";
 
 import { memo } from "react";
 
-const ArtifactName = memo(function ArtifactName({ name, kindLabelText }: { name: string; kindLabelText: string }) {
+const ArtifactName = memo(function ArtifactName({ name, kindLabelText, size }: { name: string; kindLabelText: string; size?: number }) {
   return (
     <div className="artifact-name">
       <strong>{name}</strong>
-      <span>{kindLabelText}</span>
+      <span className="artifact-name-meta">
+        {kindLabelText}
+        {size ? <span className="artifact-size-badge">{formatBytes(size)}</span> : null}
+      </span>
     </div>
   );
 });
@@ -95,7 +98,7 @@ export function BuildGroup({ group, rows, expanded, filters, onToggleExpanded, o
                     {artifact.selected && <Check size={16} strokeWidth={3} />}
                   </button>
                 )}
-                <ArtifactName name={artifact.name} kindLabelText={kindLabel(artifact.kind)} />
+                <ArtifactName name={artifact.name} kindLabelText={kindLabel(artifact.kind)} size={artifact.size} />
                 <div className="progress-cell">
                   <ProgressBar progress={progress} />
                   <span title={row?.message}>

@@ -689,6 +689,28 @@ button {
   font-size: 13px;
 }
 
+.artifact-name-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.artifact-size-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  white-space: nowrap;
+  flex-shrink: 0;
+  letter-spacing: 0.01em;
+}
+
 .check-button {
   width: 24px;
   height: 24px;
@@ -1373,6 +1395,12 @@ button {
 [data-theme="dark"] .thread-slot em,
 [data-theme="dark"] .empty-state {
   color: #a1a1aa;
+}
+
+[data-theme="dark"] .artifact-size-badge {
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.3);
 }
 
 [data-theme="dark"] .quick-input,
