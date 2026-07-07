@@ -539,11 +539,11 @@ fn artifact_download_urls(
     config: &QuickBuildConfig,
 ) -> Vec<String> {
     let mut urls = Vec::new();
-    urls.push(direct_download_url(build_id, &artifact.name, config));
-    urls.push(ads5_download_url(build_id, &artifact.name, config));
     if let Some(url) = artifact.url.as_deref() {
         urls.push(with_qb_suffix(url, &config.api_suffix));
     }
+    urls.push(ads5_download_url(build_id, &artifact.name, config));
+    urls.push(direct_download_url(build_id, &artifact.name, config));
     urls.dedup();
     urls
 }
