@@ -63,6 +63,7 @@ function AppContent() {
           targetDir: settings.downloadTargetDir,
           credentials,
           quickBuildConfig: config,
+          maxConcurrent: settings.maxConcurrent,
         });
       } catch (err) {
         console.error("Remote download failed:", err);
@@ -237,11 +238,11 @@ function AppContent() {
   }
   async function start(group: BuildArtifactGroup) {
     if (!settings.downloadTargetDir) { setSettingsOpen(true); return; }
-    await downloads.start(group, { targetDir: settings.downloadTargetDir, credentials, quickBuildConfig: config });
+    await downloads.start(group, { targetDir: settings.downloadTargetDir, credentials, quickBuildConfig: config, maxConcurrent: settings.maxConcurrent });
   }
   async function startSingle(group: BuildArtifactGroup, artifact: Artifact) {
     if (!settings.downloadTargetDir) { setSettingsOpen(true); return; }
-    await downloads.startSingle(group, artifact, { targetDir: settings.downloadTargetDir, credentials, quickBuildConfig: config });
+    await downloads.startSingle(group, artifact, { targetDir: settings.downloadTargetDir, credentials, quickBuildConfig: config, maxConcurrent: settings.maxConcurrent });
   }
   async function remove(group: BuildArtifactGroup) {
     if (downloads.categories.progress.some((item) => item.id === group.id)) await downloads.cancel(group);

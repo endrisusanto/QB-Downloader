@@ -30,6 +30,8 @@ export function sanitizePreferences(raw: Partial<SettingsState> = {}) {
     darkMode: Boolean(raw.darkMode),
     serverUrl: raw.serverUrl || "",
     pcName: raw.pcName || "",
+    remoteCancelPin: raw.remoteCancelPin || "",
+    maxConcurrent: typeof raw.maxConcurrent === "number" && !isNaN(raw.maxConcurrent) ? Math.max(1, Math.min(16, raw.maxConcurrent)) : defaultSettings.maxConcurrent,
   };
 }
 

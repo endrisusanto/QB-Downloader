@@ -9,6 +9,7 @@ type StartOptions = {
   targetDir: string;
   credentials: Credentials;
   quickBuildConfig: QuickBuildConfig;
+  maxConcurrent: number;
 };
 
 type ActiveJob = {
@@ -71,7 +72,7 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
 
   useEffect(() => {
     const unlisten = Promise.all(
-      ["progress", "retrying", "completed", "failed", "cancelled"].map((name) =>
+      ["queued", "progress", "retrying", "completed", "failed", "cancelled"].map((name) =>
         listen<DownloadEvent>(`download://${name}`, ({ payload }) => {
           if (!payload.artifactId) return;
           const now = Date.now();
@@ -177,6 +178,7 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
           credentials: options.credentials,
           artifacts: artifacts.map((a) => ({ ...a, selected: true })),
           quickBuildConfig: options.quickBuildConfig,
+          maxConcurrent: options.maxConcurrent,
         },
       });
 

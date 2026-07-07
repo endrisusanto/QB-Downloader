@@ -96,6 +96,9 @@ impl DownloadManager {
         let http = self.http.clone();
         let remaining = Arc::new(AtomicUsize::new(artifacts.len()));
 
+        let concurrent = request.max_concurrent.max(1);
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(concurrent));
+
         for artifact in artifacts {
             let app = app.clone();
             let job_id = job_id.clone();
@@ -104,7 +107,28 @@ impl DownloadManager {
             let http = http.clone();
             let jobs = self.jobs.clone();
             let remaining = remaining.clone();
+            let semaphore = semaphore.clone();
             tokio::spawn(async move {
+                emit_event(
+                    &app,
+                    "download://queued",
+                    event(
+                        &job_id,
+                        &request.build_id,
+                        &artifact,
+                        "queued",
+                        0,
+                        artifact.size,
+                        None,
+                        None,
+                        false,
+                        0,
+                        None,
+                    ),
+                );
+
+                let _permit = semaphore.acquire_owned().await.expect("semaphore open");
+
                 if control.cancelled.load(Ordering::Relaxed) {
                     emit_event(
                         &app,

@@ -106,6 +106,7 @@ pub struct DownloadRequest {
     pub credentials: Credentials,
     pub artifacts: Vec<Artifact>,
     pub quick_build_config: QuickBuildConfig,
+    pub max_concurrent: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]

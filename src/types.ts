@@ -92,6 +92,7 @@ export type SettingsState = {
   serverUrl: string;
   pcName: string;
   remoteCancelPin: string;
+  maxConcurrent: number;
 };
 
 export type ProgressMode = "determinate" | "indeterminate" | "completed";

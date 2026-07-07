@@ -20,4 +20,5 @@ export const defaultSettings: SettingsState = {
   serverUrl: "",
   pcName: "",
   remoteCancelPin: "",
+  maxConcurrent: 3,
 };
