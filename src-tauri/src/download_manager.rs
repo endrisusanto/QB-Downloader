@@ -11,7 +11,7 @@ use std::sync::{
 use tauri::Emitter;
 use thiserror::Error;
 use tokio::io::AsyncWriteExt;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, Semaphore};
 use tokio::time::{sleep, Duration};
 
 const MAX_ATTEMPTS: u8 = 4;
@@ -43,11 +43,7 @@ impl Default for DownloadManager {
     fn default() -> Self {
         Self {
             jobs: Arc::new(Mutex::new(HashMap::new())),
-            http: Client::builder()
-                .connect_timeout(Duration::from_secs(30))
-                .timeout(Duration::from_secs(3600))
-                .build()
-                .unwrap_or_default(),
+            http: Client::new(),
         }
     }
 }
@@ -93,42 +89,42 @@ impl DownloadManager {
             .await
             .insert(job_id.clone(), control.clone());
 
+        let concurrent = request.max_concurrent.max(1);
+        let semaphore = Arc::new(Semaphore::new(concurrent));
         let http = self.http.clone();
         let remaining = Arc::new(AtomicUsize::new(artifacts.len()));
 
-        let concurrent = request.max_concurrent.max(1);
-        let semaphore = Arc::new(tokio::sync::Semaphore::new(concurrent));
-
         for artifact in artifacts {
+            emit_event(
+                &app,
+                "download://queued",
+                DownloadEvent {
+                    job_id: job_id.clone(),
+                    artifact_id: artifact.id.clone(),
+                    build_id: request.build_id.clone(),
+                    name: artifact.name.clone(),
+                    status: "queued".to_string(),
+                    downloaded: 0,
+                    total: artifact.size,
+                    path: None,
+                    message: None,
+                    resumable: false,
+                    attempt: 0,
+                    max_attempts: MAX_ATTEMPTS,
+                    next_retry_ms: None,
+                },
+            );
+
             let app = app.clone();
             let job_id = job_id.clone();
             let request = request.clone();
             let control = control.clone();
             let http = http.clone();
+            let semaphore = semaphore.clone();
             let jobs = self.jobs.clone();
             let remaining = remaining.clone();
-            let semaphore = semaphore.clone();
             tokio::spawn(async move {
-                emit_event(
-                    &app,
-                    "download://queued",
-                    event(
-                        &job_id,
-                        &request.build_id,
-                        &artifact,
-                        "queued",
-                        0,
-                        artifact.size,
-                        None,
-                        None,
-                        false,
-                        0,
-                        None,
-                    ),
-                );
-
                 let _permit = semaphore.acquire_owned().await.expect("semaphore open");
-
                 if control.cancelled.load(Ordering::Relaxed) {
                     emit_event(
                         &app,
@@ -381,48 +377,14 @@ async fn download_one(
         .await
         .map_err(|err| DownloadError::Io(err.to_string()))?;
 
-    emit_event(
-        &app,
-        "download://progress",
-        event(
-            &job_id,
-            &request.build_id,
-            &artifact,
-            "downloading",
-            downloaded,
-            total,
-            Some(output.display().to_string()),
-            None,
-            resumable,
-            attempt,
-            None,
-        ),
-    );
-
     let mut last_emit = std::time::Instant::now();
     let emit_interval = std::time::Duration::from_millis(800);
 
     let mut stream = response.bytes_stream();
-    loop {
-        if let Some(t) = total {
-            if downloaded >= t {
-                break; // We have all the expected bytes, no need to wait for EOF
-            }
-        }
-
-        let chunk_result = tokio::time::timeout(
-            std::time::Duration::from_secs(30),
-            futures_util::TryStreamExt::try_next(&mut stream),
-        )
-        .await;
-
-        let chunk = match chunk_result {
-            Ok(Ok(Some(c))) => c,
-            Ok(Ok(None)) => break,
-            Ok(Err(err)) => return Err(DownloadError::Network(err.to_string())),
-            Err(_) => return Err(DownloadError::Network("Connection stalled (idle timeout).".to_string())),
-        };
-
+    while let Some(chunk) = futures_util::TryStreamExt::try_next(&mut stream)
+        .await
+        .map_err(|err| DownloadError::Network(err.to_string()))?
+    {
         if control.cancelled.load(Ordering::Relaxed) {
             emit_event(
                 &app,
@@ -592,20 +554,10 @@ async fn send_download_request(
             req = req.header(header::RANGE, format!("bytes={existing}-"));
         }
 
-        let response_result = tokio::time::timeout(
-            std::time::Duration::from_secs(10),
-            req.send(),
-        )
-        .await;
-
-        let response = match response_result {
-            Ok(Ok(response)) => response,
-            Ok(Err(err)) => {
+        let response = match req.send().await {
+            Ok(response) => response,
+            Err(err) => {
                 last_error = Some(err.to_string());
-                continue;
-            }
-            Err(_) => {
-                last_error = Some("Connection timed out (header phase).".to_string());
                 continue;
             }
         };

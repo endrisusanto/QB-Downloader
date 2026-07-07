@@ -56,6 +56,7 @@ export function SettingsModal({ value, secureError, onSave, onClose, onPickFolde
         <label className="toggle-row"><input type="checkbox" checked={draft.showCompleteDialog} onChange={(event) => patch({ showCompleteDialog: event.target.checked })} />Show complete dialog when download finishes</label>
         <label className="toggle-row"><input type="checkbox" checked={draft.hideUncheckedArtifacts} onChange={(event) => patch({ hideUncheckedArtifacts: event.target.checked })} />Auto-check filtered artifacts on fetch</label>
         <label className="toggle-row"><input type="checkbox" checked={draft.darkMode} onChange={(event) => patch({ darkMode: event.target.checked })} />Dark mode</label>
+        <label>Max concurrent downloads<input type="number" min="1" max="16" value={draft.maxConcurrent} onChange={(event) => patch({ maxConcurrent: parseInt(event.target.value) || 1 })} placeholder="3" /></label>
         <label>Dashboard server URL<input value={draft.serverUrl} onChange={(event) => patch({ serverUrl: event.target.value })} placeholder="https://qd.endrisusanto.my.id" /></label>
         <label>PC display name<input value={draft.pcName} onChange={(event) => patch({ pcName: event.target.value })} placeholder="Auto (hostname)" /></label>
         <label>Remote cancel PIN<div className="secret-input"><input type="password" inputMode="numeric" value={draft.remoteCancelPin} onChange={(event) => patch({ remoteCancelPin: event.target.value })} placeholder="Required for Web and Android cancel" /></div></label>

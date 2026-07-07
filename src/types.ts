@@ -36,6 +36,7 @@ export type BuildArtifactGroup = {
 };
 
 export type DownloadStatus =
+  | "queued"
   | "downloading"
   | "retrying"
   | "completed"

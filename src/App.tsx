@@ -238,11 +238,11 @@ function AppContent() {
   }
   async function start(group: BuildArtifactGroup) {
     if (!settings.downloadTargetDir) { setSettingsOpen(true); return; }
-    await downloads.start(group, { targetDir: settings.downloadTargetDir, credentials, quickBuildConfig: config, maxConcurrent: settings.maxConcurrent });
+    await downloads.start(group, { targetDir: settings.downloadTargetDir, maxConcurrent: settings.maxConcurrent, credentials, quickBuildConfig: config });
   }
   async function startSingle(group: BuildArtifactGroup, artifact: Artifact) {
     if (!settings.downloadTargetDir) { setSettingsOpen(true); return; }
-    await downloads.startSingle(group, artifact, { targetDir: settings.downloadTargetDir, credentials, quickBuildConfig: config, maxConcurrent: settings.maxConcurrent });
+    await downloads.startSingle(group, artifact, { targetDir: settings.downloadTargetDir, maxConcurrent: settings.maxConcurrent, credentials, quickBuildConfig: config });
   }
   async function remove(group: BuildArtifactGroup) {
     if (downloads.categories.progress.some((item) => item.id === group.id)) await downloads.cancel(group);

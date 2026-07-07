@@ -7,9 +7,17 @@ import { selectedArtifacts } from "../utils";
 
 type StartOptions = {
   targetDir: string;
+  maxConcurrent: number;
   credentials: Credentials;
   quickBuildConfig: QuickBuildConfig;
-  maxConcurrent: number;
+};
+
+type QueueItem = {
+  queueId: string;
+  groupId: string;
+  buildId: string;
+  artifacts: Artifact[];
+  options: StartOptions;
 };
 
 type ActiveJob = {
@@ -28,7 +36,7 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
     const history = readDownloadHistory();
     const sortedHistory = [...history].sort((a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime());
     for (const entry of sortedHistory) {
-      const isInterrupted = entry.status === "downloading" || entry.status === "retrying";
+      const isInterrupted = entry.status === "downloading" || entry.status === "queued" || entry.status === "retrying";
       initialRows[entry.artifactId] = {
         jobId: entry.jobId,
         artifactId: entry.artifactId,
@@ -55,8 +63,13 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
   const byteSamples = useRef<{ at: number; bytes: number }[]>([]);
   const slotTotals = useRef<Record<string, number>>({});
   const slotSamples = useRef<Record<string, { at: number; bytes: number }[]>>({});
+  const queue = useRef<QueueItem[]>([]);
+  const startingJobs = useRef<Record<string, QueueItem>>({});
+  const cancelledQueueIds = useRef<Set<string>>(new Set());
   const activeJobs = useRef<Record<string, ActiveJob>>({});
   const groupOptions = useRef<Record<string, StartOptions>>({});
+  const maxSlots = useRef(1);
+  const pumping = useRef(false);
   latestRows.current = rows;
 
   const refreshGroupJobStatus = useCallback((groupId: string) => {
@@ -67,8 +80,66 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
     )));
   }, [setGroups]);
 
-  const pendingRows = useRef<Record<string, DownloadEvent>>({});
-  const rafId = useRef<number | null>(null);
+  const pumpQueue = useCallback(() => {
+    if (pumping.current) return;
+    pumping.current = true;
+    void (async () => {
+      try {
+        while (Object.keys(activeJobs.current).length < maxSlots.current && queue.current.length > 0) {
+          const item = queue.current.shift();
+          if (!item) continue;
+          startingJobs.current[item.queueId] = item;
+          try {
+            const jobId = await invoke<string>("start_download", {
+              group: {
+                buildId: item.buildId,
+                targetDir: item.options.targetDir,
+                credentials: item.options.credentials,
+                maxConcurrent: item.options.maxConcurrent,
+                artifacts: item.artifacts.map((a) => ({ ...a, selected: true })),
+                quickBuildConfig: item.options.quickBuildConfig,
+              },
+            });
+            delete startingJobs.current[item.queueId];
+            if (cancelledQueueIds.current.has(item.queueId)) {
+              cancelledQueueIds.current.delete(item.queueId);
+              await invoke("cancel_download", { jobId });
+              continue;
+            }
+            activeJobs.current[jobId] = {
+              groupId: item.groupId,
+              activeArtifactIds: new Set(item.artifacts.map((a) => a.id)),
+            };
+            refreshGroupJobStatus(item.groupId);
+          } catch (error) {
+            const wasCancelled = cancelledQueueIds.current.has(item.queueId);
+            cancelledQueueIds.current.delete(item.queueId);
+            setRows((current) => {
+              const next = { ...current };
+              for (const artifact of item.artifacts) {
+                const event = eventFromQueueItem(
+                  item,
+                  artifact,
+                  wasCancelled ? "cancelled" : "failed",
+                  wasCancelled ? "Cancelled while starting" : String(error)
+                );
+                next[artifact.id] = event;
+                persistDownloadHistory(event, true);
+              }
+              return next;
+            });
+          } finally {
+            delete startingJobs.current[item.queueId];
+          }
+        }
+      } finally {
+        pumping.current = false;
+        if (Object.keys(activeJobs.current).length < maxSlots.current && queue.current.length > 0) {
+          pumpQueue();
+        }
+      }
+    })();
+  }, [refreshGroupJobStatus]);
 
   useEffect(() => {
     const unlisten = Promise.all(
@@ -87,17 +158,7 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
           const samples = slotSamples.current[payload.artifactId] || [];
           samples.push({ at: now, bytes: slotTotals.current[payload.artifactId] || 0 });
           slotSamples.current[payload.artifactId] = samples;
-          
-          pendingRows.current[payload.artifactId] = payload;
-          
-          if (!rafId.current) {
-            rafId.current = window.setTimeout(() => {
-              rafId.current = null;
-              setRows((current) => ({ ...current, ...pendingRows.current }));
-              pendingRows.current = {};
-            }, 100); // Throttle to 10fps
-          }
-          
+          setRows((current) => ({ ...current, [payload.artifactId]: payload }));
           persistDownloadHistory(payload, TERMINAL_STATUSES.has(payload.status));
 
           if (TERMINAL_STATUSES.has(payload.status)) {
@@ -109,15 +170,13 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
               }
               refreshGroupJobStatus(job.groupId);
             }
+            pumpQueue();
           }
         }),
       ),
     );
-    return () => {
-      void unlisten.then((items) => items.forEach((item) => item()));
-      if (rafId.current) window.clearTimeout(rafId.current);
-    };
-  }, [refreshGroupJobStatus]);
+    return () => void unlisten.then((items) => items.forEach((item) => item()));
+  }, [pumpQueue, refreshGroupJobStatus]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -146,95 +205,67 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
     };
   }, []);
 
-  const startDirect = useCallback(async (group: BuildArtifactGroup, artifacts: Artifact[], options: StartOptions) => {
+  const enqueue = useCallback((group: BuildArtifactGroup, artifacts: Artifact[], options: StartOptions) => {
     if (!group.buildId || artifacts.length === 0) return;
+    maxSlots.current = Math.max(1, options.maxConcurrent);
     groupOptions.current[group.id] = options;
-
-    // Set rows to "downloading" immediately for responsive UI
+    const item: QueueItem = {
+      queueId: crypto.randomUUID(),
+      groupId: group.id,
+      buildId: group.buildId as string,
+      artifacts,
+      options,
+    };
+    queue.current.push(item);
     setRows((current) => {
       const next = omitRows(current, artifacts.map((artifact) => artifact.id));
       for (const artifact of artifacts) {
-        next[artifact.id] = {
-          jobId: "",
-          artifactId: artifact.id,
-          buildId: group.buildId as string,
-          name: artifact.name,
-          status: "downloading",
-          downloaded: 0,
-          total: artifact.size,
-          resumable: false,
-          attempt: 0,
-          maxAttempts: 4,
-        };
+        next[artifact.id] = eventFromQueueItem(item, artifact, "queued");
       }
       return next;
     });
-
-    try {
-      const jobId = await invoke<string>("start_download", {
-        group: {
-          buildId: group.buildId,
-          targetDir: options.targetDir,
-          credentials: options.credentials,
-          artifacts: artifacts.map((a) => ({ ...a, selected: true })),
-          quickBuildConfig: options.quickBuildConfig,
-          maxConcurrent: options.maxConcurrent,
-        },
-      });
-
-      activeJobs.current[jobId] = {
-        groupId: group.id,
-        activeArtifactIds: new Set(artifacts.map((a) => a.id)),
-      };
-      refreshGroupJobStatus(group.id);
-    } catch (error) {
-      setRows((current) => {
-        const next = { ...current };
-        for (const artifact of artifacts) {
-          const event: DownloadEvent = {
-            jobId: "",
-            artifactId: artifact.id,
-            buildId: group.buildId as string,
-            name: artifact.name,
-            status: "failed",
-            downloaded: 0,
-            total: artifact.size,
-            message: String(error),
-            resumable: false,
-            attempt: 0,
-            maxAttempts: 4,
-          };
-          next[artifact.id] = event;
-          persistDownloadHistory(event, true);
-        }
-        return next;
-      });
-    }
-  }, [refreshGroupJobStatus]);
+    pumpQueue();
+  }, [pumpQueue]);
 
   const start = useCallback(
     async (group: BuildArtifactGroup, options: StartOptions) => {
-      await startDirect(group, selectedArtifacts(group), options);
+      enqueue(group, selectedArtifacts(group), options);
     },
-    [startDirect],
+    [enqueue],
   );
 
   const startSingle = useCallback(
     async (group: BuildArtifactGroup, artifact: Artifact, options: StartOptions) => {
-      await startDirect(group, [artifact], options);
+      enqueue(group, [artifact], options);
     },
-    [startDirect],
+    [enqueue],
   );
 
   const cancel = useCallback(async (group: BuildArtifactGroup) => {
     const selectedIds = new Set(selectedArtifacts(group).map((artifact) => artifact.id));
+    queue.current = queue.current.map((item) => {
+      if (item.groupId === group.id) {
+        item.artifacts = item.artifacts.filter((a) => !selectedIds.has(a.id));
+      }
+      return item;
+    }).filter((item) => item.artifacts.length > 0);
+
+    Object.entries(startingJobs.current).forEach(([queueId, item]) => {
+      if (item.groupId === group.id) {
+        item.artifacts = item.artifacts.filter((a) => !selectedIds.has(a.id));
+        if (item.artifacts.length === 0) {
+          cancelledQueueIds.current.add(queueId);
+        }
+      }
+    });
 
     const activeJobIds = Object.entries(activeJobs.current)
       .filter(([, job]) => job.groupId === group.id && [...job.activeArtifactIds].some((id) => selectedIds.has(id)))
       .map(([jobId]) => jobId);
 
     await Promise.all(activeJobIds.map((jobId) => invoke("cancel_download", { jobId })));
-  }, []);
+    pumpQueue();
+  }, [pumpQueue]);
 
   const retry = useCallback(async (group: BuildArtifactGroup) => {
     const failedArtifacts = selectedArtifacts(group).filter((artifact) => latestRows.current[artifact.id]?.status === "failed");
@@ -245,8 +276,8 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
       setRows((current) => ({ ...current, [failedArtifacts[0].id]: { ...failedRow, message: "Retry requires starting the download again from the main download button." } }));
       return;
     }
-    await startDirect(group, failedArtifacts, options);
-  }, [startDirect]);
+    enqueue(group, failedArtifacts, options);
+  }, [enqueue]);
 
   const removeRow = useCallback((artifactId: string) => {
     const activeEntry = Object.entries(activeJobs.current).find(([, job]) => job.activeArtifactIds.has(artifactId));
@@ -259,6 +290,10 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
       }
       refreshGroupJobStatus(job.groupId);
     }
+    queue.current = queue.current.map((item) => ({
+      ...item,
+      artifacts: item.artifacts.filter((a) => a.id !== artifactId),
+    })).filter((item) => item.artifacts.length > 0);
 
     setRows((current) => {
       const next = { ...current };
@@ -300,7 +335,7 @@ export function classifyGroups(groups: BuildArtifactGroup[], rows: Record<string
     const artifacts = group.artifacts;
     const hasActiveOrFinished = artifacts.some((a) => {
       const status = rows[a.id]?.status;
-      return status === "downloading" || status === "retrying" || status === "completed" || status === "failed";
+      return status === "queued" || status === "downloading" || status === "retrying" || status === "completed" || status === "failed";
     });
     if (!hasActiveOrFinished) {
       fetched.push(group);
@@ -316,7 +351,7 @@ export function classifyGroups(groups: BuildArtifactGroup[], rows: Record<string
     
     const progressSelected = artifacts.filter((a) => {
       const status = rows[a.id]?.status;
-      return status === "downloading" || status === "retrying";
+      return status === "queued" || status === "downloading" || status === "retrying";
     });
     if (progressSelected.length > 0) {
       progress.push({
@@ -342,36 +377,48 @@ function omitRows(rows: Record<string, DownloadEvent>, ids: string[]) {
   return next;
 }
 
+function eventFromQueueItem(item: QueueItem, artifact: Artifact, status: DownloadEvent["status"], message?: string): DownloadEvent {
+  return {
+    jobId: item.queueId,
+    artifactId: artifact.id,
+    buildId: item.buildId,
+    name: artifact.name,
+    status,
+    downloaded: 0,
+    total: artifact.size,
+    message,
+    resumable: false,
+    attempt: 0,
+    maxAttempts: 4,
+  };
+}
+
 function persistDownloadHistory(event: DownloadEvent, immediate = false) {
-  try {
-    if (typeof localStorage === "undefined") return;
-    const now = new Date().toISOString();
-    const id = `${event.jobId}:${event.artifactId}`;
-    const current = getDownloadHistoryCache();
-    const existingIndex = current.findIndex((item) => item.id === id);
-    const existing = existingIndex >= 0 ? current[existingIndex] : undefined;
-    const entry: DownloadHistoryEntry = {
-      id,
-      artifactId: event.artifactId,
-      buildId: event.buildId,
-      name: event.name,
-      status: event.status,
-      downloaded: event.downloaded,
-      total: event.total,
-      path: event.path,
-      message: event.message,
-      jobId: event.jobId,
-      startedAt: existing?.startedAt || now,
-      updatedAt: now,
-    };
-    const next = existingIndex >= 0
-      ? current.map((item, index) => (index === existingIndex ? entry : item))
-      : [entry, ...current];
-    downloadHistoryCache = next.slice(0, 1000);
-    scheduleHistoryFlush(immediate);
-  } catch (err) {
-    console.error("Failed to persist download history:", err);
-  }
+  if (typeof localStorage === "undefined") return;
+  const now = new Date().toISOString();
+  const id = `${event.jobId}:${event.artifactId}`;
+  const current = getDownloadHistoryCache();
+  const existingIndex = current.findIndex((item) => item.id === id);
+  const existing = existingIndex >= 0 ? current[existingIndex] : undefined;
+  const entry: DownloadHistoryEntry = {
+    id,
+    artifactId: event.artifactId,
+    buildId: event.buildId,
+    name: event.name,
+    status: event.status,
+    downloaded: event.downloaded,
+    total: event.total,
+    path: event.path,
+    message: event.message,
+    jobId: event.jobId,
+    startedAt: existing?.startedAt || now,
+    updatedAt: now,
+  };
+  const next = existingIndex >= 0
+    ? current.map((item, index) => (index === existingIndex ? entry : item))
+    : [entry, ...current];
+  downloadHistoryCache = next.slice(0, 1000);
+  scheduleHistoryFlush(immediate);
 }
 
 function getDownloadHistoryCache() {
@@ -396,12 +443,8 @@ function flushDownloadHistory() {
     window.clearTimeout(historyFlushTimer);
     historyFlushTimer = null;
   }
-  try {
-    if (downloadHistoryCache) {
-      localStorage.setItem(DOWNLOAD_HISTORY_KEY, JSON.stringify(downloadHistoryCache));
-    }
-  } catch (err) {
-    console.error("Failed to flush download history to localStorage:", err);
+  if (downloadHistoryCache) {
+    localStorage.setItem(DOWNLOAD_HISTORY_KEY, JSON.stringify(downloadHistoryCache));
   }
 }
 
