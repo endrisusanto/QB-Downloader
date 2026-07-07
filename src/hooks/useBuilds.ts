@@ -14,7 +14,13 @@ export function useBuilds(
   const [groups, setGroups] = useState<BuildArtifactGroup[]>(() => {
     try {
       const saved = localStorage.getItem("quickbuild-download-manager-groups");
-      return saved ? JSON.parse(saved) : [];
+      const parsed: BuildArtifactGroup[] = saved ? JSON.parse(saved) : [];
+      // ponytail: drop stale groups where NO artifact has size (fetched before size parsing existed)
+      // so user gets a fresh fetch instead of perpetually seeing no size badges
+      const migrated = parsed.filter((group) =>
+        group.artifacts.length === 0 || group.artifacts.some((a) => a.size != null)
+      );
+      return migrated.map((group) => normalizeGroup(group, group.input));
     } catch {
       return [];
     }
