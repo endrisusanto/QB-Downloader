@@ -40,9 +40,10 @@ export function BuildGroup({ group, rows, expanded, filters, onToggleExpanded, o
   const noArtifacts = !watching && artifacts.length === 0;
   const cardProgress = groupProgress(artifacts, rows);
   const nextCheck = group.nextCheckAt ? new Date(group.nextCheckAt).toLocaleTimeString() : "";
+  const totalSelectedSize = selected.reduce((sum, art) => sum + (art.size || 0), 0);
   const subtitle = watching
     ? `Build is running. Waiting for artifacts${nextCheck ? ` - next check ${nextCheck}` : ""}.`
-    : group.error || `${selected.length}/${artifacts.length} selected${group.version ? ` - ${group.version}` : ""}`;
+    : group.error || `${selected.length}/${artifacts.length} selected${totalSelectedSize > 0 ? ` (${formatBytes(totalSelectedSize)})` : ""}${group.version ? ` - ${group.version}` : ""}`;
   return (
     <article className={`build-group progress-${cardProgress.mode} ${watching ? "watching" : ""} ${group.error || failed ? "failed" : ""}`} style={{ "--card-progress": `${cardProgress.percent}%` } as CSSProperties}>
       <div className="group-header">
@@ -98,7 +99,7 @@ export function BuildGroup({ group, rows, expanded, filters, onToggleExpanded, o
                 <div className="progress-cell">
                   <ProgressBar progress={progress} />
                   <span title={row?.message}>
-                    {row?.message || (row ? `${progress.mode === "indeterminate" ? "Downloading" : `${progress.percent}%`} · ${formatBytes(row.downloaded)} / ${formatBytes(row.total)}` : "Ready")}
+                    {row?.message || (row ? `${progress.mode === "indeterminate" ? "Downloading" : `${progress.percent}%`} · ${formatBytes(row.downloaded)} / ${formatBytes(row.total)}` : (artifact.size ? `Ready · ${formatBytes(artifact.size)}` : "Ready"))}
                   </span>
                 </div>
                 <div className="artifact-status">
