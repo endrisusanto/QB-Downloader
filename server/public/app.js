@@ -243,6 +243,17 @@ function formatBytes(b) {
   return `${(b / 1024 ** i).toFixed(i ? 1 : 0)} ${units[i]}`;
 }
 
+function formatETA(seconds) {
+  if (!isFinite(seconds) || seconds <= 0) return "Calculating...";
+  if (seconds > 86400 * 365) return "∞"; // Too long
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
 function classifyGroups(groups, rows) {
   const fetched = [];
   const progress = [];
@@ -286,6 +297,24 @@ function classifyGroups(groups, rows) {
     }
   }
   return { fetched, progress, completed, failed };
+}
+
+function calculatePcETA(pc, progressGroups) {
+  let remainingBytes = 0;
+  for (const group of progressGroups) {
+    for (const a of group.artifacts) {
+      const row = pc.rows[a.id];
+      if (row && (row.status === "downloading" || row.status === "queued" || row.status === "retrying")) {
+        const total = row.total || a.size || 0;
+        const downloaded = row.downloaded || 0;
+        if (total > downloaded) remainingBytes += (total - downloaded);
+      }
+    }
+  }
+  if (remainingBytes === 0) return null;
+  const speed = pc.sysStats?.totalSpeed || 0;
+  if (speed === 0) return null;
+  return remainingBytes / speed;
 }
 
 function matchesArtifactFilter(artifact, filters) {
@@ -407,6 +436,8 @@ function renderPc(pc) {
   card.className = `pc-card ${pc.online ? "online" : "offline"}`;
   card.id = `pc-${pc.pcId}`;
 
+  const { fetched, progress, completed, failed } = classifyGroups(pc.groups || [], pc.rows || {});
+  
   let sysStatsHtml = "";
   if (pc.sysStats) {
     const s = pc.sysStats;
@@ -417,6 +448,9 @@ function renderPc(pc) {
     const diskAvailStr = formatBytes(s.diskAvailable);
     const diskTotalStr = formatBytes(s.diskTotal);
     const speedStr = formatBytes(s.totalSpeed || 0);
+
+    const etaSecs = calculatePcETA(pc, progress);
+    const etaStr = etaSecs ? formatETA(etaSecs) : "";
 
     sysStatsHtml = `
       <div class="sys-stats-container">
@@ -440,11 +474,15 @@ function renderPc(pc) {
           <span class="stat-lbl">Speed:</span>
           <span class="stat-val">${speedStr}/s</span>
         </div>
+        <div class="sys-stat-item eta-item" title="Estimated Time" style="${etaStr ? '' : 'display:none'}">
+          <span class="stat-icon">⏳</span>
+          <span class="stat-lbl">ETA:</span>
+          <span class="stat-val">${etaStr || '0s'}</span>
+        </div>
       </div>
     `;
   }
 
-  const { fetched, progress, completed, failed } = classifyGroups(pc.groups || [], pc.rows || {});
   const fetchedIds = fetched.map((group) => group.id).join(",");
   const progressIds = progress.map((group) => group.id).join(",");
 
@@ -551,6 +589,8 @@ function patchPcCard(card, pc) {
     statusBadge.textContent = pc.online ? "Online" : "Offline";
   }
 
+  const { fetched, progress, completed, failed } = classifyGroups(pc.groups || [], pc.rows || {});
+
   // Patch sys stats values only
   if (pc.sysStats) {
     const stats = card.querySelectorAll(".stat-val");
@@ -561,6 +601,17 @@ function patchPcCard(card, pc) {
       patchText(stats[1], `${formatBytes(s.ramUsed)} / ${formatBytes(s.ramTotal)} (${ramPct}%)`);
       patchText(stats[2], `${formatBytes(s.diskAvailable)} free of ${formatBytes(s.diskTotal)}`);
       patchText(stats[3], `${formatBytes(s.totalSpeed || 0)}/s`);
+      
+      if (stats.length >= 5) {
+        const etaSecs = calculatePcETA(pc, progress);
+        const etaStr = etaSecs ? formatETA(etaSecs) : "";
+        if (etaStr) {
+          patchText(stats[4], etaStr);
+          stats[4].parentElement.style.display = "";
+        } else {
+          stats[4].parentElement.style.display = "none";
+        }
+      }
     }
   }
 
@@ -569,7 +620,6 @@ function patchPcCard(card, pc) {
   if (dlBtn) dlBtn.disabled = !pc.online;
 
   // Patch accordion contents — full replace only inside accordion-content divs
-  const { fetched, progress, completed, failed } = classifyGroups(pc.groups || [], pc.rows || {});
   const categories = [
     { list: fetched, type: "fetched" },
     { list: progress, type: "progress" },

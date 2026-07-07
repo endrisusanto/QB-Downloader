@@ -72,6 +72,35 @@ fun classifyPcGroups(groups: List<BuildArtifactGroup>, rows: Map<String, Downloa
     return ClassifiedGroups(fetched, progress, completed, failed)
 }
 
+fun calculatePcETA(progress: List<BuildArtifactGroup>, rows: Map<String, DownloadEvent>, totalSpeed: Long): Long? {
+    var remainingBytes = 0L
+    for (group in progress) {
+        for (a in group.artifacts) {
+            val row = rows[a.id]
+            if (row != null && (row.status == "downloading" || row.status == "queued" || row.status == "retrying")) {
+                val total = if (row.total > 0) row.total else a.size
+                val downloaded = row.downloaded
+                if (total > downloaded) remainingBytes += (total - downloaded)
+            }
+        }
+    }
+    if (remainingBytes == 0L || totalSpeed <= 0L) return null
+    return remainingBytes / totalSpeed
+}
+
+fun formatETA(seconds: Long): String {
+    if (seconds <= 0) return "Calculating..."
+    if (seconds > 86400 * 365) return "∞"
+    val h = seconds / 3600
+    val m = (seconds % 3600) / 60
+    val s = seconds % 60
+    return when {
+        h > 0 -> "${h}h ${m}m ${s}s"
+        m > 0 -> "${m}m ${s}s"
+        else -> "${s}s"
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun PcDetailScreen(
@@ -136,6 +165,10 @@ fun PcDetailScreen(
                                     CompactChip("🧠 ${stats?.let { formatBytes(it.ramUsed) } ?: "0 B"}")
                                     CompactChip("💾 ${stats?.let { formatBytes(it.diskAvailable) } ?: "0 B"}")
                                     CompactChip("⚡ ${stats?.let { formatBytes(it.totalSpeed) } ?: "0 B"}/s")
+                                    val etaSecs = stats?.let { calculatePcETA(classified.progress, pc.rows, it.totalSpeed) }
+                                    if (etaSecs != null) {
+                                        CompactChip("⏳ ${formatETA(etaSecs)}")
+                                    }
                                 }
                             } else {
                                 Column(Modifier.padding(12.dp)) {
@@ -156,6 +189,13 @@ fun PcDetailScreen(
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             ResourceBadge("Storage", "${formatBytes(stats.diskAvailable)} free")
                                             ResourceBadge("Speed", "${formatBytes(stats.totalSpeed)}/s")
+                                        }
+                                        val etaSecs = calculatePcETA(classified.progress, pc.rows, stats.totalSpeed)
+                                        if (etaSecs != null) {
+                                            Spacer(Modifier.height(8.dp))
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                ResourceBadge("Estimated Time", formatETA(etaSecs))
+                                            }
                                         }
                                     }
                                 }
