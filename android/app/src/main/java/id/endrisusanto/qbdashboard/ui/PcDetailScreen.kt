@@ -72,19 +72,26 @@ fun classifyPcGroups(groups: List<BuildArtifactGroup>, rows: Map<String, Downloa
     return ClassifiedGroups(fetched, progress, completed, failed)
 }
 
-fun calculatePcETA(progress: List<BuildArtifactGroup>, rows: Map<String, DownloadEvent>, totalSpeed: Long): Long? {
-    var remainingBytes = 0L
+fun calculatePcProgress(progress: List<BuildArtifactGroup>, rows: Map<String, DownloadEvent>): Pair<Long, Long> {
+    var totalBytes = 0L
+    var downloadedBytes = 0L
     for (group in progress) {
         for (a in group.artifacts) {
             val row = rows[a.id]
             if (row != null && (row.status == "downloading" || row.status == "queued" || row.status == "retrying")) {
                 val total = if (row.total > 0) row.total else a.size
-                val downloaded = row.downloaded
-                if (total > downloaded) remainingBytes += (total - downloaded)
+                totalBytes += total
+                downloadedBytes += row.downloaded
             }
         }
     }
-    if (remainingBytes == 0L || totalSpeed <= 0L) return null
+    return Pair(downloadedBytes, totalBytes)
+}
+
+fun calculatePcETA(progress: List<BuildArtifactGroup>, rows: Map<String, DownloadEvent>, totalSpeed: Long): Long? {
+    val (downloadedBytes, totalBytes) = calculatePcProgress(progress, rows)
+    val remainingBytes = totalBytes - downloadedBytes
+    if (remainingBytes <= 0L || totalSpeed <= 0L) return null
     return remainingBytes / totalSpeed
 }
 
@@ -160,10 +167,12 @@ fun PcDetailScreen(
                                     horizontalArrangement = Arrangement.SpaceEvenly,
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    CompactChip("⬇ $activeCount")
-                                    CompactChip("💻 ${stats?.let { String.format(java.util.Locale.US, "%.0f", it.cpuUsage) } ?: "0"}%")
-                                    CompactChip("🧠 ${stats?.let { formatBytes(it.ramUsed) } ?: "0 B"}")
-                                    CompactChip("💾 ${stats?.let { formatBytes(it.diskAvailable) } ?: "0 B"}")
+                                    val (dl, tot) = calculatePcProgress(classified.progress, pc.rows)
+                                    if (tot > 0L) {
+                                        CompactChip("⬇ ${(dl * 100f / tot).roundToInt()}%")
+                                    } else {
+                                        CompactChip("⬇ $activeCount")
+                                    }
                                     CompactChip("⚡ ${stats?.let { formatBytes(it.totalSpeed) } ?: "0 B"}/s")
                                     val etaSecs = stats?.let { calculatePcETA(classified.progress, pc.rows, it.totalSpeed) }
                                     if (etaSecs != null) {
@@ -191,10 +200,16 @@ fun PcDetailScreen(
                                             ResourceBadge("Speed", "${formatBytes(stats.totalSpeed)}/s")
                                         }
                                         val etaSecs = calculatePcETA(classified.progress, pc.rows, stats.totalSpeed)
-                                        if (etaSecs != null) {
+                                        val (dl, tot) = calculatePcProgress(classified.progress, pc.rows)
+                                        if (etaSecs != null || tot > 0L) {
                                             Spacer(Modifier.height(8.dp))
                                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                ResourceBadge("Estimated Time", formatETA(etaSecs))
+                                                if (tot > 0L) {
+                                                    ResourceBadge("Progress", "${(dl * 100f / tot).roundToInt()}% (${formatBytes(dl)} / ${formatBytes(tot)})")
+                                                }
+                                                if (etaSecs != null) {
+                                                    ResourceBadge("Estimated Time", formatETA(etaSecs))
+                                                }
                                             }
                                         }
                                     }

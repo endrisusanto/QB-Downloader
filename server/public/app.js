@@ -299,19 +299,27 @@ function classifyGroups(groups, rows) {
   return { fetched, progress, completed, failed };
 }
 
-function calculatePcETA(pc, progressGroups) {
-  let remainingBytes = 0;
+function calculatePcProgress(pc, progressGroups) {
+  let totalBytes = 0;
+  let downloadedBytes = 0;
   for (const group of progressGroups) {
     for (const a of group.artifacts) {
       const row = pc.rows[a.id];
       if (row && (row.status === "downloading" || row.status === "queued" || row.status === "retrying")) {
         const total = row.total || a.size || 0;
         const downloaded = row.downloaded || 0;
-        if (total > downloaded) remainingBytes += (total - downloaded);
+        totalBytes += total;
+        downloadedBytes += downloaded;
       }
     }
   }
-  if (remainingBytes === 0) return null;
+  return { downloadedBytes, totalBytes };
+}
+
+function calculatePcETA(pc, progressGroups) {
+  const { downloadedBytes, totalBytes } = calculatePcProgress(pc, progressGroups);
+  const remainingBytes = totalBytes - downloadedBytes;
+  if (remainingBytes <= 0) return null;
   const speed = pc.sysStats?.totalSpeed || 0;
   if (speed === 0) return null;
   return remainingBytes / speed;
@@ -451,6 +459,7 @@ function renderPc(pc) {
 
     const etaSecs = calculatePcETA(pc, progress);
     const etaStr = etaSecs ? formatETA(etaSecs) : "";
+    const { downloadedBytes, totalBytes } = calculatePcProgress(pc, progress);
 
     sysStatsHtml = `
       <div class="sys-stats-container">
@@ -473,6 +482,11 @@ function renderPc(pc) {
           <span class="stat-icon">⚡</span>
           <span class="stat-lbl">Speed:</span>
           <span class="stat-val">${speedStr}/s</span>
+        </div>
+        <div class="sys-stat-item progress-item" title="Overall Progress" style="${totalBytes > 0 ? '' : 'display:none'}">
+          <span class="stat-icon">📊</span>
+          <span class="stat-lbl">Progress:</span>
+          <span class="stat-val">${totalBytes > 0 ? `${Math.round(downloadedBytes * 100 / totalBytes)}% (${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)})` : ''}</span>
         </div>
         <div class="sys-stat-item eta-item" title="Estimated Time" style="${etaStr ? '' : 'display:none'}">
           <span class="stat-icon">⏳</span>
@@ -602,14 +616,22 @@ function patchPcCard(card, pc) {
       patchText(stats[2], `${formatBytes(s.diskAvailable)} free of ${formatBytes(s.diskTotal)}`);
       patchText(stats[3], `${formatBytes(s.totalSpeed || 0)}/s`);
       
-      if (stats.length >= 5) {
-        const etaSecs = calculatePcETA(pc, progress);
-        const etaStr = etaSecs ? formatETA(etaSecs) : "";
-        if (etaStr) {
-          patchText(stats[4], etaStr);
+      if (stats.length >= 6) {
+        const { downloadedBytes, totalBytes } = calculatePcProgress(pc, progress);
+        if (totalBytes > 0) {
+          patchText(stats[4], `${Math.round(downloadedBytes * 100 / totalBytes)}% (${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)})`);
           stats[4].parentElement.style.display = "";
         } else {
           stats[4].parentElement.style.display = "none";
+        }
+
+        const etaSecs = calculatePcETA(pc, progress);
+        const etaStr = etaSecs ? formatETA(etaSecs) : "";
+        if (etaStr) {
+          patchText(stats[5], etaStr);
+          stats[5].parentElement.style.display = "";
+        } else {
+          stats[5].parentElement.style.display = "none";
         }
       }
     }
