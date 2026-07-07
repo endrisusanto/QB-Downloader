@@ -103,6 +103,41 @@ pub fn parse_artifacts(build_id: &str, response: &str) -> Vec<Artifact> {
         }
     }
 
+    // Try parsing as XML first
+    let mut xml_artifacts = Vec::new();
+    let file_block_re = Regex::new(r"(?is)<file>\s*(.*?)\s*</file>").expect("valid regex");
+    let path_re = Regex::new(r"(?is)<(?:path|name|filename)>\s*(.*?)\s*</(?:path|name|filename)>").expect("valid regex");
+    let size_re = Regex::new(r"(?is)<(?:size|fileSize|length)>\s*(.*?)\s*</(?:size|fileSize|length)>").expect("valid regex");
+    let url_re_xml = Regex::new(r"(?is)<(?:url|downloadUrl|href)>\s*(.*?)\s*</(?:url|downloadUrl|href)>").expect("valid regex");
+
+    for captures in file_block_re.captures_iter(response) {
+        if let Some(block) = captures.get(1) {
+            let block_text = block.as_str();
+            
+            let name = path_re.captures(block_text)
+                .and_then(|c| c.get(1))
+                .map(|m| clean_html_string(m.as_str()))
+                .filter(|s| !s.is_empty());
+                
+            if let Some(name) = name {
+                let size = size_re.captures(block_text)
+                    .and_then(|c| c.get(1))
+                    .and_then(|m| parse_size_value(&Value::String(m.as_str().to_string())));
+                    
+                let url = url_re_xml.captures(block_text)
+                    .and_then(|c| c.get(1))
+                    .map(|m| clean_html_string(m.as_str()));
+                    
+                xml_artifacts.push(make_artifact(build_id, name, size, url));
+            }
+        }
+    }
+
+    if !xml_artifacts.is_empty() {
+        return dedupe_artifacts(xml_artifacts);
+    }
+
+    // Otherwise, fallback to raw URL search
     let mut artifacts = Vec::new();
     let url_re = Regex::new(r#"https?://[^\s"'<>]+"#).expect("valid regex");
     for url in url_re.find_iter(response) {
@@ -287,5 +322,31 @@ mod tests {
             parse_build_status(r#"{"buildStatus":"SUCCESSFUL"}"#).as_deref(),
             Some("SUCCESSFUL")
         );
+    }
+
+    #[test]
+    fn parses_artifacts_from_xml() {
+        let xml = r#"<list>
+          <file>
+            <path>AP_TEST.tar.md5</path>
+            <size>10737418240</size>
+            <url>https://android.qb.sec.samsung.net/rest/files/artifacts/123/AP_TEST.tar.md5</url>
+          </file>
+          <file>
+            <filename>BL_TEST.tar.md5</filename>
+            <fileSize>2.5 GB</fileSize>
+            <downloadUrl>https://android.qb.sec.samsung.net/rest/files/artifacts/123/BL_TEST.tar.md5</downloadUrl>
+          </file>
+        </list>"#;
+        let artifacts = parse_artifacts("123", xml);
+        assert_eq!(artifacts.len(), 2);
+        
+        assert_eq!(artifacts[0].name, "AP_TEST.tar.md5");
+        assert_eq!(artifacts[0].size, Some(10737418240));
+        assert_eq!(artifacts[0].url.as_deref(), Some("https://android.qb.sec.samsung.net/rest/files/artifacts/123/AP_TEST.tar.md5"));
+        
+        assert_eq!(artifacts[1].name, "BL_TEST.tar.md5");
+        assert_eq!(artifacts[1].size, Some(2684354560));
+        assert_eq!(artifacts[1].url.as_deref(), Some("https://android.qb.sec.samsung.net/rest/files/artifacts/123/BL_TEST.tar.md5"));
     }
 }
