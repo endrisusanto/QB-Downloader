@@ -539,11 +539,11 @@ fn artifact_download_urls(
     config: &QuickBuildConfig,
 ) -> Vec<String> {
     let mut urls = Vec::new();
+    urls.push(direct_download_url(build_id, &artifact.name, config));
+    urls.push(ads5_download_url(build_id, &artifact.name, config));
     if let Some(url) = artifact.url.as_deref() {
         urls.push(with_qb_suffix(url, &config.api_suffix));
     }
-    urls.push(ads5_download_url(build_id, &artifact.name, config));
-    urls.push(direct_download_url(build_id, &artifact.name, config));
     urls.dedup();
     urls
 }
@@ -568,10 +568,20 @@ async fn send_download_request(
             req = req.header(header::RANGE, format!("bytes={existing}-"));
         }
 
-        let response = match req.send().await {
-            Ok(response) => response,
-            Err(err) => {
+        let response_result = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            req.send(),
+        )
+        .await;
+
+        let response = match response_result {
+            Ok(Ok(response)) => response,
+            Ok(Err(err)) => {
                 last_error = Some(err.to_string());
+                continue;
+            }
+            Err(_) => {
+                last_error = Some("Connection timed out (header phase).".to_string());
                 continue;
             }
         };
