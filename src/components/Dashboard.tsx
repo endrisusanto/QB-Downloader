@@ -10,13 +10,18 @@ export function Dashboard({ builds, selected, active, completed, failed, totalSp
       <div className="metric-card active">
         <span>Active</span>
         <strong>{active}</strong>
-        <small>{totalBytes > 0 ? `${Math.round(downloadedBytes * 100 / totalBytes)}% (${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)})` : `${formatSpeed(averageThreadSpeed)} avg/thread`}</small>
+        <small>{formatSpeed(averageThreadSpeed)} avg/thread</small>
       </div>
       <div className="metric-card done"><span>Completed</span><strong>{completed}</strong><small>{failed} failed</small></div>
+      <div className="metric-card progress-eta">
+        <span>Total Progress</span>
+        <strong>{totalBytes > 0 ? `${Math.round(downloadedBytes * 100 / totalBytes)}%` : "0%"}</strong>
+        <small>{totalBytes > 0 ? `${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)}${etaStr ? ` (ETA: ${etaStr})` : ""}` : "No active downloads"}</small>
+      </div>
       <div className="metric-card storage">
         <span>Total speed</span>
         <strong>{formatSpeed(totalSpeed)}</strong>
-        <small title={etaStr || folder || "No folder selected"}>{etaStr ? `ETA: ${etaStr}` : <><FolderOpen size={14} />{folder || "Set download folder"}</>}</small>
+        <small title={folder || "No folder selected"}><FolderOpen size={14} />{folder || "Set download folder"}</small>
       </div>
     </section>
   );
