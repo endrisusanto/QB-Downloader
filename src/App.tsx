@@ -230,6 +230,11 @@ function AppContent() {
     }
   }, [builds, credentials, config, downloads, settings.downloadTargetDir]);
 
+  const categoryRecord = downloads.categories;
+  const { downloadedBytes, totalBytes } = useMemo(() => calculateOverallProgress(categoryRecord.progress, downloads.rows), [categoryRecord.progress, downloads.rows]);
+  const etaSecs = (totalBytes > downloadedBytes && downloads.totalSpeed > 0) ? (totalBytes - downloadedBytes) / downloads.totalSpeed : null;
+  const etaStr = etaSecs ? formatETA(etaSecs) : null;
+
   if (settingsLoading) return <main className="app-shell"><div className="empty-state"><span className="spinner" /><h1>Unlocking secure settings</h1></div></main>;
 
   async function submit(value: string) {
@@ -265,7 +270,6 @@ function AppContent() {
     downloads.removeRow(artifactId);
     builds.removeArtifact(groupId, artifactId);
   }
-  const categoryRecord = downloads.categories;
   function toggleAllBuilds() {
     const allExpanded = areAllBuildsExpanded(builds.groups.map((group) => group.id), buildExpanded);
     const next = !allExpanded;
@@ -285,10 +289,6 @@ function AppContent() {
       .map((group) => ({ ...group, artifacts: group.artifacts.filter((artifact) => !artifactIds.has(artifact.id)) }))
       .filter((group) => group.artifacts.length));
   }
-  
-  const { downloadedBytes, totalBytes } = useMemo(() => calculateOverallProgress(categoryRecord.progress, downloads.rows), [categoryRecord.progress, downloads.rows]);
-  const etaSecs = (totalBytes > downloadedBytes && downloads.totalSpeed > 0) ? (totalBytes - downloadedBytes) / downloads.totalSpeed : null;
-  const etaStr = etaSecs ? formatETA(etaSecs) : null;
 
   return (
     <main className="app-shell" data-theme={settings.darkMode ? "dark" : "light"}>
