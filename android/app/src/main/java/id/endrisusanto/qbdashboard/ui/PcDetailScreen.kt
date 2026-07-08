@@ -546,7 +546,8 @@ fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String,
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
                             checked = a.selected,
-                            onCheckedChange = { selected -> serverClient.sendRemoteSetArtifactSelected(pcId, group.id, a.id, selected) },
+                            onCheckedChange = null,
+                            enabled = false,
                             modifier = Modifier.size(32.dp),
                         )
                         ArtifactName(a.name, Modifier.weight(1f))

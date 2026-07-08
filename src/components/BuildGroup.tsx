@@ -20,9 +20,10 @@ const ArtifactName = memo(function ArtifactName({ name, kindLabelText, size }: {
 
 const NO_ARTIFACTS_NOTICE = "Artifacts tidak ada. Mungkin QB ID sudah expired.";
 
-export function BuildGroup({ group, rows, expanded, filters, onToggleExpanded, onToggleArtifact, onToggleAll, onDownload, onCancel, onRetry, onRemove, onProgress, onConfigureFilters, onDownloadArtifact, onRemoveArtifact }: {
+export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes, onToggleExpanded, onToggleArtifact, onToggleAll, onDownload, onCancel, onRetry, onRemove, onProgress, onConfigureFilters, onDownloadArtifact, onRemoveArtifact }: {
   group: BuildArtifactGroup; rows: Record<string, DownloadEvent>; expanded: boolean;
   filters: string[];
+  readonlyCheckboxes?: boolean;
   onToggleExpanded: () => void; onToggleArtifact: (id: string) => void; onToggleAll: (selected: boolean) => void;
   onDownload: () => void; onCancel: () => void; onRetry: () => void; onRemove: () => void; onProgress: () => void;
   onConfigureFilters?: () => void;
@@ -91,9 +92,10 @@ export function BuildGroup({ group, rows, expanded, filters, onToggleExpanded, o
               <div className={`artifact-row ${isCompleted || rowStatus === "failed" ? "active-artifact" : ""}`} key={artifact.id}>
                 {(!isCompleted && rowStatus !== "failed") && (
                   <button
-                    className={`check-button ${artifact.selected ? "checked" : ""}`}
-                    title={artifact.selected ? "Selected" : "Not selected"}
-                    onClick={() => onToggleArtifact(artifact.id)}
+                    className={`check-button ${artifact.selected ? "checked" : ""} ${readonlyCheckboxes ? "disabled" : ""}`}
+                    title={readonlyCheckboxes ? "Checkbox disabled" : (artifact.selected ? "Selected" : "Not selected")}
+                    onClick={() => { if (!readonlyCheckboxes) onToggleArtifact(artifact.id); }}
+                    disabled={readonlyCheckboxes}
                   >
                     {artifact.selected && <Check size={16} strokeWidth={3} />}
                   </button>
