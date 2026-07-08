@@ -208,3 +208,31 @@ export function kindLabel(kind: ArtifactKind) {
 export function folderFromFilePath(path: string) {
   return path.replace(/[\\/][^\\/]+$/, "");
 }
+
+export function formatETA(seconds: number): string {
+  if (!isFinite(seconds) || seconds <= 0) return "Calculating...";
+  if (seconds > 86400 * 365) return "∞";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+export function calculateOverallProgress(progressGroups: BuildArtifactGroup[], rows: Record<string, DownloadEvent>) {
+  let totalBytes = 0;
+  let downloadedBytes = 0;
+  for (const group of progressGroups) {
+    for (const a of group.artifacts) {
+      const row = rows[a.id];
+      if (row && (row.status === "downloading" || row.status === "queued" || row.status === "retrying")) {
+        const total = row.total || a.size || 0;
+        const downloaded = row.downloaded || 0;
+        totalBytes += total;
+        downloadedBytes += downloaded;
+      }
+    }
+  }
+  return { downloadedBytes, totalBytes };
+}

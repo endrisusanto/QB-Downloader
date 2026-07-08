@@ -33,6 +33,10 @@ Thumbs.db
 
 # Reverse-engineering source binary kept out of git by default
 QD.exe
+QD\ (2).exe
+qdv
+tools/odin4_linux_*
+tools/QD.odin4.*
 
 # Local portable Node
 .node/
