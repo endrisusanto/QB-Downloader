@@ -415,7 +415,7 @@ function renderGroupList(pc, groupList, type) {
 
       return `
         <div class="art-row ${isProgress ? "art-progress-row" : ""}">
-          ${(isFetched || isProgress) ? `<input type="checkbox" ${a.selected !== false ? "checked" : ""} onchange="remoteSetArtifactSelected('${pc.pcId}', '${g.id}', '${a.id}', this.checked)" title="Select artifact">` : ""}
+          ${isFetched ? `<input type="checkbox" ${a.selected !== false ? "checked" : ""} onchange="remoteSetArtifactSelected('${pc.pcId}', '${g.id}', '${a.id}', this.checked)" title="Select artifact">` : ""}
           <div class="art-name" title="${a.name}">${a.name}${a.size ? `<span class="art-size-badge">${formatBytes(a.size)}</span>` : ""}</div>
           <div class="art-right ${isProgress ? "art-progress-actions" : ""}">
             ${rowStatusHtml}

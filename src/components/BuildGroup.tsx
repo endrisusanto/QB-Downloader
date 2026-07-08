@@ -90,12 +90,11 @@ export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes,
             const progress = progressState(row);
             return (
               <div className={`artifact-row ${isCompleted || rowStatus === "failed" ? "active-artifact" : ""}`} key={artifact.id}>
-                {(!isCompleted && rowStatus !== "failed") && (
+                {(!isCompleted && rowStatus !== "failed" && !readonlyCheckboxes) && (
                   <button
-                    className={`check-button ${artifact.selected ? "checked" : ""} ${readonlyCheckboxes ? "disabled" : ""}`}
-                    title={readonlyCheckboxes ? "Checkbox disabled" : (artifact.selected ? "Selected" : "Not selected")}
-                    onClick={() => { if (!readonlyCheckboxes) onToggleArtifact(artifact.id); }}
-                    disabled={readonlyCheckboxes}
+                    className={`check-button ${artifact.selected ? "checked" : ""}`}
+                    title={artifact.selected ? "Selected" : "Not selected"}
+                    onClick={() => onToggleArtifact(artifact.id)}
                   >
                     {artifact.selected && <Check size={16} strokeWidth={3} />}
                   </button>

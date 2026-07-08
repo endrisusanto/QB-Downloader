@@ -310,6 +310,10 @@ button {
   --metric-bg: linear-gradient(135deg, rgba(168, 85, 247, 0.15), rgba(255, 255, 255, 0) 62%);
 }
 
+.metric-card.progress-eta {
+  --metric-bg: linear-gradient(135deg, rgba(14, 165, 233, 0.18), rgba(255, 255, 255, 0) 62%);
+}
+
 .metric-card.storage {
   --metric-bg: linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(255, 255, 255, 0) 62%);
 }
@@ -1469,6 +1473,10 @@ button {
   --metric-bg: linear-gradient(135deg, rgba(192, 132, 252, 0.18), rgba(20, 20, 22, 0) 62%);
 }
 
+[data-theme="dark"] .metric-card.progress-eta {
+  --metric-bg: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(20, 20, 22, 0) 62%);
+}
+
 [data-theme="dark"] .metric-card.storage {
   --metric-bg: linear-gradient(135deg, rgba(251, 191, 36, 0.16), rgba(20, 20, 22, 0) 62%);
 }
@@ -2158,4 +2166,10 @@ button {
 .detail-status-label {
   color: #a1a1aa;
   font-size: 12px;
+}
+
+.check-button:disabled, .check-button.disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+  pointer-events: none;
 }
