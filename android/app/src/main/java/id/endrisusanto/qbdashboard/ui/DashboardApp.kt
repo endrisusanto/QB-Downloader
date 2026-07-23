@@ -32,16 +32,18 @@ fun DashboardApp(serverClient: ServerClient) {
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
-        val isWide = maxWidth >= 840.dp
-        if (isWide) {
-            Scaffold(topBar = { DashboardTopBar(connectionStatus) { showSettings = true } }) { padding ->
-                Row(Modifier.padding(padding).fillMaxSize()) {
-                    PcListScreen(
-                        serverClient = serverClient,
-                        selectedPcId = activePcId,
-                        onPcClick = { selectedPcId = it },
-                        modifier = Modifier.width(360.dp).fillMaxHeight(),
-                    )
+            // ponytail: 600.dp is standard Material 3 WindowWidthSizeClass.Medium (Foldables & Tablets)
+            val isWide = maxWidth >= 600.dp
+            val listWidth = if (maxWidth < 840.dp) 300.dp else 360.dp
+            if (isWide) {
+                Scaffold(topBar = { DashboardTopBar(connectionStatus) { showSettings = true } }) { padding ->
+                    Row(Modifier.padding(padding).fillMaxSize()) {
+                        PcListScreen(
+                            serverClient = serverClient,
+                            selectedPcId = activePcId,
+                            onPcClick = { selectedPcId = it },
+                            modifier = Modifier.width(listWidth).fillMaxHeight(),
+                        )
                     VerticalDivider()
                     activePcId?.let {
                         PcDetailScreen(
