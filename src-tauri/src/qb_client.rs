@@ -96,6 +96,9 @@ impl QbClient {
 
         artifacts.sort_by_key(|artifact| artifact.name.to_ascii_lowercase());
 
+        // ponytail: pre-fetch missing artifact sizes via lightweight HEAD requests
+        self.resolve_missing_artifact_sizes(&build_id, &mut artifacts).await;
+
         Ok(BuildArtifactGroup {
             id: uuid::Uuid::new_v4().to_string(),
             input: input.to_string(),
@@ -197,6 +200,40 @@ impl QbClient {
             Err(QbError::MissingCredentials)
         } else {
             Ok(())
+        }
+    }
+
+    async fn resolve_missing_artifact_sizes(&self, build_id: &str, artifacts: &mut [crate::types::Artifact]) {
+        for artifact in artifacts.iter_mut() {
+            if artifact.size.is_some() {
+                continue;
+            }
+            let base_url = &self.config.base_url;
+            let encoded_build = urlencoding::encode(build_id);
+            let encoded_name = urlencoding::encode(&artifact.name);
+            let candidates = vec![
+                format!("{base_url}/rest/ads5/download/{encoded_build}?filename={encoded_name}"),
+                format!("{base_url}/download/{encoded_build}/{encoded_name}"),
+            ];
+            for candidate in candidates {
+                let url = append_qb_suffix(&candidate, &self.config.api_suffix);
+                if let Ok(resp) = self
+                    .http
+                    .head(&url)
+                    .timeout(std::time::Duration::from_secs(3))
+                    .send()
+                    .await
+                {
+                    if resp.status().is_success() || resp.status() == reqwest::StatusCode::PARTIAL_CONTENT {
+                        if let Some(cl) = resp.content_length() {
+                            if cl > 0 {
+                                artifact.size = Some(cl);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
