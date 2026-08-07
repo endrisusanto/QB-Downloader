@@ -344,7 +344,7 @@ async fn download_one(
 
     let response = send_download_request(
         &http,
-        artifact_download_urls(&request.build_id, &artifact, &request.quick_build_config),
+        artifact_download_urls(&request.build_id, &artifact, &request.quick_build_config, existing > 0),
         &request.credentials,
         existing,
     )
@@ -386,6 +386,8 @@ async fn download_one(
         .map_err(|err| DownloadError::Network(err.to_string()))?
     {
         if control.cancelled.load(Ordering::Relaxed) {
+            let status_name = if downloaded > 0 { "paused" } else { "cancelled" };
+            let msg_text = if downloaded > 0 { "Paused" } else { "Cancelled" };
             emit_event(
                 &app,
                 "download://cancelled",
@@ -393,12 +395,12 @@ async fn download_one(
                     &job_id,
                     &request.build_id,
                     &artifact,
-                    "cancelled",
+                    status_name,
                     downloaded,
                     total,
                     Some(output.display().to_string()),
-                    Some("Cancelled".to_string()),
-                    resumable,
+                    Some(msg_text.to_string()),
+                    resumable || downloaded > 0,
                     attempt,
                     None,
                 ),
@@ -523,13 +525,21 @@ fn artifact_download_urls(
     build_id: &str,
     artifact: &crate::types::Artifact,
     config: &QuickBuildConfig,
+    is_resume: bool,
 ) -> Vec<String> {
     let mut urls = Vec::new();
     if let Some(url) = artifact.url.as_deref() {
         urls.push(with_qb_suffix(url, &config.api_suffix));
     }
-    urls.push(ads5_download_url(build_id, &artifact.name, config));
-    urls.push(direct_download_url(build_id, &artifact.name, config));
+    let direct = direct_download_url(build_id, &artifact.name, config);
+    let ads5 = ads5_download_url(build_id, &artifact.name, config);
+    if is_resume {
+        urls.push(direct);
+        urls.push(ads5);
+    } else {
+        urls.push(ads5);
+        urls.push(direct);
+    }
     urls.dedup();
     urls
 }
@@ -545,6 +555,7 @@ async fn send_download_request(
     existing: u64,
 ) -> Result<Response, DownloadError> {
     let mut last_error = None;
+    let mut fallback_response = None;
 
     for url in urls {
         let mut req = http
@@ -564,6 +575,14 @@ async fn send_download_request(
 
         let status = response.status();
         if map_status(status).is_ok() {
+            // When resuming (existing > 0), prefer a response that returns 206 PARTIAL_CONTENT.
+            // If the server returns 200 OK (ignored Range header), keep it as fallback and test remaining URLs.
+            if existing > 0 && status != StatusCode::PARTIAL_CONTENT {
+                if fallback_response.is_none() {
+                    fallback_response = Some(response);
+                }
+                continue;
+            }
             return Ok(response);
         }
 
@@ -578,6 +597,10 @@ async fn send_download_request(
         ) {
             return Err(DownloadError::Network(message));
         }
+    }
+
+    if let Some(resp) = fallback_response {
+        return Ok(resp);
     }
 
     Err(DownloadError::Network(
@@ -626,6 +649,8 @@ fn emit_cancelled(
     attempt: u8,
 ) {
     let output = output_path(&request.target_dir, &artifact.name);
+    let status_name = if downloaded > 0 { "paused" } else { "cancelled" };
+    let msg_text = if downloaded > 0 { "Paused" } else { "Cancelled" };
     emit_event(
         app,
         "download://cancelled",
@@ -633,12 +658,12 @@ fn emit_cancelled(
             job_id,
             &request.build_id,
             artifact,
-            "cancelled",
+            status_name,
             downloaded,
             total,
             Some(output.display().to_string()),
-            Some("Cancelled".to_string()),
-            resumable,
+            Some(msg_text.to_string()),
+            resumable || downloaded > 0,
             attempt,
             None,
         ),
@@ -685,7 +710,7 @@ mod tests {
         };
 
         assert_eq!(
-            artifact_download_urls("110", &artifact, &QuickBuildConfig::default())[0],
+            artifact_download_urls("110", &artifact, &QuickBuildConfig::default(), false)[0],
             "https://android.qb.sec.samsung.net/download/110/ALL.tar.md5?QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC"
         );
     }
@@ -706,7 +731,7 @@ mod tests {
         };
 
         assert_eq!(
-            artifact_download_urls("110", &artifact, &QuickBuildConfig::default())[0],
+            artifact_download_urls("110", &artifact, &QuickBuildConfig::default(), false)[0],
             "https://android.qb.sec.samsung.net/download/110/ALL.tar.md5?QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC"
         );
     }
