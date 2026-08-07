@@ -1,4 +1,4 @@
-import { X, Info, Zap, Flag, ChevronUp, ChevronDown, Ban, LogOut } from "lucide-react";
+import { X, Info, Zap, Flag, ChevronUp, ChevronDown, Ban, LogOut, Pause, Play } from "lucide-react";
 import { useState } from "react";
 import type { BuildArtifactGroup, DownloadEvent } from "../types";
 import { formatBytes, formatSpeed, groupProgress, progressState, selectedArtifacts, statusLabel } from "../utils";
@@ -65,6 +65,22 @@ export function ProgressDialog({
   const remainingBytes = Math.max(0, totalSize - totalDownloaded);
   const timeLeftSeconds = overallSpeed > 0 ? remainingBytes / overallSpeed : 0;
   const resumable = artifacts.some((art) => rows[art.id]?.resumable) ? "Yes" : "No";
+
+  const handlePause = () => {
+    if (onCancel) {
+      onCancel();
+    } else {
+      const channel = new BroadcastChannel(DIALOG_CHANNEL);
+      channel.postMessage({ type: "cancel", groupId: group.id });
+      channel.close();
+    }
+  };
+
+  const handleResume = () => {
+    const channel = new BroadcastChannel(DIALOG_CHANNEL);
+    channel.postMessage({ type: "resume", groupId: group.id });
+    channel.close();
+  };
 
   const handleCancel = () => {
     if (onCancel) {
@@ -202,8 +218,19 @@ export function ProgressDialog({
         </button>
 
         <div className="controls-right-btns">
+          {isDownloading ? (
+            <button className="primary-action-btn cancel-btn" onClick={handlePause} title="Pause download">
+              <Pause size={15} />
+              <span>Pause</span>
+            </button>
+          ) : !isCompleted ? (
+            <button className="primary-action-btn resume-btn" onClick={handleResume} title="Resume download">
+              <Play size={15} />
+              <span>Resume</span>
+            </button>
+          ) : null}
           {!isCompleted && (
-            <button className="primary-action-btn cancel-btn" onClick={handleCancel}>
+            <button className="secondary-action-btn close-btn" onClick={handleCancel} title="Cancel download">
               <Ban size={15} />
               <span>Cancel</span>
             </button>

@@ -1,4 +1,4 @@
-import { Activity, Check, ChevronDown, ChevronRight, Download, Filter, RefreshCcw, Trash2, X } from "lucide-react";
+import { Activity, Check, ChevronDown, ChevronRight, Download, Filter, Pause, Play, RefreshCcw, Trash2, X } from "lucide-react";
 import type { CSSProperties } from "react";
 import type { Artifact, BuildArtifactGroup, DownloadEvent } from "../types";
 import { formatBytes, groupProgress, kindLabel, progressState, selectedArtifacts, visibleArtifacts as getVisibleArtifacts } from "../utils";
@@ -39,6 +39,7 @@ export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes,
   const hasCompleted = statuses.includes("completed");
   const hasFailed = statuses.includes("failed");
   const hasRows = statuses.some(Boolean);
+  const hasPartial = artifacts.some((artifact) => (rows[artifact.id]?.downloaded || 0) > 0 && rows[artifact.id]?.status !== "completed");
   const allSelected = artifacts.length > 0 && selected.length === artifacts.length;
   const visibleArtifacts = getVisibleArtifacts(group, filters, rows);
   const noArtifacts = !watching && artifacts.length === 0;
@@ -66,9 +67,23 @@ export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes,
           )}
           {!watching && !active && !hasCompleted && !hasFailed && artifacts.length > 0 && <button className={`secondary-button compact selection-toggle ${allSelected ? "selected" : ""}`} aria-pressed={allSelected} onClick={() => onToggleAll(!allSelected)}><Check size={15} />{allSelected ? "Deselect all" : "Select all"}</button>}
           {hasRows && <button className="icon-button" title="Open progress" onClick={onProgress}><Activity size={16} /></button>}
-          {failed && <button className="icon-button" title="Retry download" onClick={onRetry}><RefreshCcw size={16} /></button>}
-          {active && <button className="icon-button danger" title="Cancel download" onClick={onCancel}><X size={16} /></button>}
-          {!watching && !active && !failed && <button className="primary-button icon-only" title="Download selected artifacts" disabled={Boolean(group.error) || selected.length === 0} onClick={onDownload}><Download size={16} /></button>}
+          {failed && <button className="icon-button" title="Resume / Retry download" onClick={onRetry}><RefreshCcw size={16} /></button>}
+          {active && (
+            <>
+              <button className="icon-button" title="Pause download" onClick={onCancel}><Pause size={16} /></button>
+              <button className="icon-button danger" title="Cancel download" onClick={onCancel}><X size={16} /></button>
+            </>
+          )}
+          {!watching && !active && !failed && (
+            <button
+              className="primary-button icon-only"
+              title={hasPartial ? "Resume download" : "Download selected artifacts"}
+              disabled={Boolean(group.error) || selected.length === 0}
+              onClick={onDownload}
+            >
+              {hasPartial ? <Play size={16} /> : <Download size={16} />}
+            </button>
+          )}
           <button className="icon-button" title="Delete build" onClick={onRemove}><Trash2 size={16} /></button>
         </div>
       </div>
@@ -90,6 +105,7 @@ export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes,
             const progress = progressState(row);
             // ponytail: apply active-artifact (4-column grid) whenever checkbox is not shown to prevent column offset bug
             const showCheckbox = !isCompleted && rowStatus !== "failed" && !readonlyCheckboxes;
+            const isPartial = (row?.downloaded || 0) > 0 && !isCompleted;
             return (
               <div className={`artifact-row ${!showCheckbox ? "active-artifact" : ""}`} key={artifact.id}>
                 {showCheckbox && (
@@ -123,10 +139,10 @@ export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes,
                   {!isDownloading && !isCompleted && onDownloadArtifact && (
                     <button
                       className="icon-button compact-icon"
-                      title="Download this artifact"
+                      title={isPartial ? "Resume downloading this artifact" : "Download this artifact"}
                       onClick={() => onDownloadArtifact(artifact)}
                     >
-                      <Download size={14} />
+                      {isPartial ? <Play size={14} /> : <Download size={14} />}
                     </button>
                   )}
                 </div>

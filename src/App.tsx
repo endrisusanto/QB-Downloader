@@ -181,6 +181,9 @@ function AppContent() {
       } else if (event.data?.type === "cancel") {
         const target = builds.groups.find((g) => g.id === event.data.groupId);
         if (target) void downloads.cancel(target);
+      } else if (event.data?.type === "resume") {
+        const target = builds.groups.find((g) => g.id === event.data.groupId);
+        if (target) void start(target);
       }
     };
     return () => channel.close();

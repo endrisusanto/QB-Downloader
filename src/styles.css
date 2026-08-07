@@ -2113,6 +2113,16 @@ button {
   color: #ffffff;
 }
 
+.primary-action-btn.resume-btn {
+  border: 1px solid #16a34a;
+  color: #16a34a;
+}
+
+.primary-action-btn.resume-btn:hover {
+  background: #16a34a;
+  color: #ffffff;
+}
+
 .secondary-action-btn.close-btn {
   border: 1px solid #4b5563;
   color: #d1d5db;
