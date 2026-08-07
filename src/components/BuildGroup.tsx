@@ -88,9 +88,11 @@ export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes,
             const isDownloading = rowStatus === "downloading" || rowStatus === "retrying";
             const isCompleted = rowStatus === "completed";
             const progress = progressState(row);
+            // ponytail: apply active-artifact (4-column grid) whenever checkbox is not shown to prevent column offset bug
+            const showCheckbox = !isCompleted && rowStatus !== "failed" && !readonlyCheckboxes;
             return (
-              <div className={`artifact-row ${isCompleted || rowStatus === "failed" ? "active-artifact" : ""}`} key={artifact.id}>
-                {(!isCompleted && rowStatus !== "failed" && !readonlyCheckboxes) && (
+              <div className={`artifact-row ${!showCheckbox ? "active-artifact" : ""}`} key={artifact.id}>
+                {showCheckbox && (
                   <button
                     className={`check-button ${artifact.selected ? "checked" : ""}`}
                     title={artifact.selected ? "Selected" : "Not selected"}
