@@ -629,7 +629,7 @@ button {
 .artifact-row {
   min-height: 58px;
   display: grid;
-  grid-template-columns: 34px minmax(260px, 1.25fr) minmax(240px, 1fr) 144px 34px;
+  grid-template-columns: 34px 1fr max-content auto 34px;
   gap: 12px;
   align-items: center;
   padding: 10px 14px;
@@ -641,7 +641,7 @@ button {
 }
 
 .artifact-row.active-artifact {
-  grid-template-columns: minmax(260px, 1.25fr) minmax(240px, 1fr) 144px 34px;
+  grid-template-columns: 1fr max-content auto 34px;
 }
 
 .artifact-row.artifact-empty {
@@ -735,6 +735,8 @@ button {
 
 .progress-cell {
   min-width: 0;
+  width: max-content;
+  max-width: 260px;
   display: grid;
   gap: 6px;
 }

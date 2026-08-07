@@ -1,7 +1,7 @@
 import { Activity, Check, ChevronDown, ChevronRight, Download, Filter, RefreshCcw, Trash2, X } from "lucide-react";
 import type { CSSProperties } from "react";
 import type { Artifact, BuildArtifactGroup, DownloadEvent } from "../types";
-import { formatBytes, groupProgress, kindLabel, progressState, selectedArtifacts, statusLabel, visibleArtifacts as getVisibleArtifacts } from "../utils";
+import { formatBytes, groupProgress, kindLabel, progressState, selectedArtifacts, visibleArtifacts as getVisibleArtifacts } from "../utils";
 import { ProgressBar } from "./ProgressBar";
 
 import { memo } from "react";
@@ -109,9 +109,6 @@ export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes,
                   </span>
                 </div>
                 <div className="artifact-status">
-                  <span className={`pill ${row?.status || "ready"}`}>
-                    {statusLabel(row)}
-                  </span>
                   {onRemoveArtifact && (
                     <button
                       className="icon-button compact-icon danger-icon"
