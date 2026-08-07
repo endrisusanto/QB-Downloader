@@ -1,19 +1,15 @@
 import { Activity, Check, ChevronDown, ChevronRight, Download, Filter, Pause, Play, RefreshCcw, Trash2, X } from "lucide-react";
 import type { CSSProperties } from "react";
 import type { Artifact, BuildArtifactGroup, DownloadEvent } from "../types";
-import { formatBytes, groupProgress, kindLabel, progressState, selectedArtifacts, visibleArtifacts as getVisibleArtifacts } from "../utils";
+import { formatBytes, groupProgress, progressState, selectedArtifacts, visibleArtifacts as getVisibleArtifacts } from "../utils";
 import { ProgressBar } from "./ProgressBar";
 
 import { memo } from "react";
 
-const ArtifactName = memo(function ArtifactName({ name, kindLabelText, size }: { name: string; kindLabelText: string; size?: number }) {
+const ArtifactName = memo(function ArtifactName({ name }: { name: string }) {
   return (
     <div className="artifact-name">
       <strong>{name}</strong>
-      <span className="artifact-name-meta">
-        {kindLabelText}
-        {size ? <span className="artifact-size-badge">{formatBytes(size)}</span> : null}
-      </span>
     </div>
   );
 });
@@ -117,7 +113,7 @@ export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes,
                     {artifact.selected && <Check size={16} strokeWidth={3} />}
                   </button>
                 )}
-                <ArtifactName name={artifact.name} kindLabelText={kindLabel(artifact.kind)} size={artifact.size} />
+                <ArtifactName name={artifact.name} />
                 <div className="progress-cell">
                   <ProgressBar progress={progress} />
                   <span title={row?.message}>
