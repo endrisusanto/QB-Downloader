@@ -11,7 +11,7 @@ use qb_client::QbClient;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager, State, WindowEvent,
+    Emitter, Manager, State, WindowEvent,
 };
 use tauri_plugin_dialog::DialogExt;
 use types::{BuildArtifactGroup, Credentials, DownloadRequest, QuickBuildConfig, TokenTestResult};
@@ -32,6 +32,71 @@ async fn fetch_build_artifacts(
         .fetch_build_artifacts(&input)
         .await
         .map_err(|err| err.to_string())
+}
+
+// ponytail: non-blocking background size resolution — fire-and-forget from frontend
+#[tauri::command]
+async fn resolve_artifact_sizes(
+    app: tauri::AppHandle,
+    artifacts: Vec<types::Artifact>,
+    credentials: Credentials,
+    quick_build_config: QuickBuildConfig,
+) {
+    let config = match quick_build_config.normalized() {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let http = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .unwrap_or_default();
+
+    let mut handles = Vec::new();
+    for artifact in artifacts {
+        if artifact.size.is_some() {
+            continue;
+        }
+        let http = http.clone();
+        let creds = credentials.clone();
+        let config = config.clone();
+        let app = app.clone();
+        handles.push(tokio::spawn(async move {
+            let encoded_build = urlencoding::encode(&artifact.build_id);
+            let encoded_name = urlencoding::encode(&artifact.name);
+            let url = qb_client::append_qb_suffix(
+                &format!("{}/download/{}/{}", config.base_url, encoded_build, encoded_name),
+                &config.api_suffix,
+            );
+            let resp = http
+                .get(&url)
+                .basic_auth(&creds.username, Some(&creds.access_token))
+                .header(reqwest::header::RANGE, "bytes=0-0")
+                .send()
+                .await
+                .ok();
+            if let Some(resp) = resp {
+                if resp.status().is_success() || resp.status() == reqwest::StatusCode::PARTIAL_CONTENT {
+                    let size = resp
+                        .headers()
+                        .get(reqwest::header::CONTENT_RANGE)
+                        .and_then(|h| h.to_str().ok())
+                        .and_then(|v| v.rsplit_once('/'))
+                        .and_then(|(_, total)| total.trim().parse::<u64>().ok())
+                        .or_else(|| resp.content_length());
+                    if let Some(size) = size.filter(|s| *s > 0) {
+                        #[derive(serde::Serialize, Clone)]
+                        #[serde(rename_all = "camelCase")]
+                        struct ArtifactSize { artifact_id: String, size: u64 }
+                        let _ = app.emit("artifact://size", ArtifactSize { artifact_id: artifact.id, size });
+                    }
+                }
+            }
+        }));
+    }
+    for handle in handles {
+        let _ = handle.await;
+    }
 }
 
 #[tauri::command]
@@ -207,6 +272,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             fetch_build_artifacts,
             fetch_bulk_build_artifacts,
+            resolve_artifact_sizes,
             test_token,
             start_download,
             cancel_download,

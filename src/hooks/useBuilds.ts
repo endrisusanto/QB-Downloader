@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BuildArtifactGroup, Credentials, QuickBuildConfig } from "../types";
 import { normalizeGroup, prepareGroup, selectedArtifacts, splitBulkInput } from "../utils";
@@ -15,12 +16,7 @@ export function useBuilds(
     try {
       const saved = localStorage.getItem("quickbuild-download-manager-groups");
       const parsed: BuildArtifactGroup[] = saved ? JSON.parse(saved) : [];
-      // ponytail: drop stale groups where NO artifact has size (fetched before size parsing existed)
-      // so user gets a fresh fetch instead of perpetually seeing no size badges
-      const migrated = parsed.filter((group) =>
-        group.artifacts.length === 0 || group.artifacts.some((a) => a.size != null)
-      );
-      return migrated.map((group) => normalizeGroup(group, group.input));
+      return parsed.map((group) => normalizeGroup(group, group.input));
     } catch {
       return [];
     }
@@ -29,6 +25,21 @@ export function useBuilds(
   useEffect(() => {
     localStorage.setItem("quickbuild-download-manager-groups", JSON.stringify(groups));
   }, [groups]);
+
+  // ponytail: listen for background artifact size resolution events
+  useEffect(() => {
+    const unlisten = listen<{ artifactId: string; size: number }>("artifact://size", (event) => {
+      setGroups((current) =>
+        current.map((group) => ({
+          ...group,
+          artifacts: group.artifacts.map((a) =>
+            a.id === event.payload.artifactId ? { ...a, size: event.payload.size } : a,
+          ),
+        })),
+      );
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  }, []);
   const [loadingInputs, setLoadingInputs] = useState<Set<string>>(new Set());
   const [readyAutoDownloads, setReadyAutoDownloads] = useState<Set<string>>(new Set());
   const pollingInputs = useRef<Set<string>>(new Set());
@@ -55,6 +66,13 @@ export function useBuilds(
               });
         const prepared = results.map((group, index) => prepareFetchedGroup(group, inputs[index] || "bulk", selectedTypes, autoCheck));
         setGroups((current) => prepared.reduce(upsertGroup, current));
+        // ponytail: fire-and-forget background size resolution
+        for (const group of prepared) {
+          const missing = group.artifacts.filter((a) => a.size == null);
+          if (missing.length > 0) {
+            invoke("resolve_artifact_sizes", { artifacts: missing, credentials, quickBuildConfig }).catch(() => {});
+          }
+        }
       } catch (error) {
         setGroups((current) => [
           {
@@ -88,6 +106,11 @@ export function useBuilds(
         quickBuildConfig,
       });
       const prepared = prepareFetchedGroup(result, input, group.customFilters || selectedTypes, autoCheck);
+      // ponytail: fire-and-forget background size resolution
+      const missing = prepared.artifacts.filter((a) => a.size == null);
+      if (missing.length > 0) {
+        invoke("resolve_artifact_sizes", { artifacts: missing, credentials, quickBuildConfig }).catch(() => {});
+      }
       const now = new Date().toISOString();
       setGroups((current) => {
         const existing = current.find((item) => sameIdentity(item, group));
