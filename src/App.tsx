@@ -8,7 +8,6 @@ import { BulkEntryModal } from "./components/BulkEntryModal";
 import { CompleteDialog } from "./components/CompleteDialog";
 import { Dashboard } from "./components/Dashboard";
 import { FilterSelectionModal } from "./components/FilterSelectionModal";
-import { ProgressDialog } from "./components/ProgressDialog";
 import { SettingsModal } from "./components/SettingsModal";
 import { TaskAccordions } from "./components/TaskAccordions";
 import { DIALOG_CHANNEL, STORAGE_KEY } from "./constants";
@@ -158,7 +157,6 @@ function AppContent() {
   const [sections, setSections] = useState<Record<SectionKey, boolean>>({ fetched: true, progress: true, completed: true, failed: true });
   const [buildExpanded, setBuildExpanded] = useState<Record<string, boolean>>({});
   const [globalExpanded, setGlobalExpanded] = useState(true);
-  const [progressGroup, setProgressGroup] = useState<BuildArtifactGroup | null>(null);
   const [completeGroup, setCompleteGroup] = useState<BuildArtifactGroup | null>(null);
   const [filterGroup, setFilterGroup] = useState<BuildArtifactGroup | null>(null);
   const notified = useRef(new Set<string>());
@@ -192,11 +190,6 @@ function AppContent() {
   useEffect(() => {
     for (const group of builds.groups) {
       if (buildExpanded[group.id] === undefined) setBuildExpanded((current) => ({ ...current, [group.id]: globalExpanded }));
-      
-      const progressKey = dialogStorageKey("progress", group.id);
-      if (activeSubscriptionsRef.current.has(progressKey)) {
-        scheduleDialogSnapshot("progress", group, downloads.rows, downloads.slotSpeeds);
-      }
       
       const completeKey = dialogStorageKey("complete", group.id);
       if (activeSubscriptionsRef.current.has(completeKey)) {
@@ -297,10 +290,9 @@ function AppContent() {
     <main className="app-shell" data-theme={settings.darkMode ? "dark" : "light"}>
       <header className="topbar"><div className="brand"><img src="/quickbuild-logo.svg" alt="" /><span>QB Downloader</span></div><form className="quick-input" onSubmit={(event: FormEvent) => { event.preventDefault(); void submit(query); setQuery(""); }}><Download size={19} /><input ref={inputRef} value={query} onChange={(event) => setQuery(event.target.value)} onPaste={(event) => { const text = event.clipboardData.getData("text"); if (/[,\s].*\S/.test(text)) { event.preventDefault(); void submit(text); } }} placeholder="Build ID or URL" spellCheck={false} /></form><div className="toolbar-actions"><button className="icon-button" title="Bulk entry" onClick={() => setBulkOpen(true)}><RotateCcw size={18} /></button><button className="icon-button" title="Open output folder" disabled={!settings.downloadTargetDir} onClick={() => { if (settings.downloadTargetDir) void invoke("open_folder", { path: settings.downloadTargetDir }); }}><FolderOpen size={18} /></button><button className="icon-button" title="Settings" onClick={() => setSettingsOpen(true)}><Settings size={18} /></button><button className="icon-button" title={settings.darkMode ? "Light mode" : "Dark mode"} onClick={() => { const next = { ...settings, darkMode: !settings.darkMode }; patchSettings({ darkMode: next.darkMode }); void saveSettings(next); }}>{settings.darkMode ? <Sun size={18} /> : <Moon size={18} />}</button>{settings.serverUrl && <div className={`server-badge server-badge-${syncStatus}`} title={`Dashboard: ${syncStatus}`}>{syncStatus === "connected" ? <Wifi size={13} /> : <WifiOff size={13} />}<span>{syncStatus === "connected" ? "Online" : syncStatus === "connecting" ? "Sync…" : "Offline"}</span></div>}</div></header>
       <Dashboard builds={builds.groups.length} selected={countSelected(builds.groups)} active={categoryRecord.progress.length} completed={categoryRecord.completed.length} failed={categoryRecord.failed.length} totalSpeed={downloads.totalSpeed} averageThreadSpeed={downloads.averageThreadSpeed} folder={settings.downloadTargetDir} totalBytes={totalBytes} downloadedBytes={downloadedBytes} etaStr={etaStr} />
-      <section className="content-area">{builds.groups.length === 0 && builds.loadingInputs.size === 0 ? <div className="empty-state"><img src="/quickbuild-logo.svg" alt="" /><h1>QuickBuild downloads</h1><p>Paste a build ID or URL to fetch artifacts.</p></div> : <TaskAccordions categories={categoryRecord} loadingInputs={builds.loadingInputs} rows={downloads.rows} sections={sections} buildExpanded={buildExpanded} filters={settings.selectedTypes} onSection={(key) => setSections((current) => ({ ...current, [key]: !current[key] }))} onToggleAllBuilds={toggleAllBuilds} onToggleCategoryBuilds={toggleCategoryBuilds} onBuildExpanded={(id) => setBuildExpanded((current) => ({ ...current, [id]: !(current[id] ?? globalExpanded) }))} onToggleArtifact={builds.toggleArtifact} onToggleGroup={builds.setGroupSelection} onToggleFetched={(selected) => builds.setGroupsSelection(categoryRecord.fetched, selected)} onDownload={(group) => void start(group)} onDownloadFetched={() => void Promise.all(categoryRecord.fetched.filter((group) => selectedArtifacts(group).length).map(start))} onCancel={(group) => void downloads.cancel(group)} onCancelAll={() => void Promise.all(categoryRecord.progress.map((group) => downloads.cancel({ ...group, artifacts: group.artifacts.map((artifact) => ({ ...artifact, selected: true })) })))} onClearTerminal={clearTerminal} onRetry={(group) => void downloads.retry(group)} onRemove={(group) => void remove(group)} onProgress={(group) => void openDialogWindow("progress", group, downloads.rows, downloads.slotSpeeds).then((opened) => { if (!opened) setProgressGroup(group); })} onConfigureFilters={(group) => setFilterGroup(group)} onDownloadArtifact={(group, artifact) => void startSingle(group, artifact)} onRemoveArtifact={removeArtifact} />}</section>
+      <section className="content-area">{builds.groups.length === 0 && builds.loadingInputs.size === 0 ? <div className="empty-state"><img src="/quickbuild-logo.svg" alt="" /><h1>QuickBuild downloads</h1><p>Paste a build ID or URL to fetch artifacts.</p></div> : <TaskAccordions categories={categoryRecord} loadingInputs={builds.loadingInputs} rows={downloads.rows} sections={sections} buildExpanded={buildExpanded} filters={settings.selectedTypes} onSection={(key) => setSections((current) => ({ ...current, [key]: !current[key] }))} onToggleAllBuilds={toggleAllBuilds} onToggleCategoryBuilds={toggleCategoryBuilds} onBuildExpanded={(id) => setBuildExpanded((current) => ({ ...current, [id]: !(current[id] ?? globalExpanded) }))} onToggleArtifact={builds.toggleArtifact} onToggleGroup={builds.setGroupSelection} onToggleFetched={(selected) => builds.setGroupsSelection(categoryRecord.fetched, selected)} onDownload={(group) => void start(group)} onDownloadFetched={() => void Promise.all(categoryRecord.fetched.filter((group) => selectedArtifacts(group).length).map(start))} onCancel={(group) => void downloads.cancel(group)} onCancelAll={() => void Promise.all(categoryRecord.progress.map((group) => downloads.cancel({ ...group, artifacts: group.artifacts.map((artifact) => ({ ...artifact, selected: true })) })))} onClearTerminal={clearTerminal} onRetry={(group) => void downloads.retry(group)} onRemove={(group) => void remove(group)} onConfigureFilters={(group) => setFilterGroup(group)} onDownloadArtifact={(group, artifact) => void startSingle(group, artifact)} onRemoveArtifact={removeArtifact} />}</section>
       {settingsOpen && <SettingsModal value={settings} secureError={settingsError} onSave={saveSettings} onClose={() => setSettingsOpen(false)} onPickFolder={() => invoke<string | null>("pick_download_dir")} />}
       {bulkOpen && <BulkEntryModal onClose={() => setBulkOpen(false)} onSubmit={(value) => void submit(value)} />}
-      {progressGroup && <ProgressDialog group={progressGroup} rows={downloads.rows} slotSpeeds={downloads.slotSpeeds} onClose={() => setProgressGroup(null)} onCancel={() => void downloads.cancel(progressGroup)} />}
       {completeGroup && <CompleteDialog group={completeGroup} rows={downloads.rows} onClose={() => setCompleteGroup(null)} onOpenFolder={() => openCompletedFolder(completeGroup, downloads.rows)} />}
       {filterGroup && <FilterSelectionModal buildId={filterGroup.buildId || filterGroup.input} initialFilters={filterGroup.customFilters || settings.selectedTypes} onSave={(filters) => builds.setCustomFilters(filterGroup.id, filters)} onClose={() => setFilterGroup(null)} />}
     </main>
@@ -322,33 +314,9 @@ function StandaloneDialog({ kind, storageKey }: { kind: DialogKind; storageKey: 
       channel.close();
     };
   }, [storageKey]);
-  useEffect(() => {
-    if (kind !== "progress" || !snapshot) return;
-    const element = document.querySelector<HTMLElement>(".compact-progress-modal");
-    if (!element) return;
-    const currentWindow = WebviewWindow.getCurrent();
-    const resize = async () => {
-      try {
-        const scaleFactor = await currentWindow.scaleFactor();
-        const inner = await currentWindow.innerSize();
-        const outer = await currentWindow.outerSize();
-        const decorationHeight = Math.max(0, Math.round((outer.height - inner.height) / scaleFactor));
-        const height = Math.min(960, Math.max(440, Math.ceil(element.scrollHeight) + decorationHeight));
-        void currentWindow.setSize(new LogicalSize(850, height));
-      } catch (e) {
-        console.error("Failed to resize window", e);
-        const height = Math.min(960, Math.max(440, Math.ceil(element.scrollHeight) + 36));
-        void currentWindow.setSize(new LogicalSize(850, height));
-      }
-    };
-    void resize();
-    const observer = new ResizeObserver(() => { void resize(); });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [kind, snapshot]);
   if (!snapshot) return <main className={`dialog-window dialog-window-${kind}`} data-theme={darkMode ? "dark" : "light"}><div className="empty-state compact"><h1>Dialog data expired</h1></div></main>;
   const close = () => WebviewWindow.getCurrent().close();
-  return <main className={`dialog-window dialog-window-${kind}`} data-theme={darkMode ? "dark" : "light"}>{kind === "progress" ? <ProgressDialog group={snapshot.group} rows={snapshot.rows} slotSpeeds={snapshot.slotSpeeds || {}} onClose={close} embedded /> : <CompleteDialog group={snapshot.group} rows={snapshot.rows} onClose={close} onOpenFolder={() => openCompletedFolder(snapshot.group, snapshot.rows)} embedded />}</main>;
+  return <main className={`dialog-window dialog-window-${kind}`} data-theme={darkMode ? "dark" : "light"}><CompleteDialog group={snapshot.group} rows={snapshot.rows} onClose={close} onOpenFolder={() => openCompletedFolder(snapshot.group, snapshot.rows)} embedded /></main>;
 }
 
 async function openDialogWindow(kind: DialogKind, group: BuildArtifactGroup, rows: ReturnType<typeof useDownload>["rows"], slotSpeeds: Record<string, number> = {}) {
@@ -357,7 +325,7 @@ async function openDialogWindow(kind: DialogKind, group: BuildArtifactGroup, row
     const label = dialogWindowLabel(kind, group.id);
     const existing = await WebviewWindow.getByLabel(label);
     if (existing) { await existing.setFocus(); return true; }
-    new WebviewWindow(label, { url: `index.html?dialog=${kind}&key=${encodeURIComponent(dialogStorageKey(kind, group.id))}`, title: kind === "progress" ? `Download progress - ${group.buildId || group.input}` : `Download complete - ${group.buildId || group.input}`, width: kind === "progress" ? 850 : 460, height: 440, center: true, resizable: true, decorations: true });
+    new WebviewWindow(label, { url: `index.html?dialog=${kind}&key=${encodeURIComponent(dialogStorageKey(kind, group.id))}`, title: `Download complete - ${group.buildId || group.input}`, width: 460, height: 440, center: true, resizable: true, decorations: true });
     return true;
   } catch (error) { console.error(error); return false; }
 }

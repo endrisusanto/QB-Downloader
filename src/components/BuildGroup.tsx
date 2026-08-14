@@ -1,4 +1,4 @@
-import { Activity, Check, ChevronDown, ChevronRight, Download, Filter, Pause, Play, RefreshCcw, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Download, Filter, Pause, Play, RefreshCcw, Trash2, X } from "lucide-react";
 import type { CSSProperties } from "react";
 import type { Artifact, BuildArtifactGroup, DownloadEvent } from "../types";
 import { formatBytes, groupProgress, progressState, selectedArtifacts, visibleArtifacts as getVisibleArtifacts } from "../utils";
@@ -16,12 +16,12 @@ const ArtifactName = memo(function ArtifactName({ name }: { name: string }) {
 
 const NO_ARTIFACTS_NOTICE = "Artifacts tidak ada. Mungkin QB ID sudah expired.";
 
-export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes, onToggleExpanded, onToggleArtifact, onToggleAll, onDownload, onCancel, onRetry, onRemove, onProgress, onConfigureFilters, onDownloadArtifact, onRemoveArtifact }: {
+export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes, onToggleExpanded, onToggleArtifact, onToggleAll, onDownload, onCancel, onRetry, onRemove, onConfigureFilters, onDownloadArtifact, onRemoveArtifact }: {
   group: BuildArtifactGroup; rows: Record<string, DownloadEvent>; expanded: boolean;
   filters: string[];
   readonlyCheckboxes?: boolean;
   onToggleExpanded: () => void; onToggleArtifact: (id: string) => void; onToggleAll: (selected: boolean) => void;
-  onDownload: () => void; onCancel: () => void; onRetry: () => void; onRemove: () => void; onProgress: () => void;
+  onDownload: () => void; onCancel: () => void; onRetry: () => void; onRemove: () => void;
   onConfigureFilters?: () => void;
   onDownloadArtifact?: (artifact: Artifact) => void;
   onRemoveArtifact?: (artifactId: string) => void;
@@ -62,7 +62,6 @@ export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes,
             </>
           )}
           {!watching && !active && !hasCompleted && !hasFailed && artifacts.length > 0 && <button className={`secondary-button compact selection-toggle ${allSelected ? "selected" : ""}`} aria-pressed={allSelected} onClick={() => onToggleAll(!allSelected)}><Check size={15} />{allSelected ? "Deselect all" : "Select all"}</button>}
-          {hasRows && <button className="icon-button" title="Open progress" onClick={onProgress}><Activity size={16} /></button>}
           {failed && <button className="icon-button" title="Resume / Retry download" onClick={onRetry}><RefreshCcw size={16} /></button>}
           {active && (
             <>

@@ -32,5 +32,5 @@ export function standaloneDialogConfig() {
   const params = new URLSearchParams(location.search);
   const kind = params.get("dialog");
   const storageKey = params.get("key");
-  return (kind === "progress" || kind === "complete") && storageKey ? { kind, storageKey } as const : null;
+  return kind === "complete" && storageKey ? { kind, storageKey } as const : null;
 }

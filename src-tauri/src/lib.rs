@@ -62,33 +62,84 @@ async fn resolve_artifact_sizes(
         let config = config.clone();
         let app = app.clone();
         handles.push(tokio::spawn(async move {
-            let encoded_build = urlencoding::encode(&artifact.build_id);
-            let encoded_name = urlencoding::encode(&artifact.name);
-            let url = qb_client::append_qb_suffix(
-                &format!("{}/download/{}/{}", config.base_url, encoded_build, encoded_name),
-                &config.api_suffix,
+            let candidate_urls = download_manager::artifact_download_urls(
+                &artifact.build_id,
+                &artifact,
+                &config,
             );
-            let resp = http
-                .get(&url)
-                .basic_auth(&creds.username, Some(&creds.access_token))
-                .header(reqwest::header::RANGE, "bytes=0-0")
-                .send()
-                .await
-                .ok();
-            if let Some(resp) = resp {
-                if resp.status().is_success() || resp.status() == reqwest::StatusCode::PARTIAL_CONTENT {
-                    let size = resp
-                        .headers()
-                        .get(reqwest::header::CONTENT_RANGE)
-                        .and_then(|h| h.to_str().ok())
-                        .and_then(|v| v.rsplit_once('/'))
-                        .and_then(|(_, total)| total.trim().parse::<u64>().ok())
-                        .or_else(|| resp.content_length());
-                    if let Some(size) = size.filter(|s| *s > 0) {
-                        #[derive(serde::Serialize, Clone)]
-                        #[serde(rename_all = "camelCase")]
-                        struct ArtifactSize { artifact_id: String, size: u64 }
-                        let _ = app.emit("artifact://size", ArtifactSize { artifact_id: artifact.id, size });
+
+            for url in candidate_urls {
+                // 1. Try lightweight HEAD request first
+                let head_resp = http
+                    .head(&url)
+                    .basic_auth(&creds.username, Some(&creds.access_token))
+                    .header(reqwest::header::USER_AGENT, download_manager::BROWSER_USER_AGENT)
+                    .header(reqwest::header::ACCEPT, "*/*")
+                    .send()
+                    .await
+                    .ok();
+
+                if let Some(resp) = head_resp {
+                    if resp.status().is_success() {
+                        if let Some(size) = resp.content_length().filter(|s| *s > 0) {
+                            #[derive(serde::Serialize, Clone)]
+                            #[serde(rename_all = "camelCase")]
+                            struct ArtifactSize {
+                                artifact_id: String,
+                                size: u64,
+                            }
+                            let _ = app.emit(
+                                "artifact://size",
+                                ArtifactSize {
+                                    artifact_id: artifact.id,
+                                    size,
+                                },
+                            );
+                            return;
+                        }
+                    }
+                }
+
+                // 2. Fallback: GET with Range: bytes=0-0
+                let get_resp = http
+                    .get(&url)
+                    .basic_auth(&creds.username, Some(&creds.access_token))
+                    .header(reqwest::header::USER_AGENT, download_manager::BROWSER_USER_AGENT)
+                    .header(reqwest::header::ACCEPT, "*/*")
+                    .header(reqwest::header::ACCEPT_ENCODING, "identity")
+                    .header(reqwest::header::RANGE, "bytes=0-0")
+                    .send()
+                    .await
+                    .ok();
+
+                if let Some(resp) = get_resp {
+                    if resp.status().is_success()
+                        || resp.status() == reqwest::StatusCode::PARTIAL_CONTENT
+                    {
+                        let size = resp
+                            .headers()
+                            .get(reqwest::header::CONTENT_RANGE)
+                            .and_then(|h| h.to_str().ok())
+                            .and_then(|v| v.rsplit_once('/'))
+                            .and_then(|(_, total)| total.trim().parse::<u64>().ok())
+                            .or_else(|| resp.content_length());
+
+                        if let Some(size) = size.filter(|s| *s > 0) {
+                            #[derive(serde::Serialize, Clone)]
+                            #[serde(rename_all = "camelCase")]
+                            struct ArtifactSize {
+                                artifact_id: String,
+                                size: u64,
+                            }
+                            let _ = app.emit(
+                                "artifact://size",
+                                ArtifactSize {
+                                    artifact_id: artifact.id,
+                                    size,
+                                },
+                            );
+                            return;
+                        }
                     }
                 }
             }

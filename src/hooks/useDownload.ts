@@ -147,13 +147,17 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
         listen<DownloadEvent>(`download://${name}`, ({ payload }) => {
           if (!payload.artifactId) return;
           const now = Date.now();
-          const previous = rawDownloaded.current[payload.artifactId] || 0;
-          const delta = Math.max(0, payload.downloaded - previous);
-          if (delta > 0) {
-            totalBytes.current += delta;
-            slotTotals.current[payload.artifactId] = (slotTotals.current[payload.artifactId] || 0) + delta;
+          if (payload.status === "queued") {
+            rawDownloaded.current[payload.artifactId] = payload.downloaded;
+          } else {
+            const previous = rawDownloaded.current[payload.artifactId] ?? payload.downloaded;
+            const delta = Math.max(0, payload.downloaded - previous);
+            if (delta > 0) {
+              totalBytes.current += delta;
+              slotTotals.current[payload.artifactId] = (slotTotals.current[payload.artifactId] || 0) + delta;
+            }
+            rawDownloaded.current[payload.artifactId] = payload.downloaded;
           }
-          rawDownloaded.current[payload.artifactId] = payload.downloaded;
           byteSamples.current.push({ at: now, bytes: totalBytes.current });
           const samples = slotSamples.current[payload.artifactId] || [];
           samples.push({ at: now, bytes: slotTotals.current[payload.artifactId] || 0 });
@@ -218,9 +222,25 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
     };
     queue.current.push(item);
     setRows((current) => {
-      const next = omitRows(current, artifacts.map((artifact) => artifact.id));
+      const next = { ...current };
       for (const artifact of artifacts) {
-        next[artifact.id] = eventFromQueueItem(item, artifact, "queued");
+        const existing = current[artifact.id];
+        const existingDownloaded = existing?.downloaded || 0;
+        next[artifact.id] = {
+          jobId: item.queueId,
+          artifactId: artifact.id,
+          buildId: item.buildId,
+          name: artifact.name,
+          status: "queued",
+          downloaded: existingDownloaded,
+          total: existing?.total || artifact.size,
+          path: existing?.path,
+          message: existingDownloaded > 0 ? "Queued (Resuming)" : undefined,
+          resumable: existingDownloaded > 0,
+          attempt: 0,
+          maxAttempts: 4,
+        };
+        rawDownloaded.current[artifact.id] = existingDownloaded;
       }
       return next;
     });

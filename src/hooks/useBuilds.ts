@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { BuildArtifactGroup, Credentials, QuickBuildConfig } from "../types";
+import type { Artifact, BuildArtifactGroup, Credentials, QuickBuildConfig } from "../types";
 import { normalizeGroup, prepareGroup, selectedArtifacts, splitBulkInput } from "../utils";
 
 const WATCH_POLL_MS = 60_000;
@@ -40,6 +40,24 @@ export function useBuilds(
     });
     return () => { unlisten.then((fn) => fn()); };
   }, []);
+
+  // ponytail: automatically resolve missing sizes for loaded or updated artifacts
+  const resolvedArtifactIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!credentials.username || !credentials.accessToken) return;
+    const missing: Artifact[] = [];
+    for (const group of groups) {
+      for (const artifact of group.artifacts) {
+        if (artifact.size == null && !resolvedArtifactIds.current.has(artifact.id)) {
+          resolvedArtifactIds.current.add(artifact.id);
+          missing.push(artifact);
+        }
+      }
+    }
+    if (missing.length > 0) {
+      invoke("resolve_artifact_sizes", { artifacts: missing, credentials, quickBuildConfig }).catch(() => {});
+    }
+  }, [groups, credentials, quickBuildConfig]);
   const [loadingInputs, setLoadingInputs] = useState<Set<string>>(new Set());
   const [readyAutoDownloads, setReadyAutoDownloads] = useState<Set<string>>(new Set());
   const pollingInputs = useRef<Set<string>>(new Set());

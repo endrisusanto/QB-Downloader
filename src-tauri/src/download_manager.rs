@@ -16,6 +16,7 @@ use tokio::time::{sleep, Duration};
 
 const MAX_ATTEMPTS: u8 = 4;
 const RETRY_DELAYS_MS: [u64; 3] = [1_000, 2_000, 4_000];
+pub const BROWSER_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
 #[derive(Debug, Error)]
 pub enum DownloadError {
@@ -95,6 +96,13 @@ impl DownloadManager {
         let remaining = Arc::new(AtomicUsize::new(artifacts.len()));
 
         for artifact in artifacts {
+            let output = output_path(&request.target_dir, &artifact.name);
+            let partial = partial_path(&output);
+            let existing = tokio::fs::metadata(&partial)
+                .await
+                .map(|m| m.len())
+                .unwrap_or(0);
+
             emit_event(
                 &app,
                 "download://queued",
@@ -104,11 +112,15 @@ impl DownloadManager {
                     build_id: request.build_id.clone(),
                     name: artifact.name.clone(),
                     status: "queued".to_string(),
-                    downloaded: 0,
+                    downloaded: existing,
                     total: artifact.size,
-                    path: None,
-                    message: None,
-                    resumable: false,
+                    path: Some(output.display().to_string()),
+                    message: if existing > 0 {
+                        Some("Queued (Resuming)".to_string())
+                    } else {
+                        None
+                    },
+                    resumable: existing > 0,
                     attempt: 0,
                     max_attempts: MAX_ATTEMPTS,
                     next_retry_ms: None,
@@ -344,7 +356,7 @@ async fn download_one(
 
     let response = send_download_request(
         &http,
-        artifact_download_urls(&request.build_id, &artifact, &request.quick_build_config, existing > 0),
+        artifact_download_urls(&request.build_id, &artifact, &request.quick_build_config),
         &request.credentials,
         existing,
     )
@@ -368,14 +380,22 @@ async fn download_one(
         artifact.size,
     );
 
-    let mut file = tokio::fs::OpenOptions::new()
-        .create(true)
-        .append(downloaded > 0)
-        .write(true)
-        .truncate(downloaded == 0)
-        .open(&partial)
-        .await
-        .map_err(|err| DownloadError::Io(err.to_string()))?;
+    let mut file = if downloaded > 0 {
+        tokio::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&partial)
+            .await
+            .map_err(|err| DownloadError::Io(err.to_string()))?
+    } else {
+        tokio::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&partial)
+            .await
+            .map_err(|err| DownloadError::Io(err.to_string()))?
+    };
 
     let mut last_emit = std::time::Instant::now();
     let emit_interval = std::time::Duration::from_millis(800);
@@ -497,19 +517,26 @@ fn content_range_total(headers: &HeaderMap) -> Option<u64> {
     }
 }
 
-fn direct_download_url(build_id: &str, name: &str, config: &QuickBuildConfig) -> String {
+pub fn encode_path_segments(path: &str) -> String {
+    path.split('/')
+        .map(|segment| urlencoding::encode(segment).to_string())
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+pub fn direct_download_url(build_id: &str, name: &str, config: &QuickBuildConfig) -> String {
     append_qb_suffix(
         &format!(
             "{}/download/{}/{}",
             config.base_url,
             urlencoding::encode(build_id),
-            urlencoding::encode(name)
+            encode_path_segments(name)
         ),
         &config.api_suffix,
     )
 }
 
-fn ads5_download_url(build_id: &str, name: &str, config: &QuickBuildConfig) -> String {
+pub fn ads5_download_url(build_id: &str, name: &str, config: &QuickBuildConfig) -> String {
     append_qb_suffix(
         &format!(
             "{}/rest/ads5/download/{}?filename={}",
@@ -521,11 +548,10 @@ fn ads5_download_url(build_id: &str, name: &str, config: &QuickBuildConfig) -> S
     )
 }
 
-fn artifact_download_urls(
+pub fn artifact_download_urls(
     build_id: &str,
     artifact: &crate::types::Artifact,
     config: &QuickBuildConfig,
-    is_resume: bool,
 ) -> Vec<String> {
     let mut urls = Vec::new();
     if let Some(url) = artifact.url.as_deref() {
@@ -533,13 +559,8 @@ fn artifact_download_urls(
     }
     let direct = direct_download_url(build_id, &artifact.name, config);
     let ads5 = ads5_download_url(build_id, &artifact.name, config);
-    if is_resume {
-        urls.push(direct);
-        urls.push(ads5);
-    } else {
-        urls.push(ads5);
-        urls.push(direct);
-    }
+    urls.push(direct);
+    urls.push(ads5);
     urls.dedup();
     urls
 }
@@ -560,7 +581,10 @@ async fn send_download_request(
     for url in urls {
         let mut req = http
             .get(&url)
-            .basic_auth(&credentials.username, Some(&credentials.access_token));
+            .basic_auth(&credentials.username, Some(&credentials.access_token))
+            .header(header::USER_AGENT, BROWSER_USER_AGENT)
+            .header(header::ACCEPT, "*/*")
+            .header(header::ACCEPT_ENCODING, "identity");
         if existing > 0 {
             req = req.header(header::RANGE, format!("bytes={existing}-"));
         }
@@ -689,6 +713,15 @@ mod tests {
     }
 
     #[test]
+    fn direct_download_url_preserves_subpaths() {
+        let config = QuickBuildConfig::default();
+        assert_eq!(
+            direct_download_url("123", "sub folder/file name.zip", &config),
+            "https://android.qb.sec.samsung.net/download/123/sub%20folder/file%20name.zip?QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC"
+        );
+    }
+
+    #[test]
     fn ads5_download_url_encodes_filename_query() {
         let config = QuickBuildConfig::default();
         assert_eq!(
@@ -710,7 +743,7 @@ mod tests {
         };
 
         assert_eq!(
-            artifact_download_urls("110", &artifact, &QuickBuildConfig::default(), false)[0],
+            artifact_download_urls("110", &artifact, &QuickBuildConfig::default())[0],
             "https://android.qb.sec.samsung.net/download/110/ALL.tar.md5?QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC"
         );
     }
@@ -731,7 +764,7 @@ mod tests {
         };
 
         assert_eq!(
-            artifact_download_urls("110", &artifact, &QuickBuildConfig::default(), false)[0],
+            artifact_download_urls("110", &artifact, &QuickBuildConfig::default())[0],
             "https://android.qb.sec.samsung.net/download/110/ALL.tar.md5?QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC"
         );
     }
