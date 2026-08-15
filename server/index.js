@@ -80,6 +80,19 @@ function trimInfo(info) {
   return { ...info, groups, rows: rowsForGroups(groups, info.rows) };
 }
 
+function findPc(idOrName) {
+  if (!idOrName) return null;
+  const direct = pcs.get(idOrName);
+  if (direct) return direct;
+  const lower = String(idOrName).trim().toLowerCase();
+  for (const pc of pcs.values()) {
+    if (String(pc.info?.pcName || "").toLowerCase() === lower || String(pc.info?.pcId || "").toLowerCase() === lower) {
+      return pc;
+    }
+  }
+  return null;
+}
+
 wss.on("connection", (ws, req) => {
   if (!checkAuth(req, ws)) return;
   const path = new URL(req.url, "http://localhost").pathname;
@@ -137,7 +150,7 @@ wss.on("connection", (ws, req) => {
       try {
         const msg = JSON.parse(raw.toString());
         if (msg.type === "remote_download") {
-          const pc = pcs.get(msg.pcId);
+          const pc = findPc(msg.pcId);
           const qbIds = buildIds(msg.qbIds || msg.qbId);
           if (pc?.ws?.readyState === 1) {
             if (!qbIds.length) return sendTo(ws, { type: "error", message: "Enter at least one build ID" });
@@ -149,49 +162,59 @@ wss.on("connection", (ws, req) => {
             sendTo(ws, { type: "error", message: "PC not online or not found" });
           }
         } else if (msg.type === "remote_delete_group") {
-          const pc = pcs.get(msg.pcId);
+          const pc = findPc(msg.pcId);
           if (pc?.ws?.readyState === 1) {
             sendTo(pc.ws, { type: "delete_group", groupId: msg.groupId });
           }
         } else if (msg.type === "remote_cancel_group") {
-          const pc = pcs.get(msg.pcId);
+          const pc = findPc(msg.pcId);
           if (pc?.ws?.readyState === 1) {
             sendTo(pc.ws, { type: "cancel_group", groupId: msg.groupId, pin: String(msg.pin || ""), requestId: msg.requestId });
           }
         } else if (msg.type === "remote_cancel_all") {
-          const pc = pcs.get(msg.pcId);
+          const pc = findPc(msg.pcId);
           if (pc?.ws?.readyState === 1) {
             sendTo(pc.ws, { type: "cancel_all", pin: String(msg.pin || ""), requestId: msg.requestId });
           }
         } else if (msg.type === "remote_cancel_artifact") {
-          const pc = pcs.get(msg.pcId);
+          const pc = findPc(msg.pcId);
           if (pc?.ws?.readyState === 1) {
             sendTo(pc.ws, { type: "cancel_artifact", groupId: msg.groupId, artifactId: msg.artifactId, pin: String(msg.pin || ""), requestId: msg.requestId });
           }
         } else if (msg.type === "remote_delete_artifact") {
-          const pc = pcs.get(msg.pcId);
+          const pc = findPc(msg.pcId);
           if (pc?.ws?.readyState === 1) {
             sendTo(pc.ws, { type: "delete_artifact", groupId: msg.groupId, artifactId: msg.artifactId });
           }
         } else if (msg.type === "remote_restart_artifact") {
-          const pc = pcs.get(msg.pcId);
+          const pc = findPc(msg.pcId);
           if (pc?.ws?.readyState === 1) {
             sendTo(pc.ws, { type: "restart_artifact", groupId: msg.groupId, artifactId: msg.artifactId });
           }
         } else if (msg.type === "remote_start_artifact") {
-          const pc = pcs.get(msg.pcId);
+          const pc = findPc(msg.pcId);
           if (pc?.ws?.readyState === 1) {
             sendTo(pc.ws, { type: "start_artifact", groupId: msg.groupId, artifactId: msg.artifactId });
           }
         } else if (msg.type === "remote_set_artifact_selected") {
-          const pc = pcs.get(msg.pcId);
+          const pc = findPc(msg.pcId);
           if (pc?.ws?.readyState === 1) {
             sendTo(pc.ws, { type: "set_artifact_selected", groupId: msg.groupId, artifactId: msg.artifactId, selected: msg.selected === true });
           }
         } else if (msg.type === "remote_start_group") {
-          const pc = pcs.get(msg.pcId);
+          const pc = findPc(msg.pcId);
           if (pc?.ws?.readyState === 1) {
             sendTo(pc.ws, { type: "start_group", groupId: msg.groupId });
+          }
+        } else if (msg.type === "remote_set_max_concurrent") {
+          const pc = findPc(msg.pcId);
+          if (pc?.ws?.readyState === 1) {
+            sendTo(pc.ws, { type: "set_max_concurrent", maxConcurrent: Number(msg.maxConcurrent) || 16 });
+          }
+        } else if (msg.type === "remote_wake_queue" || msg.type === "remote_start_all") {
+          const pc = findPc(msg.pcId);
+          if (pc?.ws?.readyState === 1) {
+            sendTo(pc.ws, { type: "wake_queue", maxConcurrent: Number(msg.maxConcurrent) || 16 });
           }
         }
       } catch { /* ignore */ }
@@ -227,11 +250,33 @@ app.post("/api/download", (req, res) => {
   const { pcId, qbId, qbIds: requestedIds, artifactTypes, autoStart } = req.body || {};
   const qbIds = buildIds(requestedIds || qbId);
   if (!pcId || !qbIds.length || !artifactTypes?.length) return res.status(400).json({ error: "Missing pcId, qbIds, or artifactTypes" });
-  const pc = pcs.get(pcId);
+  const pc = findPc(pcId);
   if (!pc?.ws || pc.ws.readyState !== 1) return res.status(404).json({ error: "PC not online" });
   const commandId = randomUUID();
   sendTo(pc.ws, { type: "start_download", commandId, qbId: qbIds[0], qbIds, artifactTypes, autoStart: autoStart !== false });
   res.json({ ok: true, commandId });
+});
+
+app.post("/api/pc/concurrency", (req, res) => {
+  if (API_KEY && req.headers.authorization !== `Bearer ${API_KEY}`) return res.status(401).json({ error: "Unauthorized" });
+  const { pcId, maxConcurrent } = req.body || {};
+  if (!pcId) return res.status(400).json({ error: "Missing pcId" });
+  const pc = findPc(pcId);
+  if (!pc?.ws || pc.ws.readyState !== 1) return res.status(404).json({ error: "PC not online" });
+  const value = Math.max(1, Math.min(16, Number(maxConcurrent) || 16));
+  sendTo(pc.ws, { type: "set_max_concurrent", maxConcurrent: value });
+  res.json({ ok: true, pcId: pc.info.pcId, pcName: pc.info.pcName, maxConcurrent: value });
+});
+
+app.post("/api/pc/wake", (req, res) => {
+  if (API_KEY && req.headers.authorization !== `Bearer ${API_KEY}`) return res.status(401).json({ error: "Unauthorized" });
+  const { pcId, maxConcurrent } = req.body || {};
+  if (!pcId) return res.status(400).json({ error: "Missing pcId" });
+  const pc = findPc(pcId);
+  if (!pc?.ws || pc.ws.readyState !== 1) return res.status(404).json({ error: "PC not online" });
+  const value = Math.max(1, Math.min(16, Number(maxConcurrent) || 16));
+  sendTo(pc.ws, { type: "wake_queue", maxConcurrent: value });
+  res.json({ ok: true, pcId: pc.info.pcId, pcName: pc.info.pcName, maxConcurrent: value, message: "Queue woken up with max concurrency" });
 });
 
 // SPA fallback

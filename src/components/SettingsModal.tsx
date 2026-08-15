@@ -1,15 +1,26 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Eye, EyeOff, KeyRound, RotateCcw, X } from "lucide-react";
+import { Eye, EyeOff, KeyRound, RefreshCw, RotateCcw, X } from "lucide-react";
 import { useState } from "react";
 import { DEFAULT_API_SUFFIX, DEFAULT_QB_URL, FILTER_OPTIONS } from "../constants";
 import type { SettingsState, TokenTestResult } from "../types";
+import type { UpdateStatus } from "../hooks/useUpdater";
 
-export function SettingsModal({ value, secureError, onSave, onClose, onPickFolder }: {
+export function SettingsModal({
+  value,
+  secureError,
+  updateStatus,
+  onSave,
+  onClose,
+  onPickFolder,
+  onCheckUpdates,
+}: {
   value: SettingsState;
   secureError?: string | null;
+  updateStatus?: UpdateStatus;
   onSave: (value: SettingsState) => Promise<void>;
   onClose: () => void;
   onPickFolder: () => Promise<string | null>;
+  onCheckUpdates?: () => Promise<void>;
 }) {
   const [draft, setDraft] = useState(value);
   const [testing, setTesting] = useState(false);
@@ -61,6 +72,20 @@ export function SettingsModal({ value, secureError, onSave, onClose, onPickFolde
         <label>PC display name<input value={draft.pcName} onChange={(event) => patch({ pcName: event.target.value })} placeholder="Auto (hostname)" /></label>
         <label>Remote cancel PIN<div className="secret-input"><input type="password" inputMode="numeric" value={draft.remoteCancelPin} onChange={(event) => patch({ remoteCancelPin: event.target.value })} placeholder="Required for Web and Android cancel" /></div></label>
         <div className="type-grid">{FILTER_OPTIONS.map((filter) => <button key={filter} className={`type-chip ${draft.selectedTypes.includes(filter) ? "selected" : ""}`} onClick={() => patch({ selectedTypes: draft.selectedTypes.includes(filter) ? draft.selectedTypes.filter((item) => item !== filter) : [...draft.selectedTypes, filter] })}>{filter}</button>)}</div>
+        {onCheckUpdates && (
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <strong style={{ fontSize: "0.9rem" }}>Software Updates</strong>
+              <div style={{ fontSize: "0.8rem", opacity: 0.7 }}>
+                {updateStatus === "checking" ? "Checking GitHub releases..." : updateStatus === "up-to-date" ? "App is on latest version" : updateStatus === "available" ? "New version available!" : "Seamless in-app updates"}
+              </div>
+            </div>
+            <button className="secondary-button" type="button" disabled={updateStatus === "checking"} onClick={() => void onCheckUpdates()} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <RefreshCw size={15} className={updateStatus === "checking" ? "spin" : ""} />
+              {updateStatus === "checking" ? "Checking..." : "Check for Updates"}
+            </button>
+          </div>
+        )}
         <div className="modal-actions"><button className="primary-button" disabled={saving || Boolean(secureError)} onClick={save}>{saving ? "Saving..." : "Save"}</button></div>
       </div>
     </div>

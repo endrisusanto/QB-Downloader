@@ -47,6 +47,8 @@ export function useServerSync(
   onRemoteRestartArtifact: (groupId: string, artifactId: string) => void,
   onRemoteStartGroup: (groupId: string) => void,
   onRemoteToggleArtifact: (groupId: string, artifactId: string, selected: boolean) => void,
+  onRemoteSetMaxConcurrent?: (maxConcurrent: number) => void,
+  onRemoteWakeQueue?: (concurrency?: number) => void,
 ) {
   const [status, setStatus] = useState<SyncStatus>("disconnected");
   const [sysStats, setSysStats] = useState<SystemStats | null>(null);
@@ -67,6 +69,8 @@ export function useServerSync(
   const onRemoteRestartArtifactRef = useRef(onRemoteRestartArtifact);
   const onRemoteStartGroupRef = useRef(onRemoteStartGroup);
   const onRemoteToggleArtifactRef = useRef(onRemoteToggleArtifact);
+  const onRemoteSetMaxConcurrentRef = useRef(onRemoteSetMaxConcurrent);
+  const onRemoteWakeQueueRef = useRef(onRemoteWakeQueue);
 
   const groupsRef = useRef(groups);
   const rowsRef = useRef(rows);
@@ -85,7 +89,9 @@ export function useServerSync(
     onRemoteRestartArtifactRef.current = onRemoteRestartArtifact;
     onRemoteStartGroupRef.current = onRemoteStartGroup;
     onRemoteToggleArtifactRef.current = onRemoteToggleArtifact;
-  }, [onRemoteDownload, onRemoteDeleteGroup, onRemoteCancelGroup, onRemoteCancelAll, onRemoteCancelArtifact, onRemoteDeleteArtifact, onRemoteRestartArtifact, onRemoteStartGroup, onRemoteToggleArtifact]);
+    onRemoteSetMaxConcurrentRef.current = onRemoteSetMaxConcurrent;
+    onRemoteWakeQueueRef.current = onRemoteWakeQueue;
+  }, [onRemoteDownload, onRemoteDeleteGroup, onRemoteCancelGroup, onRemoteCancelAll, onRemoteCancelArtifact, onRemoteDeleteArtifact, onRemoteRestartArtifact, onRemoteStartGroup, onRemoteToggleArtifact, onRemoteSetMaxConcurrent, onRemoteWakeQueue]);
 
   useEffect(() => {
     groupsRef.current = groups;
@@ -207,6 +213,12 @@ export function useServerSync(
             onRemoteToggleArtifactRef.current(msg.groupId, msg.artifactId, Boolean(msg.selected));
           } else if (msg.type === "start_artifact") {
             onRemoteRestartArtifactRef.current(msg.groupId, msg.artifactId);
+          } else if (msg.type === "set_max_concurrent") {
+            if (msg.maxConcurrent != null) {
+              onRemoteSetMaxConcurrentRef.current?.(Number(msg.maxConcurrent));
+            }
+          } else if (msg.type === "wake_queue" || msg.type === "start_all") {
+            onRemoteWakeQueueRef.current?.(msg.maxConcurrent != null ? Number(msg.maxConcurrent) : undefined);
           }
         } catch { /* ignore malformed */ }
       };

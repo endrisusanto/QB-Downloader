@@ -42,5 +42,13 @@
         "displayLanguageSelector": false
       }
     }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENFNjM3OEYzNzQyMDU4QkIKUldTN1dDQjA4M2hqemxZSTEvWFduRS9ZemptVmZzU1NPcVlyUWRlUFRhN1k5REViVEtzL2RWVGcK",
+      "endpoints": [
+        "https://github.com/endrisusanto/QB-Downloader/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

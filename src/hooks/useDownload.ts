@@ -324,8 +324,14 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
     deleteDownloadHistoryEntry(artifactId);
   }, [refreshGroupJobStatus]);
 
+  // ponytail: dynamically update queue concurrency limit and pump queue
+  const setMaxConcurrent = useCallback((n: number) => {
+    maxSlots.current = Math.max(1, Math.min(16, n));
+    pumpQueue();
+  }, [pumpQueue]);
+
   const categories = useMemo(() => classifyGroups(groups, rows), [groups, rows]);
-  return { rows, setRows, totalSpeed, averageThreadSpeed, slotSpeeds, start, startSingle, cancel, retry, removeRow, categories };
+  return { rows, setRows, totalSpeed, averageThreadSpeed, slotSpeeds, start, startSingle, cancel, retry, removeRow, setMaxConcurrent, categories };
 }
 
 export function calculateRollingSpeed(samples: { at: number; bytes: number }[], now: number) {

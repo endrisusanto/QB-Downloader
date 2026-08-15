@@ -31,6 +31,8 @@ urlencoding = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 sysinfo = "0.30"
 tauri-plugin-shell = "2.3.5"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 
 
 [dev-dependencies]

@@ -198,6 +198,18 @@ window.remoteSetArtifactSelected = (pcId, groupId, artifactId, selected) => {
   sendCommand({ type: "remote_set_artifact_selected", pcId, groupId, artifactId, selected });
 };
 
+window.remoteSetMaxConcurrent = (pcId, maxConcurrent) => {
+  const value = Math.max(1, Math.min(16, Number(maxConcurrent) || 16));
+  sendCommand({ type: "remote_set_max_concurrent", pcId, maxConcurrent: value });
+  showToast(`Queue limit set to ${value} concurrent downloads`, "ok");
+};
+
+window.remoteWakeQueue = (pcId, maxConcurrent = 16) => {
+  const value = Math.max(1, Math.min(16, Number(maxConcurrent) || 16));
+  sendCommand({ type: "remote_wake_queue", pcId, maxConcurrent: value });
+  showToast(`Queue woken up with ${value} concurrency`, "ok");
+};
+
 function openDownload(pcId, pcName) {
   selectedPcId = pcId;
   const pc = pcs.find((p) => p.pcId === pcId);
