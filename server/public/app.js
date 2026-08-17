@@ -517,6 +517,10 @@ function renderPc(pc) {
   const fetchedIds = fetched.map((group) => group.id).join(",");
   const progressIds = progress.map((group) => group.id).join(",");
 
+  const fetchedArtifacts = fetched.flatMap((group) => group.artifacts || []);
+  const hasAnySelected = fetchedArtifacts.some((artifact) => artifact.selected !== false);
+  const toggleSelectText = hasAnySelected ? "Deselect all" : "Select all";
+
   card.innerHTML = `
     <div class="pc-card-header">
       <div class="pc-info">
@@ -545,7 +549,7 @@ function renderPc(pc) {
       <details ${isExpanded(pc.pcId, "fetched") ? "open" : ""} ontoggle="window.setExpandedState('${pc.pcId}', 'fetched', this.open)">
         <summary>Fetched Builds (${fetched.length})</summary>
         <div class="accordion-content">
-          ${fetched.length ? `<div class="bulk-actions"><button class="btn-primary btn-sm bulk-start-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Download all</button><button class="btn-secondary btn-sm bulk-deselect-btn">Deselect all</button><button class="btn-danger btn-sm bulk-delete-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Delete all</button></div>` : ""}
+          ${fetched.length ? `<div class="bulk-actions"><button class="btn-primary btn-sm bulk-start-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Download all</button><button class="btn-secondary btn-sm bulk-toggle-select-btn">${toggleSelectText}</button><button class="btn-danger btn-sm bulk-delete-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Delete all</button></div>` : ""}
           ${renderGroupList(pc, fetched, "fetched")}
         </div>
       </details>
@@ -580,8 +584,17 @@ function renderPc(pc) {
   card.querySelectorAll(".bulk-delete-btn").forEach((btn) => {
     btn.addEventListener("click", () => remoteDeleteGroups(btn.dataset.pcId, btn.dataset.groupIds.split(",").filter(Boolean)));
   });
-  card.querySelectorAll(".bulk-deselect-btn").forEach((btn) => {
-    btn.addEventListener("click", () => fetched.forEach((group) => group.artifacts.filter((artifact) => artifact.selected !== false).forEach((artifact) => remoteSetArtifactSelected(pc.pcId, group.id, artifact.id, false))));
+  card.querySelectorAll(".bulk-toggle-select-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const nextSelected = !hasAnySelected;
+      fetched.forEach((group) => {
+        group.artifacts.forEach((artifact) => {
+          if ((artifact.selected !== false) !== nextSelected) {
+            remoteSetArtifactSelected(pc.pcId, group.id, artifact.id, nextSelected);
+          }
+        });
+      });
+    });
   });
   card.querySelectorAll(".bulk-cancel-btn").forEach((btn) => {
     btn.addEventListener("click", () => remoteCancelGroups(btn.dataset.pcId, btn.dataset.groupIds.split(",").filter(Boolean)));

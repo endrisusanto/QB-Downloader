@@ -572,9 +572,9 @@ input:focus { border-color: var(--accent); }
   background: rgba(245, 158, 11, 0.25);
 }
 .waste-btn {
-  border-radius: 9999px !important;
-  padding: 6px 14px;
-  font-size: 12px;
+  border-radius: var(--radius-sm);
+  padding: 8px 16px;
+  font-size: 13px;
   font-weight: 600;
   display: inline-flex;
   align-items: center;
@@ -583,11 +583,18 @@ input:focus { border-color: var(--accent); }
   background: var(--yellow-bg);
   color: var(--yellow);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease, transform 0.1s;
 }
 .waste-btn:hover:not(:disabled) {
   background: rgba(245, 158, 11, 0.25);
   border-color: rgba(245, 158, 11, 0.6);
+}
+.waste-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.waste-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 .waste-btn.active {
   background: rgba(249, 115, 22, 0.2);

@@ -257,7 +257,7 @@ fun PcDetailScreen(
                                 onClick = {
                                     serverClient.sendRemoteWasteData(pc.pcId, if (pc.wasteStats?.active == true) "stop" else "start")
                                 },
-                                shape = RoundedCornerShape(50),
+                                shape = RoundedCornerShape(8.dp),
                                 colors = if (pc.wasteStats?.active == true) ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error) else ButtonDefaults.buttonColors(),
                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                             ) {
@@ -270,8 +270,25 @@ fun PcDetailScreen(
                 item {
                     AccordionSection("Fetched Builds", classified.fetched.size, fetchedExpanded, { fetchedExpanded = !fetchedExpanded }) {
                         if (classified.fetched.isEmpty()) EmptyAccordionMessage() else {
+                            val allFetchedArtifacts = classified.fetched.flatMap { it.artifacts }
+                            val hasAnySelected = allFetchedArtifacts.any { it.selected }
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button({ classified.fetched.forEach { serverClient.sendRemoteStartGroup(pc.pcId, it.id) } }, Modifier.weight(1f)) { Text("Download all") }
+                                OutlinedButton(
+                                    onClick = {
+                                        val nextSelected = !hasAnySelected
+                                        classified.fetched.forEach { group ->
+                                            group.artifacts.forEach { artifact ->
+                                                if (artifact.selected != nextSelected) {
+                                                    serverClient.sendRemoteSetArtifactSelected(pc.pcId, group.id, artifact.id, nextSelected)
+                                                }
+                                            }
+                                        }
+                                    },
+                                    Modifier.weight(1f)
+                                ) {
+                                    Text(if (hasAnySelected) "Deselect all" else "Select all")
+                                }
                                 OutlinedButton({ confirmDeleteFetched = true }, Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Delete all") }
                             }
                             classified.fetched.forEach { FetchedGroupCard(pc.pcId, it, pc.presetTypes, serverClient) }
