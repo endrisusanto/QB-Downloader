@@ -55,6 +55,12 @@ data class DownloadEvent(
     val message: String?,
 )
 
+data class WasteStats(
+    val active: Boolean,
+    val totalBytes: Long,
+    val speedBps: Double,
+)
+
 data class PcState(
     val pcId: String,
     val pcName: String,
@@ -63,6 +69,7 @@ data class PcState(
     val online: Boolean,
     val lastSeen: String,
     val sysStats: SystemStats?,
+    val wasteStats: WasteStats?,
     val presetTypes: List<String>,
     val groups: List<BuildArtifactGroup>,
     val rows: Map<String, DownloadEvent>,
@@ -261,6 +268,17 @@ class ServerClient(private val context: Context) {
         ws?.send(payload.toString())
     }
 
+    fun sendRemoteWasteData(pcId: String, action: String, concurrency: Int = 8, targetBytes: Long? = null) {
+        val payload = JSONObject().apply {
+            put("type", "remote_waste_data")
+            put("pcId", pcId)
+            put("action", action)
+            put("concurrency", concurrency)
+            if (targetBytes != null) put("targetBytes", targetBytes)
+        }
+        ws?.send(payload.toString())
+    }
+
     private fun parseStateUpdate(msg: JSONObject) {
         val arr = msg.getJSONArray("pcs")
         val list = (0 until arr.length()).map { i ->
@@ -275,6 +293,15 @@ class ServerClient(private val context: Context) {
                     diskTotal = sysStatsObj.optLong("diskTotal", 0),
                     diskAvailable = sysStatsObj.optLong("diskAvailable", 0),
                     totalSpeed = sysStatsObj.optLong("totalSpeed", 0),
+                )
+            } else null
+
+            val wasteStatsObj = pc.optJSONObject("wasteStats")
+            val wasteStats = if (wasteStatsObj != null) {
+                WasteStats(
+                    active = wasteStatsObj.optBoolean("active", false),
+                    totalBytes = wasteStatsObj.optLong("totalBytes", 0),
+                    speedBps = wasteStatsObj.optDouble("speedBps", 0.0),
                 )
             } else null
 
@@ -332,6 +359,7 @@ class ServerClient(private val context: Context) {
                 online = pc.optBoolean("online", false),
                 lastSeen = pc.optString("lastSeen", ""),
                 sysStats = sysStats,
+                wasteStats = wasteStats,
                 presetTypes = presetTypes,
                 groups = groups,
                 rows = rows,

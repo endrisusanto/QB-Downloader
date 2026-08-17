@@ -46,6 +46,7 @@ function stateMessage() {
       presetTypes: pc.info.presetTypes || [],
       groups: pc.info.groups || [],
       rows: pc.info.rows || {},
+      wasteStats: pc.info.wasteStats || null,
       sysStats: pc.info.sysStats || null,
     })),
   });
@@ -216,6 +217,16 @@ wss.on("connection", (ws, req) => {
           if (pc?.ws?.readyState === 1) {
             sendTo(pc.ws, { type: "wake_queue", maxConcurrent: Number(msg.maxConcurrent) || 16 });
           }
+        } else if (msg.type === "remote_waste_data") {
+          const pc = findPc(msg.pcId);
+          if (pc?.ws?.readyState === 1) {
+            sendTo(pc.ws, {
+              type: "waste_data",
+              action: msg.action === "start" ? "start" : "stop",
+              concurrency: Number(msg.concurrency) || 8,
+              targetBytes: msg.targetBytes != null ? Number(msg.targetBytes) : undefined,
+            });
+          }
         }
       } catch { /* ignore */ }
     });
@@ -277,6 +288,21 @@ app.post("/api/pc/wake", (req, res) => {
   const value = Math.max(1, Math.min(16, Number(maxConcurrent) || 16));
   sendTo(pc.ws, { type: "wake_queue", maxConcurrent: value });
   res.json({ ok: true, pcId: pc.info.pcId, pcName: pc.info.pcName, maxConcurrent: value, message: "Queue woken up with max concurrency" });
+});
+
+app.post("/api/pc/waste", (req, res) => {
+  if (API_KEY && req.headers.authorization !== `Bearer ${API_KEY}`) return res.status(401).json({ error: "Unauthorized" });
+  const { pcId, action, concurrency, targetBytes } = req.body || {};
+  if (!pcId) return res.status(400).json({ error: "Missing pcId" });
+  const pc = findPc(pcId);
+  if (!pc?.ws || pc.ws.readyState !== 1) return res.status(404).json({ error: "PC not online" });
+  sendTo(pc.ws, {
+    type: "waste_data",
+    action: action === "start" ? "start" : "stop",
+    concurrency: Number(concurrency) || 8,
+    targetBytes: targetBytes != null ? Number(targetBytes) : undefined,
+  });
+  res.json({ ok: true, pcId: pc.info.pcId, pcName: pc.info.pcName, action: action === "start" ? "start" : "stop" });
 });
 
 // SPA fallback

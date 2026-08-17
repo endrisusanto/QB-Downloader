@@ -1,4 +1,5 @@
 mod artifact_parser;
+mod data_waster;
 mod download_manager;
 mod path_safety;
 mod qb_client;
@@ -6,6 +7,7 @@ mod secure_storage;
 mod types;
 mod system_stats;
 
+use data_waster::DataWasterManager;
 use download_manager::DownloadManager;
 use qb_client::QbClient;
 use tauri::{
@@ -19,6 +21,7 @@ use types::{BuildArtifactGroup, Credentials, DownloadRequest, QuickBuildConfig, 
 #[derive(Clone)]
 struct AppState {
     downloads: DownloadManager,
+    data_waster: DataWasterManager,
 }
 
 #[tauri::command]
@@ -267,6 +270,31 @@ fn get_local_ipv4() -> Option<String> {
     system_stats::local_ipv4()
 }
 
+#[tauri::command]
+async fn start_data_waster(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    concurrency: Option<usize>,
+    target_bytes: Option<u64>,
+) -> Result<(), String> {
+    state
+        .data_waster
+        .start(app, concurrency.unwrap_or(8), target_bytes)
+        .await;
+    Ok(())
+}
+
+#[tauri::command]
+async fn stop_data_waster(state: State<'_, AppState>) -> Result<(), String> {
+    state.data_waster.stop().await;
+    Ok(())
+}
+
+#[tauri::command]
+fn get_data_waster_status(state: State<'_, AppState>) -> data_waster::DataWasterStatus {
+    state.data_waster.get_status()
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -321,6 +349,7 @@ pub fn run() {
         })
         .manage(AppState {
             downloads: DownloadManager::default(),
+            data_waster: DataWasterManager::default(),
         })
         .invoke_handler(tauri::generate_handler![
             fetch_build_artifacts,
@@ -335,7 +364,10 @@ pub fn run() {
             secure_vault_password,
             delete_file,
             get_system_stats,
-            get_local_ipv4
+            get_local_ipv4,
+            start_data_waster,
+            stop_data_waster,
+            get_data_waster_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

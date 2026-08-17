@@ -49,6 +49,8 @@ export function useServerSync(
   onRemoteToggleArtifact: (groupId: string, artifactId: string, selected: boolean) => void,
   onRemoteSetMaxConcurrent?: (maxConcurrent: number) => void,
   onRemoteWakeQueue?: (concurrency?: number) => void,
+  wasteStats?: { active: boolean; totalBytes: number; speedBps: number },
+  onRemoteWasteData?: (action: "start" | "stop", concurrency?: number, targetBytes?: number) => void,
 ) {
   const [status, setStatus] = useState<SyncStatus>("disconnected");
   const [sysStats, setSysStats] = useState<SystemStats | null>(null);
@@ -71,6 +73,7 @@ export function useServerSync(
   const onRemoteToggleArtifactRef = useRef(onRemoteToggleArtifact);
   const onRemoteSetMaxConcurrentRef = useRef(onRemoteSetMaxConcurrent);
   const onRemoteWakeQueueRef = useRef(onRemoteWakeQueue);
+  const onRemoteWasteDataRef = useRef(onRemoteWasteData);
 
   const groupsRef = useRef(groups);
   const rowsRef = useRef(rows);
@@ -78,6 +81,7 @@ export function useServerSync(
   const sysStatsRef = useRef(sysStats);
   const totalSpeedRef = useRef(totalSpeed);
   const localIpRef = useRef(localIp);
+  const wasteStatsRef = useRef(wasteStats);
 
   useEffect(() => {
     onRemoteDownloadRef.current = onRemoteDownload;
@@ -91,7 +95,8 @@ export function useServerSync(
     onRemoteToggleArtifactRef.current = onRemoteToggleArtifact;
     onRemoteSetMaxConcurrentRef.current = onRemoteSetMaxConcurrent;
     onRemoteWakeQueueRef.current = onRemoteWakeQueue;
-  }, [onRemoteDownload, onRemoteDeleteGroup, onRemoteCancelGroup, onRemoteCancelAll, onRemoteCancelArtifact, onRemoteDeleteArtifact, onRemoteRestartArtifact, onRemoteStartGroup, onRemoteToggleArtifact, onRemoteSetMaxConcurrent, onRemoteWakeQueue]);
+    onRemoteWasteDataRef.current = onRemoteWasteData;
+  }, [onRemoteDownload, onRemoteDeleteGroup, onRemoteCancelGroup, onRemoteCancelAll, onRemoteCancelArtifact, onRemoteDeleteArtifact, onRemoteRestartArtifact, onRemoteStartGroup, onRemoteToggleArtifact, onRemoteSetMaxConcurrent, onRemoteWakeQueue, onRemoteWasteData]);
 
   useEffect(() => {
     groupsRef.current = groups;
@@ -100,7 +105,8 @@ export function useServerSync(
     sysStatsRef.current = sysStats;
     totalSpeedRef.current = totalSpeed;
     localIpRef.current = localIp;
-  }, [groups, rows, presetTypes, sysStats, totalSpeed, localIp]);
+    wasteStatsRef.current = wasteStats;
+  }, [groups, rows, presetTypes, sysStats, totalSpeed, localIp, wasteStats]);
 
   useEffect(() => {
     void invoke<string | null>("get_local_ipv4").then((ip) => setLocalIp(ip || "")).catch(() => setLocalIp(""));
@@ -142,6 +148,7 @@ export function useServerSync(
       presetTypes: presetTypesRef.current,
       groups: groupsRef.current,
       rows: rowsForGroupArtifacts(groupsRef.current, rowsRef.current),
+      wasteStats: wasteStatsRef.current,
       sysStats: sysStatsRef.current
         ? { ...sysStatsRef.current, totalSpeed: totalSpeedRef.current }
         : { cpuUsage: 0, ramTotal: 0, ramUsed: 0, diskTotal: 0, diskAvailable: 0, totalSpeed: totalSpeedRef.current },
@@ -171,6 +178,7 @@ export function useServerSync(
         presetTypes: presetTypesRef.current,
         groups: groupsRef.current,
         rows: rowsForGroupArtifacts(groupsRef.current, rowsRef.current),
+        wasteStats: wasteStatsRef.current,
         sysStats: sysStatsRef.current
           ? { ...sysStatsRef.current, totalSpeed: totalSpeedRef.current }
           : { cpuUsage: 0, ramTotal: 0, ramUsed: 0, diskTotal: 0, diskAvailable: 0, totalSpeed: totalSpeedRef.current },
@@ -219,6 +227,12 @@ export function useServerSync(
             }
           } else if (msg.type === "wake_queue" || msg.type === "start_all") {
             onRemoteWakeQueueRef.current?.(msg.maxConcurrent != null ? Number(msg.maxConcurrent) : undefined);
+          } else if (msg.type === "waste_data") {
+            onRemoteWasteDataRef.current?.(
+              msg.action === "start" ? "start" : "stop",
+              msg.concurrency != null ? Number(msg.concurrency) : undefined,
+              msg.targetBytes != null ? Number(msg.targetBytes) : undefined
+            );
           }
         } catch { /* ignore malformed */ }
       };
@@ -249,6 +263,7 @@ export function useServerSync(
         ip: localIpRef.current,
         os: navigator.platform,
         presetTypes: presetTypesRef.current,
+        wasteStats: wasteStatsRef.current,
         sysStats: sysStatsRef.current
           ? { ...sysStatsRef.current, totalSpeed: totalSpeedRef.current }
           : { cpuUsage: 0, ramTotal: 0, ramUsed: 0, diskTotal: 0, diskAvailable: 0, totalSpeed: totalSpeedRef.current },
@@ -264,7 +279,7 @@ export function useServerSync(
       // ponytail: 4 snapshots/s keeps bulk progress responsive without relaying every byte update.
       progressTimer.current = window.setTimeout(sendProgress, 250);
     }
-  }, [serverUrl, status, presetTypes, groups, rows, sysStats, totalSpeed, localIp, sendProgress]);
+  }, [serverUrl, status, presetTypes, groups, rows, sysStats, totalSpeed, localIp, wasteStats, sendProgress]);
 
   return { status };
 }

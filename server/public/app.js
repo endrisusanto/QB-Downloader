@@ -65,6 +65,31 @@ document.getElementById("cancel-form").addEventListener("submit", (event) => {
   sendCommand({ type: cancelRequest.artifactId ? "remote_cancel_artifact" : cancelRequest.groupId ? "remote_cancel_group" : "remote_cancel_all", ...cancelRequest, pin: cancelPin.value });
 });
 
+// ── Optimistic Selection State ───────────────────────────────────────────────
+const pendingSelections = new Map(); // key: `${pcId}:${groupId}:${artifactId}` => { selected: boolean, expiresAt: number }
+
+function applyPendingSelections(pcsList) {
+  const now = Date.now();
+  for (const [k, v] of pendingSelections.entries()) {
+    if (now >= v.expiresAt) pendingSelections.delete(k);
+  }
+  pcsList.forEach((pc) => {
+    if (pc.groups) {
+      pc.groups.forEach((g) => {
+        if (g.artifacts) {
+          g.artifacts.forEach((a) => {
+            const key = `${pc.pcId}:${g.id}:${a.id}`;
+            const pending = pendingSelections.get(key);
+            if (pending) {
+              a.selected = pending.selected;
+            }
+          });
+        }
+      });
+    }
+  });
+}
+
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 function setBadge(state) {
   connBadge.className = `badge badge-${state}`;
@@ -93,7 +118,11 @@ function connect() {
   ws.onmessage = (e) => {
     try {
       const msg = JSON.parse(e.data);
-      if (msg.type === "state_update") { pcs = msg.pcs; render(); }
+      if (msg.type === "state_update") {
+        applyPendingSelections(msg.pcs);
+        pcs = msg.pcs;
+        render();
+      }
       else if (msg.type === "error") showToast(msg.message, "error");
       else if (msg.type === "download_ack" && msg.status === "accepted") showToast("Download started on PC!", "ok");
       else if (msg.type === "cancel_result" && cancelRequest?.requestId === msg.requestId) {
@@ -195,7 +224,56 @@ window.remoteStartArtifact = (pcId, groupId, artifactId) => {
 };
 
 window.remoteSetArtifactSelected = (pcId, groupId, artifactId, selected) => {
-  sendCommand({ type: "remote_set_artifact_selected", pcId, groupId, artifactId, selected });
+  const boolVal = Boolean(selected);
+  const key = `${pcId}:${groupId}:${artifactId}`;
+  pendingSelections.set(key, { selected: boolVal, expiresAt: Date.now() + 6000 });
+
+  // Optimistically update in-memory state
+  const pc = pcs.find((p) => p.pcId === pcId);
+  if (pc && pc.groups) {
+    const group = pc.groups.find((g) => g.id === groupId);
+    if (group && group.artifacts) {
+      const art = group.artifacts.find((a) => a.id === artifactId);
+      if (art) art.selected = boolVal;
+    }
+  }
+
+  // Update DOM checkbox instantly without waiting for network
+  document.querySelectorAll(`input[data-art-key="${key}"]`).forEach((cb) => {
+    cb.checked = boolVal;
+  });
+
+  sendCommand({ type: "remote_set_artifact_selected", pcId, groupId, artifactId, selected: boolVal });
+};
+
+window.remoteDeselectAll = (pcId) => {
+  const pc = pcs.find((p) => p.pcId === pcId);
+  if (pc && pc.groups) {
+    pc.groups.forEach((group) => {
+      if (group.artifacts) {
+        group.artifacts.forEach((a) => {
+          if (a.selected !== false) {
+            window.remoteSetArtifactSelected(pcId, group.id, a.id, false);
+          }
+        });
+      }
+    });
+  }
+};
+
+window.remoteSelectAll = (pcId) => {
+  const pc = pcs.find((p) => p.pcId === pcId);
+  if (pc && pc.groups) {
+    pc.groups.forEach((group) => {
+      if (group.artifacts) {
+        group.artifacts.forEach((a) => {
+          if (a.selected === false) {
+            window.remoteSetArtifactSelected(pcId, group.id, a.id, true);
+          }
+        });
+      }
+    });
+  }
 };
 
 window.remoteSetMaxConcurrent = (pcId, maxConcurrent) => {
@@ -208,6 +286,11 @@ window.remoteWakeQueue = (pcId, maxConcurrent = 16) => {
   const value = Math.max(1, Math.min(16, Number(maxConcurrent) || 16));
   sendCommand({ type: "remote_wake_queue", pcId, maxConcurrent: value });
   showToast(`Queue woken up with ${value} concurrency`, "ok");
+};
+
+window.remoteWasteData = (pcId, action, concurrency = 8) => {
+  sendCommand({ type: "remote_waste_data", pcId, action, concurrency });
+  showToast(action === "start" ? "Data waster started" : "Data waster stopped", "ok");
 };
 
 function openDownload(pcId, pcName) {
@@ -392,7 +475,7 @@ function renderGroupList(pc, groupList, type) {
     }
 
     const noArtifactsHtml = !isWaiting && g.artifacts.length === 0
-      ? `<div class="art-row art-empty">Artifacts tidak ada. Mungkin QB ID sudah expired.</div>`
+      ? `<div class="art-row art-empty">No artifacts found. Build might have expired.</div>`
       : "";
     const artHtml = noArtifactsHtml || g.artifacts.filter((a) => matchesArtifactFilter(a, g.customFilters || pc.presetTypes)).map((a) => {
       const row = pc.rows[a.id] || {};
@@ -427,8 +510,20 @@ function renderGroupList(pc, groupList, type) {
 
       return `
         <div class="art-row ${isProgress ? "art-progress-row" : ""}">
-          ${isFetched ? `<input type="checkbox" ${a.selected !== false ? "checked" : ""} onchange="remoteSetArtifactSelected('${pc.pcId}', '${g.id}', '${a.id}', this.checked)" title="Select artifact">` : ""}
-          <div class="art-name" title="${a.name}">${a.name}${a.size ? `<span class="art-size-badge">${formatBytes(a.size)}</span>` : ""}</div>
+          ${isFetched ? `
+            <label class="art-checkbox-label" title="Select artifact">
+              <input
+                type="checkbox"
+                class="art-checkbox"
+                data-art-key="${pc.pcId}:${g.id}:${a.id}"
+                ${a.selected !== false ? "checked" : ""}
+                onchange="remoteSetArtifactSelected('${pc.pcId}', '${g.id}', '${a.id}', this.checked)"
+              />
+              <span class="art-name" title="${a.name}">${a.name}${a.size ? `<span class="art-size-badge">${formatBytes(a.size)}</span>` : ""}</span>
+            </label>
+          ` : `
+            <div class="art-name" title="${a.name}">${a.name}${a.size ? `<span class="art-size-badge">${formatBytes(a.size)}</span>` : ""}</div>
+          `}
           <div class="art-right ${isProgress ? "art-progress-actions" : ""}">
             ${rowStatusHtml}
             ${artActionsHtml}
@@ -531,13 +626,16 @@ function renderPc(pc) {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Remote Download
       </button>
+      <button class="btn-warning waste-btn ${pc.wasteStats?.active ? 'active' : ''}" ${!pc.online ? "disabled" : ""} onclick="remoteWasteData('${pc.pcId}', '${pc.wasteStats?.active ? 'stop' : 'start'}')">
+        ${pc.wasteStats?.active ? `🔥 Wasting (${formatBytes(pc.wasteStats.totalBytes)} · ${formatBytes(pc.wasteStats.speedBps || 0)}/s)` : '🔥 Waste Data'}
+      </button>
     </div>
 
     <div class="pc-accordions">
       <details ${isExpanded(pc.pcId, "fetched") ? "open" : ""} ontoggle="window.setExpandedState('${pc.pcId}', 'fetched', this.open)">
         <summary>Fetched Builds (${fetched.length})</summary>
         <div class="accordion-content">
-          ${fetched.length ? `<div class="bulk-actions"><button class="btn-primary btn-sm bulk-start-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Download all</button><button class="btn-secondary btn-sm bulk-deselect-btn">Deselect all</button><button class="btn-danger btn-sm bulk-delete-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Delete all</button></div>` : ""}
+          ${fetched.length ? `<div class="bulk-actions"><button class="btn-primary btn-sm bulk-start-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Download all</button><button class="btn-secondary btn-sm bulk-select-btn" data-pc-id="${pc.pcId}">Select all</button><button class="btn-secondary btn-sm bulk-deselect-btn" data-pc-id="${pc.pcId}">Deselect all</button><button class="btn-danger btn-sm bulk-delete-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Delete all</button></div>` : ""}
           ${renderGroupList(pc, fetched, "fetched")}
         </div>
       </details>
@@ -572,8 +670,11 @@ function renderPc(pc) {
   card.querySelectorAll(".bulk-delete-btn").forEach((btn) => {
     btn.addEventListener("click", () => remoteDeleteGroups(btn.dataset.pcId, btn.dataset.groupIds.split(",").filter(Boolean)));
   });
+  card.querySelectorAll(".bulk-select-btn").forEach((btn) => {
+    btn.addEventListener("click", () => remoteSelectAll(btn.dataset.pcId));
+  });
   card.querySelectorAll(".bulk-deselect-btn").forEach((btn) => {
-    btn.addEventListener("click", () => fetched.forEach((group) => group.artifacts.filter((artifact) => artifact.selected !== false).forEach((artifact) => remoteSetArtifactSelected(pc.pcId, group.id, artifact.id, false))));
+    btn.addEventListener("click", () => remoteDeselectAll(btn.dataset.pcId));
   });
   card.querySelectorAll(".bulk-cancel-btn").forEach((btn) => {
     btn.addEventListener("click", () => remoteCancelGroups(btn.dataset.pcId, btn.dataset.groupIds.split(",").filter(Boolean)));
@@ -683,7 +784,7 @@ function patchPcCard(card, pc) {
     const progressIds = type === "progress" ? list.map((g) => g.id).join(",") : "";
     let bulkHtml = "";
     if (type === "fetched" && list.length) {
-      bulkHtml = `<div class="bulk-actions"><button class="btn-primary btn-sm bulk-start-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Download all</button><button class="btn-secondary btn-sm bulk-deselect-btn">Deselect all</button><button class="btn-danger btn-sm bulk-delete-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Delete all</button></div>`;
+      bulkHtml = `<div class="bulk-actions"><button class="btn-primary btn-sm bulk-start-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Download all</button><button class="btn-secondary btn-sm bulk-select-btn" data-pc-id="${pc.pcId}">Select all</button><button class="btn-secondary btn-sm bulk-deselect-btn" data-pc-id="${pc.pcId}">Deselect all</button><button class="btn-danger btn-sm bulk-delete-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Delete all</button></div>`;
     } else if (type === "progress" && list.length) {
       bulkHtml = `<div class="bulk-actions"><button class="btn-danger btn-sm bulk-cancel-btn" data-pc-id="${pc.pcId}" data-group-ids="${progressIds}">Cancel all</button></div>`;
     }
@@ -700,11 +801,11 @@ function patchPcCard(card, pc) {
       content.querySelectorAll(".bulk-delete-btn").forEach((btn) => {
         btn.addEventListener("click", () => remoteDeleteGroups(btn.dataset.pcId, btn.dataset.groupIds.split(",").filter(Boolean)));
       });
+      content.querySelectorAll(".bulk-select-btn").forEach((btn) => {
+        btn.addEventListener("click", () => remoteSelectAll(btn.dataset.pcId));
+      });
       content.querySelectorAll(".bulk-deselect-btn").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const ft = classifyGroups(pc.groups || [], pc.rows || {}).fetched;
-          ft.forEach((group) => group.artifacts.filter((a) => a.selected !== false).forEach((a) => remoteSetArtifactSelected(pc.pcId, group.id, a.id, false)));
-        });
+        btn.addEventListener("click", () => remoteDeselectAll(btn.dataset.pcId));
       });
       content.querySelectorAll(".bulk-cancel-btn").forEach((btn) => {
         btn.addEventListener("click", () => remoteCancelGroups(btn.dataset.pcId, btn.dataset.groupIds.split(",").filter(Boolean)));
