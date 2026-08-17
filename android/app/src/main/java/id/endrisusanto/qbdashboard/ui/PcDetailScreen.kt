@@ -220,54 +220,6 @@ fun PcDetailScreen(
                 }
 
                 item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (pc.wasteStats?.active == true) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surfaceVariant
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                    ) {
-                        Row(
-                            Modifier.fillMaxWidth().padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    text = if (pc.wasteStats?.active == true) "Data Waster Active" else "Data Waster",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                                if (pc.wasteStats?.active == true) {
-                                    Text(
-                                        text = "${formatBytes(pc.wasteStats.totalBytes)} wasted (${formatBytes(pc.wasteStats.speedBps.toLong())}/s)",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.error,
-                                        fontWeight = FontWeight.SemiBold,
-                                    )
-                                } else {
-                                    Text(
-                                        text = "Max out network quota (0 disk I/O)",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                            Button(
-                                onClick = {
-                                    serverClient.sendRemoteWasteData(pc.pcId, if (pc.wasteStats?.active == true) "stop" else "start")
-                                },
-                                shape = RoundedCornerShape(8.dp),
-                                colors = if (pc.wasteStats?.active == true) ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error) else ButtonDefaults.buttonColors(),
-                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-                            ) {
-                                Text(if (pc.wasteStats?.active == true) "Stop" else "Waste Data")
-                            }
-                        }
-                    }
-                }
-
-                item {
                     AccordionSection("Fetched Builds", classified.fetched.size, fetchedExpanded, { fetchedExpanded = !fetchedExpanded }) {
                         if (classified.fetched.isEmpty()) EmptyAccordionMessage() else {
                             val allFetchedArtifacts = classified.fetched.flatMap { it.artifacts }

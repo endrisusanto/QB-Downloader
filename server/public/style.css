@@ -606,3 +606,197 @@ input:focus { border-color: var(--accent); }
   0%, 100% { opacity: 1; }
   50% { opacity: 0.75; }
 }
+
+/* ── Mobile & Narrow Screen Responsive Scaling ── */
+@media (max-width: 768px) {
+  body {
+    font-size: 12px;
+  }
+  .topbar {
+    padding: 10px 14px;
+  }
+  .brand {
+    font-size: 14px;
+    gap: 8px;
+  }
+  .brand svg {
+    width: 24px;
+    height: 24px;
+  }
+  .badge {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+  .main-content {
+    padding: 14px 10px;
+  }
+  .pc-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .pc-card-header {
+    padding: 10px 12px;
+  }
+  .pc-name {
+    font-size: 13px;
+  }
+  .pc-meta {
+    font-size: 10.5px;
+    gap: 6px;
+  }
+  .pc-status-badge {
+    padding: 2px 6px;
+    font-size: 10px;
+  }
+  .sys-stats-container {
+    padding: 8px 12px;
+    gap: 6px;
+  }
+  .sys-stat-item {
+    font-size: 10.5px;
+    gap: 6px;
+  }
+  .stat-icon {
+    font-size: 12px;
+  }
+  .pc-actions {
+    padding: 8px 12px;
+    gap: 6px;
+  }
+  .btn-primary, .btn-secondary, .waste-btn {
+    padding: 6px 12px;
+    font-size: 11.5px;
+  }
+  .pc-accordions details summary {
+    padding: 8px 12px;
+    font-size: 11.5px;
+  }
+  .accordion-content {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  .bulk-actions {
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .btn-sm {
+    padding: 3px 6px;
+    font-size: 10.5px;
+  }
+  .group-card {
+    padding: 8px 10px;
+    border-radius: 6px;
+  }
+  .group-title {
+    font-size: 11.5px;
+  }
+  .group-qb-id {
+    font-size: 10.5px;
+  }
+  .art-item {
+    padding: 4px 6px;
+    font-size: 10.5px;
+  }
+  .art-name {
+    font-size: 10.5px;
+  }
+  .art-size {
+    font-size: 10px;
+  }
+  .art-status {
+    font-size: 9.5px;
+    padding: 1px 5px;
+  }
+  .modal {
+    padding: 16px;
+    gap: 12px;
+    width: 95%;
+  }
+  .modal-header h2 {
+    font-size: 15px;
+  }
+  label {
+    font-size: 11.5px;
+    gap: 4px;
+  }
+  input[type="text"], input[type="password"], textarea {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    font-size: 11px;
+  }
+  .topbar {
+    padding: 8px 10px;
+  }
+  .brand span {
+    font-size: 12.5px;
+  }
+  .brand svg {
+    width: 20px;
+    height: 20px;
+  }
+  .badge {
+    padding: 3px 6px;
+    font-size: 10px;
+  }
+  .main-content {
+    padding: 8px 4px;
+  }
+  .pc-card-header {
+    padding: 8px 10px;
+  }
+  .pc-name {
+    font-size: 12px;
+  }
+  .pc-meta {
+    font-size: 9.5px;
+    gap: 4px;
+  }
+  .sys-stats-container {
+    padding: 6px 8px;
+    gap: 4px;
+  }
+  .sys-stat-item {
+    font-size: 9.5px;
+    gap: 4px;
+  }
+  .stat-val {
+    font-size: 9.5px;
+  }
+  .pc-actions {
+    padding: 6px 8px;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .btn-primary, .btn-secondary, .waste-btn {
+    padding: 5px 8px;
+    font-size: 10px;
+  }
+  .pc-accordions details summary {
+    padding: 6px 8px;
+    font-size: 10.5px;
+  }
+  .group-title {
+    font-size: 10.5px;
+  }
+  .art-item {
+    padding: 3px 4px;
+    font-size: 9.5px;
+  }
+  .art-name {
+    font-size: 9.5px;
+  }
+  .art-status {
+    font-size: 8.5px;
+    padding: 1px 3px;
+  }
+}

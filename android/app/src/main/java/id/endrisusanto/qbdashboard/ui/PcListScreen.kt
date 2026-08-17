@@ -63,6 +63,9 @@ fun PcListScreen(
                 selected = pc.pcId == selectedPcId,
                 onClick = { onPcClick(pc.pcId) },
                 onRemoteDownload = { downloadTarget = pc },
+                onToggleWasteData = {
+                    serverClient.sendRemoteWasteData(pc.pcId, if (pc.wasteStats?.active == true) "stop" else "start")
+                },
             )
         }
     }
@@ -81,7 +84,13 @@ fun PcListScreen(
 }
 
 @Composable
-fun PcCard(pc: PcState, selected: Boolean = false, onClick: () -> Unit, onRemoteDownload: () -> Unit) {
+fun PcCard(
+    pc: PcState,
+    selected: Boolean = false,
+    onClick: () -> Unit,
+    onRemoteDownload: () -> Unit,
+    onToggleWasteData: () -> Unit = {},
+) {
     val darkTheme = isSystemInDarkTheme()
     val classified = remember(pc.groups, pc.rows) { classifyPcGroups(pc.groups, pc.rows) }
     Card(
@@ -103,17 +112,36 @@ fun PcCard(pc: PcState, selected: Boolean = false, onClick: () -> Unit, onRemote
                     Text(pc.os, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (pc.ip.isNotBlank()) Text("IP: ${pc.ip}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Surface(
-                    color = if (pc.online) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                            else MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
-                    shape = MaterialTheme.shapes.small,
-                ) {
-                    Text(
-                        if (pc.online) "Online" else "Offline",
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (pc.online) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (pc.online) {
+                        val isWasting = pc.wasteStats?.active == true
+                        Button(
+                            onClick = onToggleWasteData,
+                            shape = MaterialTheme.shapes.small,
+                            colors = if (isWasting) ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                     else ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer, contentColor = MaterialTheme.colorScheme.onTertiaryContainer),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                            modifier = Modifier.height(28.dp),
+                        ) {
+                            Text(
+                                if (isWasting) "Wasting (${formatBytes(pc.wasteStats!!.totalBytes)})" else "Waste Data",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                    }
+                    Surface(
+                        color = if (pc.online) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                else MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
+                        shape = MaterialTheme.shapes.small,
+                    ) {
+                        Text(
+                            if (pc.online) "Online" else "Offline",
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (pc.online) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                        )
+                    }
                 }
             }
 
