@@ -37,7 +37,7 @@ function generateUpdaterJson() {
     return;
   }
 
-  // Find updater zip or installer exe and matching .sig
+  // Prefer .zip if available, otherwise .exe
   let targetAsset = allFiles.find((f) => f.endsWith(".zip") && !f.endsWith(".sig")) ||
                     allFiles.find((f) => f.endsWith(".exe") && !f.endsWith(".sig")) ||
                     allFiles.find((f) => f.endsWith(".msi") && !f.endsWith(".sig"));
@@ -58,8 +58,10 @@ function generateUpdaterJson() {
     console.warn("⚠️ No .sig signature file found. Ensure TAURI_SIGNING_PRIVATE_KEY is configured.");
   }
 
-  const assetBasename = targetAsset ? path.basename(targetAsset) : `QuickBuild Download Manager_${version}_x64-setup.exe`;
-  const downloadUrl = `https://github.com/${repo}/releases/download/${tag}/${encodeURIComponent(assetBasename).replace(/%20/g, "+")}`;
+  const rawBasename = targetAsset ? path.basename(targetAsset) : `QuickBuild Download Manager_${version}_x64-setup.exe`;
+  // softprops/action-gh-release normalizes spaces to dots in uploaded release filenames
+  const releaseAssetBasename = rawBasename.replace(/\s+/g, ".");
+  const downloadUrl = `https://github.com/${repo}/releases/download/${tag}/${releaseAssetBasename}`;
 
   const manifest = {
     version: version.startsWith("v") ? version : `v${version}`,

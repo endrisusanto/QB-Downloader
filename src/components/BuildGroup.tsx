@@ -53,17 +53,17 @@ export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes,
         <div className="group-meta">
           <div className="group-title-row">
             <strong>{group.input}</strong>
-            {onConfigureFilters && !active && !readonlyCheckboxes && (
-              <button className="icon-button compact-icon" title="Configure artifact filters for this build" onClick={onConfigureFilters}>
-                <Filter size={15} />
-              </button>
-            )}
           </div>
           <span>{subtitle}</span>
         </div>
         <div className="group-actions">
           {hasFailed && !active && <button className="icon-button danger-icon" title="Retry failed downloads" onClick={onRetry}><RefreshCcw size={16} /></button>}
           {active && <button className="icon-button warning-icon" title="Pause download" onClick={onCancel}><Pause size={16} /></button>}
+          {onConfigureFilters && !active && !readonlyCheckboxes && (
+            <button className="icon-button compact-icon" title="Configure artifact filters for this build" onClick={onConfigureFilters}>
+              <Filter size={15} />
+            </button>
+          )}
           {!watching && !active && !failed && !hasCompleted && (
             <button
               className="primary-button icon-only"
