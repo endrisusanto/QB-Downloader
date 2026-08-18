@@ -23,32 +23,31 @@ function setupKey() {
     }
   }
 
-  // Extract only the base64 payload line (strip untrusted comment line)
+  // Extract payload lines (skip existing untrusted comment headers)
   const lines = keyContent
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter(Boolean);
 
-  const base64Key =
-    lines.find((l) => !l.toLowerCase().startsWith("untrusted comment") && !l.startsWith("#")) ||
-    keyContent;
+  const payloadLines = lines.filter(
+    (l) => !l.toLowerCase().startsWith("untrusted comment") && !l.startsWith("#")
+  );
+  const payload = payloadLines.join("\n");
 
-  const paths = [
-    path.resolve(__dirname, "../src-tauri/tauri.key"),
-    path.resolve(__dirname, "../tauri.key"),
-  ];
+  // Construct canonical 2-line Minisign key text
+  const canonicalMinisign = `untrusted comment: minisign encrypted secret key\n${payload}\n`;
 
-  for (const p of paths) {
-    const dir = path.dirname(p);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(p, base64Key.trim(), "utf8");
-    console.log(`✅ Wrote pure base64 signing key to ${p} (${base64Key.trim().length} chars)`);
-  }
+  // Tauri CLI expects TAURI_SIGNING_PRIVATE_KEY env var to be the Base64 of the Minisign key file
+  const base64ForTauri = Buffer.from(canonicalMinisign, "utf8").toString("base64");
 
-  // Export to GITHUB_ENV so Tauri CLI can also read it directly from env without file issues
+  // Export to GITHUB_ENV so Tauri CLI can read it directly from env
   if (process.env.GITHUB_ENV && fs.existsSync(process.env.GITHUB_ENV)) {
-    fs.appendFileSync(process.env.GITHUB_ENV, `TAURI_SIGNING_PRIVATE_KEY=${base64Key.trim()}\n`, "utf8");
-    console.log("✅ Exported clean TAURI_SIGNING_PRIVATE_KEY to GITHUB_ENV");
+    fs.appendFileSync(
+      process.env.GITHUB_ENV,
+      `TAURI_SIGNING_PRIVATE_KEY=${base64ForTauri.trim()}\n`,
+      "utf8"
+    );
+    console.log(`✅ Exported clean TAURI_SIGNING_PRIVATE_KEY Base64 to GITHUB_ENV (${base64ForTauri.length} chars)`);
   }
 }
 

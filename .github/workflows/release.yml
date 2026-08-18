@@ -50,13 +50,7 @@ jobs:
         shell: bash
         run: npm run tauri -- build
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ github.workspace }}/src-tauri/tauri.key
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-
-      - name: Cleanup signing key
-        if: always()
-        shell: bash
-        run: rm -f "${{ github.workspace }}/src-tauri/tauri.key" "${{ github.workspace }}/tauri.key"
 
       - name: Generate Auto-Updater manifest (latest.json)
         run: node tools/generate_updater_json.cjs
