@@ -3267,7 +3267,7 @@ dependencies = [
 
 [[package]]
 name = "quickbuild-download-manager"
-version = "0.1.140"
+version = "0.1.141"
 dependencies = [
  "base64 0.22.1",
  "futures-util",
