@@ -1,6 +1,6 @@
 [package]
 name = "quickbuild-download-manager"
-version = "0.1.145"
+version = "0.1.146"
 description = "QuickBuild artifact download manager"
 authors = ["QuickBuild Downloader"]
 edition = "2021"
