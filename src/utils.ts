@@ -36,12 +36,26 @@ export function sanitizePreferences(raw: Partial<SettingsState> = {}) {
 }
 
 export function applyArtifactFilters(artifacts: Artifact[]): Artifact[] {
+  const filterByMqPreference = (items: Artifact[]) => {
+    const hasMq = items.some(a => {
+      const name = a.name.toUpperCase();
+      return name.includes("MQB") || name.includes("_MQ");
+    });
+    if (hasMq) {
+      return items.filter(a => {
+        const name = a.name.toUpperCase();
+        return name.includes("MQB") || name.includes("_MQ") || !name.includes("QB");
+      });
+    }
+    return items;
+  };
+
   const pass1 = artifacts.filter(artifact => {
     const kind = artifact.kind;
     const name = artifact.name.toUpperCase();
     if (kind === "all" || kind === "userdata") {
       if (name.includes("SUP")) return false;
-      if (name.includes("QB") && !name.includes("MQB")) return false;
+      if (name.includes("QB") && !name.includes("MQB") && !name.includes("MQ")) return false;
     }
     return true;
   });
@@ -69,11 +83,21 @@ export function applyArtifactFilters(artifacts: Artifact[]): Artifact[] {
     return items;
   };
 
-  const allArtifacts = filterByPriorityAll(pass1.filter(a => a.kind === "all"));
-  const userdataArtifacts = filterByPriorityUserdata(pass1.filter(a => a.kind === "userdata"));
-  const otherArtifacts = pass1.filter(a => a.kind !== "all" && a.kind !== "userdata");
+  const kinds: ArtifactKind[] = ["all", "userdata", "ap", "bl", "cp", "csc", "home", "md5", "other"];
+  const result: Artifact[] = [];
 
-  return [...otherArtifacts, ...allArtifacts, ...userdataArtifacts];
+  for (const k of kinds) {
+    let list = pass1.filter(a => a.kind === k);
+    list = filterByMqPreference(list);
+    if (k === "all") {
+      list = filterByPriorityAll(list);
+    } else if (k === "userdata") {
+      list = filterByPriorityUserdata(list);
+    }
+    result.push(...list);
+  }
+
+  return result;
 }
 
 export function normalizeGroup(raw: BuildArtifactGroup, fallbackInput: string): BuildArtifactGroup {

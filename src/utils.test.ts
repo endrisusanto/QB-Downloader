@@ -64,6 +64,21 @@ describe("input and settings migration", () => {
     expect(normEur.artifacts.map(a => a.name)).toEqual(["USERDATA_EUR_F776BXXU1AZFW_MQB111318285_REV00.tar.md5"]);
   });
 
+  it("filters BL artifacts preferring MQB over raw QB", () => {
+    const rawGroup: BuildArtifactGroup = {
+      id: "g4",
+      input: "113431209",
+      buildId: "113431209",
+      status: "ready",
+      artifacts: [
+        { id: "b1", buildId: "113431209", name: "BL_S711BXXSIGZH9_QB113430819_REV01_user_low_ship_MULTI_CERT.tar.md5", kind: "bl", selected: true },
+        { id: "b2", buildId: "113431209", name: "BL_S711BXXSIGZH9_S711BXXSIGZH9_MQB113431209_REV01_user_low_ship_MULTI_CERT.tar.md5", kind: "bl", selected: true },
+      ],
+    };
+    const norm = normalizeGroup(rawGroup, "113431209");
+    expect(norm.artifacts.map(a => a.name)).toEqual(["BL_S711BXXSIGZH9_S711BXXSIGZH9_MQB113431209_REV01_user_low_ship_MULTI_CERT.tar.md5"]);
+  });
+
   it("keeps only rows referenced by current groups", () => {
     expect(Object.keys(rowsForGroupArtifacts([group], { a: row("a", "completed"), old: row("old", "failed") }))).toEqual(["a"]);
   });
