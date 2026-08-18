@@ -42,17 +42,15 @@ jobs:
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
       - name: Setup Tauri signing key
-        shell: bash
-        run: |
-          mkdir -p src-tauri
-          printf "%s\n" "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" > "${{ github.workspace }}/src-tauri/tauri.key"
-          cp "${{ github.workspace }}/src-tauri/tauri.key" "${{ github.workspace }}/tauri.key"
+        run: node tools/setup_signing_key.cjs
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
 
       - name: Build Tauri installers
         shell: bash
         run: npm run tauri -- build
         env:
-          TAURI_SIGNING_PRIVATE_KEY: "${{ github.workspace }}/src-tauri/tauri.key"
+          TAURI_SIGNING_PRIVATE_KEY: ${{ github.workspace }}/src-tauri/tauri.key
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: Cleanup signing key
