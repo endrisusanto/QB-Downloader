@@ -48,7 +48,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: Generate Auto-Updater manifest (latest.json)
-        run: node tools/generate_updater_json.js
+        run: node tools/generate_updater_json.cjs
         env:
           GITHUB_REF_NAME: ${{ github.ref_name }}
           GITHUB_REPOSITORY: ${{ github.repository }}
