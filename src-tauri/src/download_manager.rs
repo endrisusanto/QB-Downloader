@@ -363,8 +363,10 @@ async fn download_one(
     .await?;
     let status = response.status();
 
-    let resumable = existing > 0 && status == StatusCode::PARTIAL_CONTENT;
-    let mut downloaded = if existing > 0 && status == StatusCode::PARTIAL_CONTENT {
+    let resumable = existing > 0
+        && (status == StatusCode::PARTIAL_CONTENT
+            || response.headers().get(header::CONTENT_RANGE).is_some());
+    let mut downloaded = if resumable {
         existing
     } else {
         if existing > 0 {
@@ -406,7 +408,6 @@ async fn download_one(
         .map_err(|err| DownloadError::Network(err.to_string()))?
     {
         if control.cancelled.load(Ordering::Relaxed) {
-            let status_name = if downloaded > 0 { "paused" } else { "cancelled" };
             let msg_text = if downloaded > 0 { "Paused" } else { "Cancelled" };
             emit_event(
                 &app,
@@ -415,7 +416,7 @@ async fn download_one(
                     &job_id,
                     &request.build_id,
                     &artifact,
-                    status_name,
+                    "cancelled",
                     downloaded,
                     total,
                     Some(output.display().to_string()),
@@ -556,10 +557,20 @@ pub fn artifact_download_urls(
     let mut urls = Vec::new();
     if let Some(url) = artifact.url.as_deref() {
         urls.push(with_qb_suffix(url, &config.api_suffix));
+        urls.push(url.to_string());
     }
     let direct = direct_download_url(build_id, &artifact.name, config);
-    let ads5 = ads5_download_url(build_id, &artifact.name, config);
     urls.push(direct);
+
+    let base = config.base_url.trim_end_matches('/');
+    let direct_clean = format!(
+        "{base}/download/{}/{}",
+        urlencoding::encode(build_id),
+        encode_path_segments(&artifact.name)
+    );
+    urls.push(direct_clean);
+
+    let ads5 = ads5_download_url(build_id, &artifact.name, config);
     urls.push(ads5);
     urls.dedup();
     urls
@@ -583,8 +594,12 @@ async fn send_download_request(
             .get(&url)
             .basic_auth(&credentials.username, Some(&credentials.access_token))
             .header(header::USER_AGENT, BROWSER_USER_AGENT)
-            .header(header::ACCEPT, "*/*")
-            .header(header::ACCEPT_ENCODING, "identity");
+            .header(
+                header::ACCEPT,
+                "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            )
+            .header(header::ACCEPT_LANGUAGE, "en-US,en;q=0.9")
+            .header(header::CONNECTION, "keep-alive");
         if existing > 0 {
             req = req.header(header::RANGE, format!("bytes={existing}-"));
         }
@@ -601,7 +616,7 @@ async fn send_download_request(
         if map_status(status).is_ok() {
             // When resuming (existing > 0), prefer a response that returns 206 PARTIAL_CONTENT.
             // If the server returns 200 OK (ignored Range header), keep it as fallback and test remaining URLs.
-            if existing > 0 && status != StatusCode::PARTIAL_CONTENT {
+            if existing > 0 && status != StatusCode::PARTIAL_CONTENT && response.headers().get(header::CONTENT_RANGE).is_none() {
                 if fallback_response.is_none() {
                     fallback_response = Some(response);
                 }
