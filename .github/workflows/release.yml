@@ -41,11 +41,23 @@ jobs:
       - name: Test backend
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
+      - name: Setup Tauri signing key
+        shell: bash
+        run: |
+          mkdir -p src-tauri/keys
+          printf "%s\n" "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" > src-tauri/keys/tauri.key
+
       - name: Build Tauri installers
+        shell: bash
         run: npm run tauri -- build
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: src-tauri/keys/tauri.key
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Cleanup signing key
+        if: always()
+        shell: bash
+        run: rm -rf src-tauri/keys
 
       - name: Generate Auto-Updater manifest (latest.json)
         run: node tools/generate_updater_json.cjs

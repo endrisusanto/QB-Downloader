@@ -48,5 +48,7 @@ tools/QD.odin4.*
 **/android/app/build/
 *.apk
 *.ap_
+*.key
+src-tauri/keys/
 *.aab
 
