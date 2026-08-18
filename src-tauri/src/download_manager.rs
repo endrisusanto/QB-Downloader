@@ -46,6 +46,7 @@ impl Default for DownloadManager {
             jobs: Arc::new(Mutex::new(HashMap::new())),
             http: Client::builder()
                 .danger_accept_invalid_certs(true)
+                .redirect(reqwest::redirect::Policy::none())
                 .connect_timeout(Duration::from_secs(30))
                 .build()
                 .unwrap_or_default(),
@@ -590,6 +591,20 @@ fn with_qb_suffix(url: &str, suffix: &str) -> String {
     append_qb_suffix(url, suffix)
 }
 
+fn resolve_redirect_url(base: &str, location: &str) -> String {
+    if location.starts_with("http://") || location.starts_with("https://") {
+        location.to_string()
+    } else if let Ok(base_url) = reqwest::Url::parse(base) {
+        if let Ok(joined) = base_url.join(location) {
+            joined.to_string()
+        } else {
+            location.to_string()
+        }
+    } else {
+        location.to_string()
+    }
+}
+
 async fn send_download_request(
     http: &Client,
     urls: Vec<String>,
@@ -600,26 +615,48 @@ async fn send_download_request(
     let mut fallback_response = None;
 
     for url in urls {
-        let mut req = http
-            .get(&url)
-            .basic_auth(&credentials.username, Some(&credentials.access_token))
-            .header(header::USER_AGENT, BROWSER_USER_AGENT)
-            .header(
-                header::ACCEPT,
-                "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-            )
-            .header(header::ACCEPT_LANGUAGE, "en-US,en;q=0.9")
-            .header(header::CONNECTION, "keep-alive");
-        if existing > 0 {
-            req = req.header(header::RANGE, format!("bytes={existing}-"));
+        let mut current_url = url;
+        let mut response_opt = None;
+
+        for _ in 0..10 {
+            let mut req = http
+                .get(&current_url)
+                .basic_auth(&credentials.username, Some(&credentials.access_token))
+                .header(header::USER_AGENT, BROWSER_USER_AGENT)
+                .header(
+                    header::ACCEPT,
+                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+                )
+                .header(header::ACCEPT_LANGUAGE, "en-US,en;q=0.9")
+                .header(header::CONNECTION, "keep-alive");
+
+            if existing > 0 {
+                req = req.header(header::RANGE, format!("bytes={existing}-"));
+            }
+
+            let response = match req.send().await {
+                Ok(response) => response,
+                Err(err) => {
+                    last_error = Some(err.to_string());
+                    break;
+                }
+            };
+
+            let status = response.status();
+            if status.is_redirection() {
+                if let Some(location) = response.headers().get(header::LOCATION).and_then(|l| l.to_str().ok()) {
+                    current_url = resolve_redirect_url(&current_url, location);
+                    continue;
+                }
+            }
+
+            response_opt = Some(response);
+            break;
         }
 
-        let response = match req.send().await {
-            Ok(response) => response,
-            Err(err) => {
-                last_error = Some(err.to_string());
-                continue;
-            }
+        let response = match response_opt {
+            Some(resp) => resp,
+            None => continue,
         };
 
         let status = response.status();
