@@ -23,11 +23,15 @@ function setupKey() {
     }
   }
 
-  // Normalize newlines to standard UNIX \n and trim trailing whitespace
-  const normalizedKey = keyContent
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .trim();
+  // Extract only the base64 payload line (strip untrusted comment line)
+  const lines = keyContent
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const base64Key =
+    lines.find((l) => !l.toLowerCase().startsWith("untrusted comment") && !l.startsWith("#")) ||
+    keyContent;
 
   const paths = [
     path.resolve(__dirname, "../src-tauri/tauri.key"),
@@ -37,8 +41,14 @@ function setupKey() {
   for (const p of paths) {
     const dir = path.dirname(p);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(p, normalizedKey + "\n", "utf8");
-    console.log(`✅ Wrote normalized signing key to ${p} (${normalizedKey.length} bytes)`);
+    fs.writeFileSync(p, base64Key.trim(), "utf8");
+    console.log(`✅ Wrote pure base64 signing key to ${p} (${base64Key.trim().length} chars)`);
+  }
+
+  // Export to GITHUB_ENV so Tauri CLI can also read it directly from env without file issues
+  if (process.env.GITHUB_ENV && fs.existsSync(process.env.GITHUB_ENV)) {
+    fs.appendFileSync(process.env.GITHUB_ENV, `TAURI_SIGNING_PRIVATE_KEY=${base64Key.trim()}\n`, "utf8");
+    console.log("✅ Exported clean TAURI_SIGNING_PRIVATE_KEY to GITHUB_ENV");
   }
 }
 
