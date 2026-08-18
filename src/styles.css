@@ -629,7 +629,7 @@ button {
 .artifact-row {
   min-height: 58px;
   display: grid;
-  grid-template-columns: 34px 1fr 200px auto 34px;
+  grid-template-columns: 34px 1fr 200px 34px 34px;
   gap: 12px;
   align-items: center;
   padding: 10px 14px;
@@ -641,7 +641,7 @@ button {
 }
 
 .artifact-row.active-artifact {
-  grid-template-columns: 1fr 200px auto 34px;
+  grid-template-columns: 1fr 200px 34px 34px;
 }
 
 .artifact-row.artifact-empty {

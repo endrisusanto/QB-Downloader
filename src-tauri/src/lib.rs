@@ -198,28 +198,40 @@ async fn start_download(
 }
 
 #[tauri::command]
-async fn pause_download(state: State<'_, AppState>, job_id: String) -> Result<(), String> {
+async fn pause_download(
+    state: State<'_, AppState>,
+    job_id: String,
+    artifact_id: Option<String>,
+) -> Result<(), String> {
     state
         .downloads
-        .pause(&job_id)
+        .pause(&job_id, artifact_id.as_deref())
         .await
         .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
-async fn resume_download(state: State<'_, AppState>, job_id: String) -> Result<(), String> {
+async fn resume_download(
+    state: State<'_, AppState>,
+    job_id: String,
+    artifact_id: Option<String>,
+) -> Result<(), String> {
     state
         .downloads
-        .resume(&job_id)
+        .resume(&job_id, artifact_id.as_deref())
         .await
         .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
-async fn cancel_download(state: State<'_, AppState>, job_id: String) -> Result<(), String> {
+async fn cancel_download(
+    state: State<'_, AppState>,
+    job_id: String,
+    artifact_id: Option<String>,
+) -> Result<(), String> {
     state
         .downloads
-        .cancel(&job_id)
+        .cancel(&job_id, artifact_id.as_deref())
         .await
         .map_err(|err| err.to_string())
 }

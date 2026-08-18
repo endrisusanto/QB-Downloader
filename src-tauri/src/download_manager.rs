@@ -55,9 +55,16 @@ impl Default for DownloadManager {
 }
 
 #[derive(Clone)]
+pub struct ArtifactControl {
+    pub cancelled: Arc<AtomicBool>,
+    pub paused: Arc<AtomicBool>,
+}
+
+#[derive(Clone)]
 struct JobControl {
     cancelled: Arc<AtomicBool>,
     paused: Arc<AtomicBool>,
+    artifact_controls: Arc<Mutex<HashMap<String, ArtifactControl>>>,
     request: DownloadRequest,
 }
 
@@ -85,10 +92,22 @@ impl DownloadManager {
             return Err(DownloadError::EmptySelection);
         }
 
+        let mut art_map = HashMap::new();
+        for artifact in &artifacts {
+            art_map.insert(
+                artifact.id.clone(),
+                ArtifactControl {
+                    cancelled: Arc::new(AtomicBool::new(false)),
+                    paused: Arc::new(AtomicBool::new(false)),
+                },
+            );
+        }
+
         let job_id = uuid::Uuid::new_v4().to_string();
         let control = JobControl {
             cancelled: Arc::new(AtomicBool::new(false)),
             paused: Arc::new(AtomicBool::new(false)),
+            artifact_controls: Arc::new(Mutex::new(art_map)),
             request: request.clone(),
         };
 
@@ -138,13 +157,20 @@ impl DownloadManager {
             let job_id = job_id.clone();
             let request = request.clone();
             let control = control.clone();
+            let art_control = {
+                let map = control.artifact_controls.lock().await;
+                map.get(&artifact.id).cloned().unwrap_or_else(|| ArtifactControl {
+                    cancelled: Arc::new(AtomicBool::new(false)),
+                    paused: Arc::new(AtomicBool::new(false)),
+                })
+            };
             let http = http.clone();
             let semaphore = semaphore.clone();
             let jobs = self.jobs.clone();
             let remaining = remaining.clone();
             tokio::spawn(async move {
                 let _permit = semaphore.acquire_owned().await.expect("semaphore open");
-                if control.cancelled.load(Ordering::Relaxed) {
+                if control.cancelled.load(Ordering::Relaxed) || art_control.cancelled.load(Ordering::Relaxed) {
                     emit_event(
                         &app,
                         "download://cancelled",
@@ -163,7 +189,7 @@ impl DownloadManager {
                         ),
                     );
                 } else {
-                    download_with_retry(app, http, job_id.clone(), request, control, artifact)
+                    download_with_retry(app, http, job_id.clone(), request, control, art_control, artifact)
                         .await;
                 }
 
@@ -176,25 +202,60 @@ impl DownloadManager {
         Ok(job_id)
     }
 
-    pub async fn pause(&self, job_id: &str) -> Result<(), DownloadError> {
+    pub async fn pause(&self, job_id: &str, artifact_id: Option<&str>) -> Result<(), DownloadError> {
         let guard = self.jobs.lock().await;
         let control = guard.get(job_id).ok_or(DownloadError::NotFound)?;
-        control.paused.store(true, Ordering::Relaxed);
+        if let Some(art_id) = artifact_id {
+            let arts = control.artifact_controls.lock().await;
+            if let Some(art) = arts.get(art_id) {
+                art.paused.store(true, Ordering::Relaxed);
+            }
+        } else {
+            control.paused.store(true, Ordering::Relaxed);
+            let arts = control.artifact_controls.lock().await;
+            for art in arts.values() {
+                art.paused.store(true, Ordering::Relaxed);
+            }
+        }
         Ok(())
     }
 
-    pub async fn resume(&self, job_id: &str) -> Result<(), DownloadError> {
+    pub async fn resume(&self, job_id: &str, artifact_id: Option<&str>) -> Result<(), DownloadError> {
         let guard = self.jobs.lock().await;
         let control = guard.get(job_id).ok_or(DownloadError::NotFound)?;
-        control.paused.store(false, Ordering::Relaxed);
+        if let Some(art_id) = artifact_id {
+            let arts = control.artifact_controls.lock().await;
+            if let Some(art) = arts.get(art_id) {
+                art.paused.store(false, Ordering::Relaxed);
+            }
+        } else {
+            control.paused.store(false, Ordering::Relaxed);
+            let arts = control.artifact_controls.lock().await;
+            for art in arts.values() {
+                art.paused.store(false, Ordering::Relaxed);
+            }
+        }
         Ok(())
     }
 
-    pub async fn cancel(&self, job_id: &str) -> Result<(), DownloadError> {
+    pub async fn cancel(&self, job_id: &str, artifact_id: Option<&str>) -> Result<(), DownloadError> {
         let guard = self.jobs.lock().await;
         let control = guard.get(job_id).ok_or(DownloadError::NotFound)?;
-        control.cancelled.store(true, Ordering::Relaxed);
-        control.paused.store(false, Ordering::Relaxed);
+        if let Some(art_id) = artifact_id {
+            let arts = control.artifact_controls.lock().await;
+            if let Some(art) = arts.get(art_id) {
+                art.cancelled.store(true, Ordering::Relaxed);
+                art.paused.store(false, Ordering::Relaxed);
+            }
+        } else {
+            control.cancelled.store(true, Ordering::Relaxed);
+            control.paused.store(false, Ordering::Relaxed);
+            let arts = control.artifact_controls.lock().await;
+            for art in arts.values() {
+                art.cancelled.store(true, Ordering::Relaxed);
+                art.paused.store(false, Ordering::Relaxed);
+            }
+        }
         Ok(())
     }
 
@@ -221,6 +282,7 @@ async fn download_with_retry(
     job_id: String,
     request: DownloadRequest,
     control: JobControl,
+    art_control: ArtifactControl,
     artifact: crate::types::Artifact,
 ) {
     for attempt in 1..=MAX_ATTEMPTS {
@@ -230,6 +292,7 @@ async fn download_with_retry(
             job_id.clone(),
             request.clone(),
             control.clone(),
+            art_control.clone(),
             artifact.clone(),
             attempt,
         )
@@ -237,7 +300,7 @@ async fn download_with_retry(
 
         match result {
             Ok(()) => return,
-            Err(_) if control.cancelled.load(Ordering::Relaxed) => {
+            Err(_) if control.cancelled.load(Ordering::Relaxed) || art_control.cancelled.load(Ordering::Relaxed) => {
                 let output = output_path(&request.target_dir, &artifact.name);
                 let downloaded = tokio::fs::metadata(partial_path(&output))
                     .await
@@ -342,6 +405,7 @@ async fn download_one(
     job_id: String,
     request: DownloadRequest,
     control: JobControl,
+    art_control: ArtifactControl,
     artifact: crate::types::Artifact,
     attempt: u8,
 ) -> Result<(), DownloadError> {
@@ -433,7 +497,7 @@ async fn download_one(
         .await
         .map_err(|err| DownloadError::Network(err.to_string()))?
     {
-        while control.paused.load(Ordering::Relaxed) {
+        while control.paused.load(Ordering::Relaxed) || art_control.paused.load(Ordering::Relaxed) {
             let _ = file.flush().await;
             emit_event(
                 &app,
@@ -453,12 +517,12 @@ async fn download_one(
                 ),
             );
             tokio::time::sleep(std::time::Duration::from_millis(400)).await;
-            if control.cancelled.load(Ordering::Relaxed) {
+            if control.cancelled.load(Ordering::Relaxed) || art_control.cancelled.load(Ordering::Relaxed) {
                 break;
             }
         }
 
-        if control.cancelled.load(Ordering::Relaxed) {
+        if control.cancelled.load(Ordering::Relaxed) || art_control.cancelled.load(Ordering::Relaxed) {
             let _ = file.flush().await;
             drop(file);
             let msg_text = if downloaded > 0 { "Paused" } else { "Cancelled" };

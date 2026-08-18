@@ -284,7 +284,7 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
       if (activeEntry) {
         const [jobId] = activeEntry;
         try {
-          await invoke("resume_download", { jobId });
+          await invoke("resume_download", { jobId, artifactId: artifact.id });
           return;
         } catch {
           // Fall through to enqueue if job was completed/dropped
@@ -365,9 +365,9 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
       if (activeEntry) {
         const [jobId] = activeEntry;
         try {
-          await invoke("pause_download", { jobId });
+          await invoke("pause_download", { jobId, artifactId: artifact.id });
         } catch {
-          await invoke("cancel_download", { jobId });
+          await invoke("cancel_download", { jobId, artifactId: artifact.id });
         }
       }
 

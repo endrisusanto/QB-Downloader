@@ -114,17 +114,6 @@ export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes,
                     {row?.message || (row ? `${progress.mode === "indeterminate" ? "Downloading" : `${progress.percent}%`} · ${formatBytes(row.downloaded)} / ${formatBytes(row.total)}` : (artifact.size ? `Ready · ${formatBytes(artifact.size)}` : "Ready"))}
                   </span>
                 </div>
-                <div className="artifact-status">
-                  {onRemoveArtifact && (
-                    <button
-                      className="icon-button compact-icon danger-icon"
-                      title="Delete this artifact"
-                      onClick={() => onRemoveArtifact(artifact.id)}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
                 <div className="artifact-action">
                   {isDownloading ? (
                     onPauseArtifact && (
@@ -145,6 +134,17 @@ export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes,
                       {isPartial ? <Play size={14} /> : <Download size={14} />}
                     </button>
                   ) : null}
+                </div>
+                <div className="artifact-status">
+                  {onRemoveArtifact && (
+                    <button
+                      className="icon-button compact-icon danger-icon"
+                      title="Delete this artifact"
+                      onClick={() => onRemoveArtifact(artifact.id)}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
               </div>
             );
