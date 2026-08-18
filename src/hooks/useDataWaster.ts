@@ -29,9 +29,9 @@ export function useDataWaster() {
     };
   }, []);
 
-  const start = useCallback(async (concurrency: number = 8, targetBytes?: number) => {
+  const start = useCallback(async (concurrency: number = 8, targetBytes?: number, serverUrl?: string) => {
     try {
-      await invoke("start_data_waster", { concurrency, targetBytes });
+      await invoke("start_data_waster", { concurrency, targetBytes, serverUrl });
       setStatus((s) => ({ ...s, active: true }));
     } catch (err) {
       console.error("Failed to start data waster:", err);

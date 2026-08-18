@@ -305,6 +305,31 @@ app.post("/api/pc/waste", (req, res) => {
   res.json({ ok: true, pcId: pc.info.pcId, pcName: pc.info.pcName, action: action === "start" ? "start" : "stop" });
 });
 
+// High-speed zero-disk random uncompressible stream generator for Data Waster
+const wasteChunk = randomBytes(65536);
+app.get("/api/waste/stream", (req, res) => {
+  res.setHeader("Content-Type", "application/octet-stream");
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  const totalBytes = Number(req.query.bytes) || 50_000_000;
+  let sent = 0;
+  let closed = false;
+  req.on("close", () => { closed = true; });
+
+  function push() {
+    while (!closed && sent < totalBytes) {
+      const toSend = Math.min(wasteChunk.length, totalBytes - sent);
+      sent += toSend;
+      const ok = res.write(wasteChunk.subarray(0, toSend));
+      if (!ok) {
+        res.once("drain", push);
+        return;
+      }
+    }
+    if (!closed) res.end();
+  }
+  push();
+});
+
 // SPA fallback
 app.get("*", (_, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 

@@ -43,7 +43,7 @@ impl Default for DataWasterManager {
 }
 
 impl DataWasterManager {
-    pub async fn start(&self, app: AppHandle, concurrency: usize, target_bytes: Option<u64>) {
+    pub async fn start(&self, app: AppHandle, concurrency: usize, target_bytes: Option<u64>, server_url: Option<String>) {
         if self.active.swap(true, Ordering::SeqCst) {
             return; // already running
         }
@@ -58,10 +58,24 @@ impl DataWasterManager {
         let total_bytes = self.total_bytes.clone();
         let slots = concurrency.clamp(1, 32);
 
+        let mut endpoints: Vec<String> = Vec::new();
+        if let Some(ref s_url) = server_url {
+            let trimmed = s_url.trim().trim_end_matches('/');
+            if !trimmed.is_empty() {
+                endpoints.push(format!("{}/api/waste/stream?bytes=50000000", trimmed));
+            }
+        }
+        for ep in ENDPOINTS {
+            endpoints.push((*ep).to_string());
+        }
+        let endpoints: Arc<Vec<String>> = Arc::new(endpoints);
+
         let http = Client::builder()
-            .timeout(Duration::from_secs(15))
-            .connect_timeout(Duration::from_secs(8))
+            .timeout(Duration::from_secs(20))
+            .connect_timeout(Duration::from_secs(6))
             .pool_max_idle_per_host(slots)
+            .danger_accept_invalid_certs(true)
+            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
             .build()
             .unwrap_or_default();
 
@@ -120,10 +134,11 @@ impl DataWasterManager {
             let http = http.clone();
             let active = active.clone();
             let total_bytes = total_bytes.clone();
+            let endpoints = endpoints.clone();
             let mut cancel_rx = tx.subscribe();
 
             tokio::spawn(async move {
-                let endpoint_count = ENDPOINTS.len();
+                let endpoint_count = endpoints.len();
                 let mut idx = worker_id % endpoint_count;
 
                 while active.load(Ordering::Relaxed) {
@@ -134,7 +149,7 @@ impl DataWasterManager {
                         }
                     }
 
-                    let url = ENDPOINTS[idx % endpoint_count];
+                    let url = &endpoints[idx % endpoint_count];
                     idx += 1;
 
                     tokio::select! {

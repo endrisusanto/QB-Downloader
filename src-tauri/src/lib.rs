@@ -276,10 +276,11 @@ async fn start_data_waster(
     state: State<'_, AppState>,
     concurrency: Option<usize>,
     target_bytes: Option<u64>,
+    server_url: Option<String>,
 ) -> Result<(), String> {
     state
         .data_waster
-        .start(app, concurrency.unwrap_or(8), target_bytes)
+        .start(app, concurrency.unwrap_or(8), target_bytes, server_url)
         .await;
     Ok(())
 }
