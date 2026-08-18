@@ -10,7 +10,7 @@ use std::sync::{
 };
 use tauri::Emitter;
 use thiserror::Error;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::{Mutex, Semaphore};
 use tokio::time::{sleep, Duration};
 
@@ -44,7 +44,11 @@ impl Default for DownloadManager {
     fn default() -> Self {
         Self {
             jobs: Arc::new(Mutex::new(HashMap::new())),
-            http: Client::new(),
+            http: Client::builder()
+                .danger_accept_invalid_certs(true)
+                .connect_timeout(Duration::from_secs(30))
+                .build()
+                .unwrap_or_default(),
         }
     }
 }
@@ -383,12 +387,16 @@ async fn download_one(
     );
 
     let mut file = if downloaded > 0 {
-        tokio::fs::OpenOptions::new()
+        let mut f = tokio::fs::OpenOptions::new()
             .create(true)
-            .append(true)
+            .write(true)
             .open(&partial)
             .await
-            .map_err(|err| DownloadError::Io(err.to_string()))?
+            .map_err(|err| DownloadError::Io(err.to_string()))?;
+        f.seek(std::io::SeekFrom::Start(downloaded))
+            .await
+            .map_err(|err| DownloadError::Io(err.to_string()))?;
+        f
     } else {
         tokio::fs::OpenOptions::new()
             .create(true)
@@ -408,6 +416,8 @@ async fn download_one(
         .map_err(|err| DownloadError::Network(err.to_string()))?
     {
         if control.cancelled.load(Ordering::Relaxed) {
+            let _ = file.flush().await;
+            drop(file);
             let msg_text = if downloaded > 0 { "Paused" } else { "Cancelled" };
             emit_event(
                 &app,

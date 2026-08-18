@@ -287,6 +287,58 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
     pumpQueue();
   }, [pumpQueue]);
 
+  const cancelSingle = useCallback(
+    async (group: BuildArtifactGroup, artifact: Artifact) => {
+      queue.current = queue.current
+        .map((item) => {
+          if (item.groupId === group.id) {
+            item.artifacts = item.artifacts.filter((a) => a.id !== artifact.id);
+          }
+          return item;
+        })
+        .filter((item) => item.artifacts.length > 0);
+
+      Object.entries(startingJobs.current).forEach(([queueId, item]) => {
+        if (item.groupId === group.id) {
+          item.artifacts = item.artifacts.filter((a) => a.id !== artifact.id);
+          if (item.artifacts.length === 0) {
+            cancelledQueueIds.current.add(queueId);
+          }
+        }
+      });
+
+      const activeEntry = Object.entries(activeJobs.current).find(
+        ([, job]) => job.groupId === group.id && job.activeArtifactIds.has(artifact.id)
+      );
+      if (activeEntry) {
+        const [jobId, job] = activeEntry;
+        job.activeArtifactIds.delete(artifact.id);
+        if (job.activeArtifactIds.size === 0) {
+          delete activeJobs.current[jobId];
+        }
+        await invoke("cancel_download", { jobId });
+        refreshGroupJobStatus(job.groupId);
+      }
+
+      setRows((current) => {
+        const row = current[artifact.id];
+        if (!row) return current;
+        return {
+          ...current,
+          [artifact.id]: {
+            ...row,
+            status: "cancelled",
+            message: (row.downloaded || 0) > 0 ? "Paused" : "Cancelled",
+            resumable: (row.downloaded || 0) > 0,
+          },
+        };
+      });
+
+      pumpQueue();
+    },
+    [pumpQueue, refreshGroupJobStatus],
+  );
+
   const retry = useCallback(async (group: BuildArtifactGroup) => {
     const failedArtifacts = selectedArtifacts(group).filter((artifact) => latestRows.current[artifact.id]?.status === "failed");
     if (!failedArtifacts.length) return;
@@ -331,7 +383,7 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
   }, [pumpQueue]);
 
   const categories = useMemo(() => classifyGroups(groups, rows), [groups, rows]);
-  return { rows, setRows, totalSpeed, averageThreadSpeed, slotSpeeds, start, startSingle, cancel, retry, removeRow, setMaxConcurrent, categories };
+  return { rows, setRows, totalSpeed, averageThreadSpeed, slotSpeeds, start, startSingle, cancel, cancelSingle, retry, removeRow, setMaxConcurrent, categories };
 }
 
 export function calculateRollingSpeed(samples: { at: number; bytes: number }[], now: number) {

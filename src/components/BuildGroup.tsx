@@ -16,7 +16,7 @@ const ArtifactName = memo(function ArtifactName({ name }: { name: string }) {
 
 const NO_ARTIFACTS_NOTICE = "Artifacts tidak ada. Mungkin QB ID sudah expired.";
 
-export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes, onToggleExpanded, onToggleArtifact, onToggleAll, onDownload, onCancel, onRetry, onRemove, onConfigureFilters, onDownloadArtifact, onRemoveArtifact }: {
+export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes, onToggleExpanded, onToggleArtifact, onToggleAll, onDownload, onCancel, onRetry, onRemove, onConfigureFilters, onDownloadArtifact, onPauseArtifact, onRemoveArtifact }: {
   group: BuildArtifactGroup; rows: Record<string, DownloadEvent>; expanded: boolean;
   filters: string[];
   readonlyCheckboxes?: boolean;
@@ -24,6 +24,7 @@ export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes,
   onDownload: () => void; onCancel: () => void; onRetry: () => void; onRemove: () => void;
   onConfigureFilters?: () => void;
   onDownloadArtifact?: (artifact: Artifact) => void;
+  onPauseArtifact?: (artifact: Artifact) => void;
   onRemoveArtifact?: (artifactId: string) => void;
 }) {
   const artifacts = group.artifacts;
@@ -48,27 +49,17 @@ export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes,
   return (
     <article className={`build-group progress-${cardProgress.mode} ${watching ? "watching" : ""} ${group.error || failed ? "failed" : ""}`} style={{ "--card-progress": `${cardProgress.percent}%` } as CSSProperties}>
       <div className="group-header">
-        <button className="ghost-icon" title={expanded ? "Collapse build" : "Expand build"} onClick={onToggleExpanded}>{expanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}</button>
-        <div className="group-title"><strong>{group.buildId || group.input}</strong><span>{subtitle}</span></div>
+        <button className="icon-button compact-icon" title={expanded ? "Collapse" : "Expand"} onClick={onToggleExpanded}>{expanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}</button>
+        <div className="group-meta">
+          <div className="group-title-row">
+            <strong>{group.input}</strong>
+            {onConfigureFilters && <button className="icon-button compact-icon" title="Configure artifact filters for this build" onClick={onConfigureFilters}><Filter size={15} /></button>}
+          </div>
+          <span>{subtitle}</span>
+        </div>
         <div className="group-actions">
-          {watching && (
-            <>
-              <span className="watching-status"><span className="spinner" />Waiting</span>
-              {onConfigureFilters && (
-                <button className="icon-button" title="Configure auto-download filters" onClick={onConfigureFilters}>
-                  <Filter size={16} />
-                </button>
-              )}
-            </>
-          )}
-          {!watching && !active && !hasCompleted && !hasFailed && artifacts.length > 0 && <button className={`secondary-button compact selection-toggle ${allSelected ? "selected" : ""}`} aria-pressed={allSelected} onClick={() => onToggleAll(!allSelected)}><Check size={15} />{allSelected ? "Deselect all" : "Select all"}</button>}
-          {failed && <button className="icon-button" title="Resume / Retry download" onClick={onRetry}><RefreshCcw size={16} /></button>}
-          {active && (
-            <>
-              <button className="icon-button" title="Pause download" onClick={onCancel}><Pause size={16} /></button>
-              <button className="icon-button danger" title="Cancel download" onClick={onCancel}><X size={16} /></button>
-            </>
-          )}
+          {hasFailed && !active && <button className="icon-button danger-icon" title="Retry failed downloads" onClick={onRetry}><RefreshCcw size={16} /></button>}
+          {active && <button className="icon-button warning-icon" title="Pause download" onClick={onCancel}><Pause size={16} /></button>}
           {!watching && !active && !failed && !hasCompleted && (
             <button
               className="primary-button icon-only"
@@ -95,7 +86,7 @@ export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes,
           {visibleArtifacts.map((artifact) => {
             const row = rows[artifact.id];
             const rowStatus = row?.status;
-            const isDownloading = rowStatus === "downloading" || rowStatus === "retrying";
+            const isDownloading = rowStatus === "downloading" || rowStatus === "retrying" || rowStatus === "queued";
             const isCompleted = rowStatus === "completed";
             const progress = progressState(row);
             // ponytail: apply active-artifact (4-column grid) whenever checkbox is not shown to prevent column offset bug
@@ -131,7 +122,17 @@ export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes,
                   )}
                 </div>
                 <div className="artifact-action">
-                  {!isDownloading && !isCompleted && onDownloadArtifact && (
+                  {isDownloading ? (
+                    onPauseArtifact && (
+                      <button
+                        className="icon-button compact-icon warning-icon"
+                        title="Pause downloading this artifact"
+                        onClick={() => onPauseArtifact(artifact)}
+                      >
+                        <Pause size={14} />
+                      </button>
+                    )
+                  ) : !isCompleted && onDownloadArtifact ? (
                     <button
                       className="icon-button compact-icon"
                       title={isPartial ? "Resume downloading this artifact" : "Download this artifact"}
@@ -139,7 +140,7 @@ export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes,
                     >
                       {isPartial ? <Play size={14} /> : <Download size={14} />}
                     </button>
-                  )}
+                  ) : null}
                 </div>
               </div>
             );
