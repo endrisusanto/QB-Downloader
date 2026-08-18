@@ -44,20 +44,21 @@ jobs:
       - name: Setup Tauri signing key
         shell: bash
         run: |
-          mkdir -p src-tauri/keys
-          printf "%s\n" "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" > src-tauri/keys/tauri.key
+          mkdir -p src-tauri
+          printf "%s\n" "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" > "${{ github.workspace }}/src-tauri/tauri.key"
+          cp "${{ github.workspace }}/src-tauri/tauri.key" "${{ github.workspace }}/tauri.key"
 
       - name: Build Tauri installers
         shell: bash
         run: npm run tauri -- build
         env:
-          TAURI_SIGNING_PRIVATE_KEY: src-tauri/keys/tauri.key
+          TAURI_SIGNING_PRIVATE_KEY: "${{ github.workspace }}/src-tauri/tauri.key"
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: Cleanup signing key
         if: always()
         shell: bash
-        run: rm -rf src-tauri/keys
+        run: rm -f "${{ github.workspace }}/src-tauri/tauri.key" "${{ github.workspace }}/tauri.key"
 
       - name: Generate Auto-Updater manifest (latest.json)
         run: node tools/generate_updater_json.cjs
