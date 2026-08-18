@@ -249,13 +249,47 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
 
   const start = useCallback(
     async (group: BuildArtifactGroup, options: StartOptions) => {
-      enqueue(group, selectedArtifacts(group), options);
+      const selected = selectedArtifacts(group);
+      const selectedIds = new Set(selected.map((a) => a.id));
+
+      const activeJobIds = Object.entries(activeJobs.current)
+        .filter(([, job]) => job.groupId === group.id && [...job.activeArtifactIds].some((id) => selectedIds.has(id)))
+        .map(([jobId]) => jobId);
+
+      for (const jobId of activeJobIds) {
+        try {
+          await invoke("resume_download", { jobId });
+        } catch {
+          // ignore if already done
+        }
+      }
+
+      const unstarted = selected.filter((artifact) => {
+        const row = latestRows.current[artifact.id];
+        return !row || (row.status !== "downloading" && row.status !== "queued" && row.status !== "paused");
+      });
+
+      if (unstarted.length > 0) {
+        enqueue(group, unstarted, options);
+      }
     },
     [enqueue],
   );
 
   const startSingle = useCallback(
     async (group: BuildArtifactGroup, artifact: Artifact, options: StartOptions) => {
+      const activeEntry = Object.entries(activeJobs.current).find(
+        ([, job]) => job.groupId === group.id && job.activeArtifactIds.has(artifact.id)
+      );
+      if (activeEntry) {
+        const [jobId] = activeEntry;
+        try {
+          await invoke("resume_download", { jobId });
+          return;
+        } catch {
+          // Fall through to enqueue if job was completed/dropped
+        }
+      }
       enqueue(group, [artifact], options);
     },
     [enqueue],
@@ -283,9 +317,27 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
       .filter(([, job]) => job.groupId === group.id && [...job.activeArtifactIds].some((id) => selectedIds.has(id)))
       .map(([jobId]) => jobId);
 
-    await Promise.all(activeJobIds.map((jobId) => invoke("cancel_download", { jobId })));
-    pumpQueue();
-  }, [pumpQueue]);
+    await Promise.all(
+      activeJobIds.map((jobId) =>
+        invoke("pause_download", { jobId }).catch(() => invoke("cancel_download", { jobId }))
+      )
+    );
+
+    setRows((current) => {
+      const next = { ...current };
+      for (const artifact of group.artifacts) {
+        if (selectedIds.has(artifact.id) && next[artifact.id]) {
+          next[artifact.id] = {
+            ...next[artifact.id],
+            status: "paused",
+            message: "Paused (Connection Held)",
+            resumable: true,
+          };
+        }
+      }
+      return next;
+    });
+  }, []);
 
   const cancelSingle = useCallback(
     async (group: BuildArtifactGroup, artifact: Artifact) => {
@@ -311,13 +363,12 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
         ([, job]) => job.groupId === group.id && job.activeArtifactIds.has(artifact.id)
       );
       if (activeEntry) {
-        const [jobId, job] = activeEntry;
-        job.activeArtifactIds.delete(artifact.id);
-        if (job.activeArtifactIds.size === 0) {
-          delete activeJobs.current[jobId];
+        const [jobId] = activeEntry;
+        try {
+          await invoke("pause_download", { jobId });
+        } catch {
+          await invoke("cancel_download", { jobId });
         }
-        await invoke("cancel_download", { jobId });
-        refreshGroupJobStatus(job.groupId);
       }
 
       setRows((current) => {
@@ -327,16 +378,14 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
           ...current,
           [artifact.id]: {
             ...row,
-            status: "cancelled",
-            message: (row.downloaded || 0) > 0 ? "Paused" : "Cancelled",
-            resumable: (row.downloaded || 0) > 0,
+            status: "paused",
+            message: "Paused (Connection Held)",
+            resumable: true,
           },
         };
       });
-
-      pumpQueue();
     },
-    [pumpQueue, refreshGroupJobStatus],
+    [],
   );
 
   const retry = useCallback(async (group: BuildArtifactGroup) => {

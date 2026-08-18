@@ -53,7 +53,11 @@ export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes,
         <div className="group-meta">
           <div className="group-title-row">
             <strong>{group.input}</strong>
-            {onConfigureFilters && <button className="icon-button compact-icon" title="Configure artifact filters for this build" onClick={onConfigureFilters}><Filter size={15} /></button>}
+            {onConfigureFilters && !active && !readonlyCheckboxes && (
+              <button className="icon-button compact-icon" title="Configure artifact filters for this build" onClick={onConfigureFilters}>
+                <Filter size={15} />
+              </button>
+            )}
           </div>
           <span>{subtitle}</span>
         </div>

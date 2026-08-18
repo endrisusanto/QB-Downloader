@@ -41,7 +41,8 @@ export type DownloadStatus =
   | "retrying"
   | "completed"
   | "failed"
-  | "cancelled";
+  | "cancelled"
+  | "paused";
 
 export type DownloadEvent = {
   jobId: string;

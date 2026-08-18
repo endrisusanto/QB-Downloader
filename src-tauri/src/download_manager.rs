@@ -57,6 +57,7 @@ impl Default for DownloadManager {
 #[derive(Clone)]
 struct JobControl {
     cancelled: Arc<AtomicBool>,
+    paused: Arc<AtomicBool>,
     request: DownloadRequest,
 }
 
@@ -87,6 +88,7 @@ impl DownloadManager {
         let job_id = uuid::Uuid::new_v4().to_string();
         let control = JobControl {
             cancelled: Arc::new(AtomicBool::new(false)),
+            paused: Arc::new(AtomicBool::new(false)),
             request: request.clone(),
         };
 
@@ -174,10 +176,25 @@ impl DownloadManager {
         Ok(job_id)
     }
 
+    pub async fn pause(&self, job_id: &str) -> Result<(), DownloadError> {
+        let guard = self.jobs.lock().await;
+        let control = guard.get(job_id).ok_or(DownloadError::NotFound)?;
+        control.paused.store(true, Ordering::Relaxed);
+        Ok(())
+    }
+
+    pub async fn resume(&self, job_id: &str) -> Result<(), DownloadError> {
+        let guard = self.jobs.lock().await;
+        let control = guard.get(job_id).ok_or(DownloadError::NotFound)?;
+        control.paused.store(false, Ordering::Relaxed);
+        Ok(())
+    }
+
     pub async fn cancel(&self, job_id: &str) -> Result<(), DownloadError> {
         let guard = self.jobs.lock().await;
         let control = guard.get(job_id).ok_or(DownloadError::NotFound)?;
         control.cancelled.store(true, Ordering::Relaxed);
+        control.paused.store(false, Ordering::Relaxed);
         Ok(())
     }
 
@@ -416,6 +433,31 @@ async fn download_one(
         .await
         .map_err(|err| DownloadError::Network(err.to_string()))?
     {
+        while control.paused.load(Ordering::Relaxed) {
+            let _ = file.flush().await;
+            emit_event(
+                &app,
+                "download://progress",
+                event(
+                    &job_id,
+                    &request.build_id,
+                    &artifact,
+                    "paused",
+                    downloaded,
+                    total,
+                    Some(output.display().to_string()),
+                    Some("Paused (Connection Held)".to_string()),
+                    true,
+                    attempt,
+                    None,
+                ),
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+            if control.cancelled.load(Ordering::Relaxed) {
+                break;
+            }
+        }
+
         if control.cancelled.load(Ordering::Relaxed) {
             let _ = file.flush().await;
             drop(file);

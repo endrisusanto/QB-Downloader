@@ -198,6 +198,24 @@ async fn start_download(
 }
 
 #[tauri::command]
+async fn pause_download(state: State<'_, AppState>, job_id: String) -> Result<(), String> {
+    state
+        .downloads
+        .pause(&job_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+async fn resume_download(state: State<'_, AppState>, job_id: String) -> Result<(), String> {
+    state
+        .downloads
+        .resume(&job_id)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
 async fn cancel_download(state: State<'_, AppState>, job_id: String) -> Result<(), String> {
     state
         .downloads
@@ -358,6 +376,8 @@ pub fn run() {
             resolve_artifact_sizes,
             test_token,
             start_download,
+            pause_download,
+            resume_download,
             cancel_download,
             retry_download,
             pick_download_dir,
