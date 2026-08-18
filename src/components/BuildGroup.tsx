@@ -69,7 +69,7 @@ export function BuildGroup({ group, rows, expanded, filters, readonlyCheckboxes,
               <button className="icon-button danger" title="Cancel download" onClick={onCancel}><X size={16} /></button>
             </>
           )}
-          {!watching && !active && !failed && (
+          {!watching && !active && !failed && !hasCompleted && (
             <button
               className="primary-button icon-only"
               title={hasPartial ? "Resume download" : "Download selected artifacts"}
