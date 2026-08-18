@@ -472,11 +472,23 @@ function renderPc(pc) {
     const ramPct = s.ramTotal ? Math.round((s.ramUsed / s.ramTotal) * 100) : 0;
     const diskAvailStr = formatBytes(s.diskAvailable);
     const diskTotalStr = formatBytes(s.diskTotal);
-    const speedStr = formatBytes(s.totalSpeed || 0);
+    const wasterActive = pc.wasteStats?.active;
+    const wasterSpeed = wasterActive ? (pc.wasteStats.speedBps || 0) : 0;
+    const wasterBytes = wasterActive ? (pc.wasteStats.totalBytes || 0) : 0;
+    const combinedSpeed = (s.totalSpeed || 0) + wasterSpeed;
+    const speedStr = formatBytes(combinedSpeed);
 
     const etaSecs = calculatePcETA(pc, progress);
     const etaStr = etaSecs ? formatETA(etaSecs) : "";
     const { downloadedBytes, totalBytes } = calculatePcProgress(pc, progress);
+
+    let progressHtml = "";
+    if (totalBytes > 0) {
+      const pct = Math.round(downloadedBytes * 100 / totalBytes);
+      progressHtml = `${pct}% (${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)})${wasterActive ? ` · ∞ (${formatBytes(wasterBytes)} wasted)` : ""}`;
+    } else if (wasterActive) {
+      progressHtml = `∞ (${formatBytes(wasterBytes)} wasted)`;
+    }
 
     sysStatsHtml = `
       <div class="sys-stats-container">
@@ -500,10 +512,10 @@ function renderPc(pc) {
           <span class="stat-lbl">Speed:</span>
           <span class="stat-val">${speedStr}/s</span>
         </div>
-        <div class="sys-stat-item progress-item" title="Overall Progress" style="${totalBytes > 0 ? '' : 'display:none'}">
+        <div class="sys-stat-item progress-item" title="Overall Progress" style="${(totalBytes > 0 || wasterActive) ? '' : 'display:none'}">
           <span class="stat-icon">📊</span>
           <span class="stat-lbl">Progress:</span>
-          <span class="stat-val">${totalBytes > 0 ? `${Math.round(downloadedBytes * 100 / totalBytes)}% (${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)})` : ''}</span>
+          <span class="stat-val">${progressHtml}</span>
         </div>
         <div class="sys-stat-item eta-item" title="Estimated Time" style="${etaStr ? '' : 'display:none'}">
           <span class="stat-icon">⏳</span>
@@ -647,12 +659,20 @@ function patchPcCard(card, pc) {
       const ramPct = s.ramTotal ? Math.round((s.ramUsed / s.ramTotal) * 100) : 0;
       patchText(stats[1], `${formatBytes(s.ramUsed)} / ${formatBytes(s.ramTotal)} (${ramPct}%)`);
       patchText(stats[2], `${formatBytes(s.diskAvailable)} free of ${formatBytes(s.diskTotal)}`);
-      patchText(stats[3], `${formatBytes(s.totalSpeed || 0)}/s`);
+      const wasterActive = pc.wasteStats?.active;
+      const wasterSpeed = wasterActive ? (pc.wasteStats.speedBps || 0) : 0;
+      const wasterBytes = wasterActive ? (pc.wasteStats.totalBytes || 0) : 0;
+      const combinedSpeed = (s.totalSpeed || 0) + wasterSpeed;
+      patchText(stats[3], `${formatBytes(combinedSpeed)}/s`);
       
       if (stats.length >= 6) {
         const { downloadedBytes, totalBytes } = calculatePcProgress(pc, progress);
         if (totalBytes > 0) {
-          patchText(stats[4], `${Math.round(downloadedBytes * 100 / totalBytes)}% (${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)})`);
+          const pct = Math.round(downloadedBytes * 100 / totalBytes);
+          patchText(stats[4], `${pct}% (${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)})${wasterActive ? ` · ∞ (${formatBytes(wasterBytes)} wasted)` : ""}`);
+          stats[4].parentElement.style.display = "";
+        } else if (wasterActive) {
+          patchText(stats[4], `∞ (${formatBytes(wasterBytes)} wasted)`);
           stats[4].parentElement.style.display = "";
         } else {
           stats[4].parentElement.style.display = "none";

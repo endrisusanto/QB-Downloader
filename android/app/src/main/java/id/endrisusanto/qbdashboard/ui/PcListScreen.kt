@@ -165,13 +165,15 @@ fun PcCard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
+                    val wasterSpeed = if (pc.wasteStats?.active == true) (pc.wasteStats.speedBps.toLong()) else 0L
+                    val combinedSpeed = pc.sysStats.totalSpeed + wasterSpeed
                     Column(Modifier.weight(1f)) {
                         Text("CPU  ${String.format(java.util.Locale.US, "%.1f", pc.sysStats.cpuUsage)}%", style = MaterialTheme.typography.bodySmall)
                         Text("RAM  ${formatBytes(pc.sysStats.ramUsed)} / ${formatBytes(pc.sysStats.ramTotal)}", style = MaterialTheme.typography.bodySmall)
                     }
                     Column(Modifier.weight(1f)) {
                         Text("Storage  ${formatBytes(pc.sysStats.diskAvailable)} free", style = MaterialTheme.typography.bodySmall)
-                        Text("Speed  ${formatBytes(pc.sysStats.totalSpeed)}/s", style = MaterialTheme.typography.bodySmall)
+                        Text("Speed  ${formatBytes(combinedSpeed)}/s", style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }

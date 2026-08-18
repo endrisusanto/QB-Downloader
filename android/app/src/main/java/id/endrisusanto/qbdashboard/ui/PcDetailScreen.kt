@@ -162,6 +162,10 @@ fun PcDetailScreen(
                                 // ponytail: compact single-line sticky strip
                                 val stats = pc.sysStats
                                 val activeCount = classified.progress.sumOf { it.artifacts.size }
+                                val wasterActive = pc.wasteStats?.active == true
+                                val wasterSpeed = if (wasterActive) (pc.wasteStats?.speedBps ?: 0.0).toLong() else 0L
+                                val wasterBytes = if (wasterActive) (pc.wasteStats?.totalBytes ?: 0L) else 0L
+                                val combinedSpeed = (stats?.totalSpeed ?: 0L) + wasterSpeed
                                 Row(
                                     Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
                                     horizontalArrangement = Arrangement.SpaceEvenly,
@@ -169,12 +173,15 @@ fun PcDetailScreen(
                                 ) {
                                     val (dl, tot) = calculatePcProgress(classified.progress, pc.rows)
                                     if (tot > 0L) {
-                                        CompactChip("⬇ ${(dl * 100f / tot).roundToInt()}%")
+                                        val pct = (dl * 100f / tot).roundToInt()
+                                        CompactChip("⬇ ${pct}%" + if (wasterActive) " · ∞" else "")
+                                    } else if (wasterActive) {
+                                        CompactChip("⬇ ∞")
                                     } else {
                                         CompactChip("⬇ $activeCount")
                                     }
-                                    CompactChip("⚡ ${stats?.let { formatBytes(it.totalSpeed) } ?: "0 B"}/s")
-                                    val etaSecs = stats?.let { calculatePcETA(classified.progress, pc.rows, it.totalSpeed) }
+                                    CompactChip("⚡ ${formatBytes(combinedSpeed)}/s")
+                                    val etaSecs = stats?.let { calculatePcETA(classified.progress, pc.rows, combinedSpeed) }
                                     if (etaSecs != null) {
                                         CompactChip("⏳ ${formatETA(etaSecs)}")
                                     }
@@ -189,6 +196,10 @@ fun PcDetailScreen(
                                         modifier = Modifier.fillMaxWidth(),
                                     ) { Text("Remote Download") }
                                     pc.sysStats?.let { stats ->
+                                        val wasterActive = pc.wasteStats?.active == true
+                                        val wasterSpeed = if (wasterActive) (pc.wasteStats?.speedBps ?: 0.0).toLong() else 0L
+                                        val wasterBytes = if (wasterActive) (pc.wasteStats?.totalBytes ?: 0L) else 0L
+                                        val combinedSpeed = stats.totalSpeed + wasterSpeed
                                         Spacer(Modifier.height(10.dp))
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             ResourceBadge("CPU", "${String.format(java.util.Locale.US, "%.1f", stats.cpuUsage)}%")
@@ -197,15 +208,18 @@ fun PcDetailScreen(
                                         Spacer(Modifier.height(8.dp))
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             ResourceBadge("Storage", "${formatBytes(stats.diskAvailable)} free")
-                                            ResourceBadge("Speed", "${formatBytes(stats.totalSpeed)}/s")
+                                            ResourceBadge("Speed", "${formatBytes(combinedSpeed)}/s")
                                         }
-                                        val etaSecs = calculatePcETA(classified.progress, pc.rows, stats.totalSpeed)
+                                        val etaSecs = calculatePcETA(classified.progress, pc.rows, combinedSpeed)
                                         val (dl, tot) = calculatePcProgress(classified.progress, pc.rows)
-                                        if (etaSecs != null || tot > 0L) {
+                                        if (etaSecs != null || tot > 0L || wasterActive) {
                                             Spacer(Modifier.height(8.dp))
                                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                                 if (tot > 0L) {
-                                                    ResourceBadge("Progress", "${(dl * 100f / tot).roundToInt()}% (${formatBytes(dl)} / ${formatBytes(tot)})")
+                                                    val pct = (dl * 100f / tot).roundToInt()
+                                                    ResourceBadge("Progress", "${pct}% (${formatBytes(dl)} / ${formatBytes(tot)})" + if (wasterActive) " · ∞ (${formatBytes(wasterBytes)})" else "")
+                                                } else if (wasterActive) {
+                                                    ResourceBadge("Progress", "∞ (${formatBytes(wasterBytes)} wasted)")
                                                 }
                                                 if (etaSecs != null) {
                                                     ResourceBadge("Estimated Time", formatETA(etaSecs))
