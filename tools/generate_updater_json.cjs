@@ -1,6 +1,20 @@
 const fs = require("fs");
 const path = require("path");
 
+function getAllFiles(dirPath, arrayOfFiles = []) {
+  if (!fs.existsSync(dirPath)) return arrayOfFiles;
+  const files = fs.readdirSync(dirPath);
+  for (const file of files) {
+    const fullPath = path.join(dirPath, file);
+    if (fs.statSync(fullPath).isDirectory()) {
+      getAllFiles(fullPath, arrayOfFiles);
+    } else {
+      arrayOfFiles.push(fullPath);
+    }
+  }
+  return arrayOfFiles;
+}
+
 function generateUpdaterJson() {
   const tauriConfPath = path.resolve(__dirname, "../src-tauri/tauri.conf.json");
   const tauriConf = JSON.parse(fs.readFileSync(tauriConfPath, "utf8"));
@@ -9,55 +23,43 @@ function generateUpdaterJson() {
   const repo = process.env.GITHUB_REPOSITORY || "endrisusanto/QB-Downloader";
 
   const bundleDir = path.resolve(__dirname, "../src-tauri/target/release/bundle");
-  const nsisDir = path.join(bundleDir, "nsis");
-  const msiDir = path.join(bundleDir, "msi");
-  const updaterDir = path.join(bundleDir, "updater");
+  const allFiles = getAllFiles(bundleDir);
+  console.log(`Scanned ${allFiles.length} files in bundle directory:`, allFiles.map((f) => path.relative(bundleDir, f)));
 
-  // Check if Tauri already generated an updater json
-  const existingJsonPaths = [
-    path.join(updaterDir, "latest.json"),
-    path.join(bundleDir, "latest.json"),
-  ];
-
-  for (const p of existingJsonPaths) {
-    if (fs.existsSync(p)) {
-      console.log(`Found existing updater JSON at ${p}`);
-      const out = path.join(bundleDir, "latest.json");
-      if (p !== out) fs.copyFileSync(p, out);
-      return;
+  // Check if Tauri already generated a latest.json
+  const existingLatest = allFiles.find((f) => path.basename(f) === "latest.json");
+  if (existingLatest) {
+    console.log(`Found Tauri's generated latest.json at ${existingLatest}`);
+    const out = path.join(bundleDir, "latest.json");
+    if (existingLatest !== out) {
+      fs.copyFileSync(existingLatest, out);
     }
+    return;
   }
 
-  // Find .zip and .sig in nsis or bundle dir
-  let zipFile = null;
-  let sigFile = null;
+  // Find updater zip or installer exe and matching .sig
+  let targetAsset = allFiles.find((f) => f.endsWith(".zip") && !f.endsWith(".sig")) ||
+                    allFiles.find((f) => f.endsWith(".exe") && !f.endsWith(".sig")) ||
+                    allFiles.find((f) => f.endsWith(".msi") && !f.endsWith(".sig"));
 
-  const searchDirs = [nsisDir, msiDir, bundleDir];
-  for (const dir of searchDirs) {
-    if (!fs.existsSync(dir)) continue;
-    const files = fs.readdirSync(dir);
-    for (const f of files) {
-      if (f.endsWith(".zip") && !f.endsWith(".sig")) {
-        zipFile = path.join(dir, f);
-      }
-      if (f.endsWith(".sig")) {
-        sigFile = path.join(dir, f);
-      }
+  let sigFile = allFiles.find((f) => f.endsWith(".sig"));
+  if (targetAsset) {
+    const matchingSig = `${targetAsset}.sig`;
+    if (fs.existsSync(matchingSig)) {
+      sigFile = matchingSig;
     }
-    if (zipFile && sigFile) break;
-  }
-
-  if (!sigFile) {
-    console.warn("⚠️ No .sig signature file found in bundle directories. Ensure TAURI_SIGNING_PRIVATE_KEY is configured.");
   }
 
   let signature = "";
   if (sigFile && fs.existsSync(sigFile)) {
     signature = fs.readFileSync(sigFile, "utf8").trim();
+    console.log(`Found signature file: ${sigFile}`);
+  } else {
+    console.warn("⚠️ No .sig signature file found. Ensure TAURI_SIGNING_PRIVATE_KEY is configured.");
   }
 
-  const zipBasename = zipFile ? path.basename(zipFile) : `QuickBuild.Download.Manager_${version}_x64-setup.nsis.zip`;
-  const downloadUrl = `https://github.com/${repo}/releases/download/${tag}/${zipBasename}`;
+  const assetBasename = targetAsset ? path.basename(targetAsset) : `QuickBuild Download Manager_${version}_x64-setup.exe`;
+  const downloadUrl = `https://github.com/${repo}/releases/download/${tag}/${encodeURIComponent(assetBasename).replace(/%20/g, "+")}`;
 
   const manifest = {
     version: version.startsWith("v") ? version : `v${version}`,
@@ -74,7 +76,7 @@ function generateUpdaterJson() {
   const outputPath = path.join(bundleDir, "latest.json");
   if (!fs.existsSync(bundleDir)) fs.mkdirSync(bundleDir, { recursive: true });
   fs.writeFileSync(outputPath, JSON.stringify(manifest, null, 2), "utf8");
-  console.log(`✅ Generated latest.json at ${outputPath}:`, manifest);
+  console.log(`✅ Generated latest.json at ${outputPath}:`, JSON.stringify(manifest, null, 2));
 }
 
 generateUpdaterJson();
