@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { calculateAverageThreadSpeed, classifyGroups, calculateRollingSpeed } from "./hooks/useDownload";
 import type { BuildArtifactGroup, DownloadEvent } from "./types";
-import { areAllBuildsExpanded, migrateFilters, normalizeGroup, progressState, rowsForGroupArtifacts, sanitizePreferences, splitBulkInput, statusLabel, visibleArtifacts } from "./utils";
+import { areAllBuildsExpanded, migrateFilters, normalizeGroup, progressState, rowsForGroupArtifacts, sanitizePreferences, sortArtifactsByPriority, splitBulkInput, statusLabel, visibleArtifacts } from "./utils";
 
 const group: BuildArtifactGroup = {
   id: "g1",
@@ -77,6 +77,19 @@ describe("input and settings migration", () => {
     };
     const norm = normalizeGroup(rawGroup, "113431209");
     expect(norm.artifacts.map(a => a.name)).toEqual(["BL_S711BXXSIGZH9_S711BXXSIGZH9_MQB113431209_REV01_user_low_ship_MULTI_CERT.tar.md5"]);
+  });
+
+  it("prioritizes selected artifacts and active filter types for size fetching", () => {
+    const list: import("./types").Artifact[] = [
+      { id: "1", buildId: "b1", name: "USERDATA_other.tar.md5", kind: "userdata", selected: false },
+      { id: "2", buildId: "b1", name: "ALL_main.tar.md5", kind: "all", selected: true },
+      { id: "3", buildId: "b1", name: "AP_system.tar.md5", kind: "ap", selected: false },
+      { id: "4", buildId: "b1", name: "BL_boot.tar.md5", kind: "bl", selected: false },
+    ];
+    const prioritized = sortArtifactsByPriority(list, ["ALL_", "AP_"]);
+    // ALL_ is selected (rank 1), AP_ matches selectedTypes (rank 2), others follow
+    expect(prioritized[0].id).toBe("2"); // ALL_ (selected)
+    expect(prioritized[1].id).toBe("3"); // AP_ (filter match)
   });
 
   it("keeps only rows referenced by current groups", () => {

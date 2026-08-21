@@ -50,12 +50,13 @@ async fn resolve_artifact_sizes(
         Err(_) => return,
     };
     let http = reqwest::Client::builder()
-        .connect_timeout(std::time::Duration::from_secs(10))
-        .timeout(std::time::Duration::from_secs(10))
+        .connect_timeout(std::time::Duration::from_secs(3))
+        .timeout(std::time::Duration::from_secs(5))
         .build()
         .unwrap_or_default();
 
-    let mut handles = Vec::new();
+    let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(16));
+
     for artifact in artifacts {
         if artifact.size.is_some() {
             continue;
@@ -64,7 +65,13 @@ async fn resolve_artifact_sizes(
         let creds = credentials.clone();
         let config = config.clone();
         let app = app.clone();
-        handles.push(tokio::spawn(async move {
+        let semaphore = semaphore.clone();
+        tokio::spawn(async move {
+            let _permit = match semaphore.acquire().await {
+                Ok(p) => p,
+                Err(_) => return,
+            };
+
             let candidate_urls = download_manager::artifact_download_urls(
                 &artifact.build_id,
                 &artifact,
@@ -146,10 +153,7 @@ async fn resolve_artifact_sizes(
                     }
                 }
             }
-        }));
-    }
-    for handle in handles {
-        let _ = handle.await;
+        });
     }
 }
 

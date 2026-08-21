@@ -160,6 +160,23 @@ export function selectedArtifacts(group: BuildArtifactGroup) {
   return group.artifacts.filter((artifact) => artifact.selected);
 }
 
+export function sortArtifactsByPriority(artifacts: Artifact[], selectedTypes: string[] = []): Artifact[] {
+  const enabledPrefixes = new Set(selectedTypes.map((t) => t.toUpperCase()));
+  return [...artifacts].sort((a, b) => {
+    if (a.selected && !b.selected) return -1;
+    if (!a.selected && b.selected) return 1;
+
+    const aName = a.name.toUpperCase();
+    const bName = b.name.toUpperCase();
+    const aMatches = Array.from(enabledPrefixes).some((p) => aName.startsWith(p) || (p === "MD5" && aName.endsWith(".MD5")));
+    const bMatches = Array.from(enabledPrefixes).some((p) => bName.startsWith(p) || (p === "MD5" && bName.endsWith(".MD5")));
+    if (aMatches && !bMatches) return -1;
+    if (!aMatches && bMatches) return 1;
+
+    return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+  });
+}
+
 export function rowsForGroupArtifacts(groups: BuildArtifactGroup[], rows: Record<string, DownloadEvent>) {
   const ids = new Set(groups.flatMap((group) => group.artifacts.map((artifact) => artifact.id)));
   return Object.fromEntries(Object.entries(rows).filter(([artifactId]) => ids.has(artifactId)));
