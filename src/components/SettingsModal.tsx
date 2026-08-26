@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { Eye, EyeOff, KeyRound, RefreshCw, RotateCcw, X } from "lucide-react";
 import { useState } from "react";
-import { DEFAULT_QB_URL, FILTER_OPTIONS } from "../constants";
+import { DEFAULT_API_SUFFIX, DEFAULT_QB_URL, FILTER_OPTIONS } from "../constants";
 import type { SettingsState, TokenTestResult } from "../types";
 import type { UpdateStatus } from "../hooks/useUpdater";
 
@@ -28,6 +28,7 @@ export function SettingsModal({
   const [result, setResult] = useState<TokenTestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAccessToken, setShowAccessToken] = useState(false);
+  const [showApiSuffix, setShowApiSuffix] = useState(false);
   const patch = (next: Partial<SettingsState>) => setDraft((current) => ({ ...current, ...next }));
 
   async function testToken() {
@@ -35,7 +36,7 @@ export function SettingsModal({
     try {
       const response = await invoke<TokenTestResult>("test_token", {
         credentials: { username: draft.username, accessToken: draft.accessToken },
-        quickBuildConfig: { baseUrl: draft.quickBuildUrl },
+        quickBuildConfig: { baseUrl: draft.quickBuildUrl, apiSuffix: draft.apiSuffix },
       });
       setResult(response);
       if (response.selectedUsername) patch({ username: response.selectedUsername });
@@ -53,10 +54,11 @@ export function SettingsModal({
   return (
     <div className="modal-backdrop">
       <div className="modal settings-modal">
-        <div className="modal-header"><div><h2>Settings</h2><span>Credentials are encrypted in Stronghold.</span></div><button className="ghost-icon" title="Close" onClick={onClose}><X size={18} /></button></div>
+        <div className="modal-header"><div><h2>Settings</h2><span>Credentials and API suffix are encrypted in Stronghold.</span></div><button className="ghost-icon" title="Close" onClick={onClose}><X size={18} /></button></div>
         {(secureError || error) && <div className="settings-error">{secureError || error}</div>}
         <label>QuickBuild URL<input value={draft.quickBuildUrl} onChange={(event) => patch({ quickBuildUrl: event.target.value })} placeholder={DEFAULT_QB_URL} /></label>
-        <button className="secondary-button endpoint-reset" onClick={() => patch({ quickBuildUrl: DEFAULT_QB_URL })}><RotateCcw size={16} />Reset endpoint defaults</button>
+        <label>API suffix<div className="secret-input"><input type={showApiSuffix ? "text" : "password"} value={draft.apiSuffix} onChange={(event) => patch({ apiSuffix: event.target.value })} /><button className="ghost-icon" type="button" title={showApiSuffix ? "Hide API suffix" : "Show API suffix"} onClick={() => setShowApiSuffix((visible) => !visible)}>{showApiSuffix ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></label>
+        <button className="secondary-button endpoint-reset" onClick={() => patch({ quickBuildUrl: DEFAULT_QB_URL, apiSuffix: DEFAULT_API_SUFFIX })}><RotateCcw size={16} />Reset endpoint defaults</button>
         <label>Username<input value={draft.username} onChange={(event) => patch({ username: event.target.value })} placeholder="corp\\username or username" /></label>
         <label>Access token<div className="secret-input"><input type={showAccessToken ? "text" : "password"} value={draft.accessToken} onChange={(event) => patch({ accessToken: event.target.value })} /><button className="ghost-icon" type="button" title={showAccessToken ? "Hide access token" : "Show access token"} onClick={() => setShowAccessToken((visible) => !visible)}>{showAccessToken ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></label>
         <div className="token-test-row"><button className="secondary-button" disabled={testing || !draft.username || !draft.accessToken} onClick={testToken}><KeyRound size={16} />{testing ? "Testing..." : "Test token"}</button>{result && <span className={`test-summary ${result.ok ? "ok" : "failed"}`}>{result.ok ? "Token OK" : "Token test failed"}</span>}</div>

@@ -153,7 +153,11 @@ impl QbClient {
     }
 
     async fn send_rest(&self, path: &str) -> Result<String, QbError> {
-        let url = format!("{}/rest{}", self.config.base_url, path);
+        let url = format!(
+            "{}/rest{}",
+            self.config.base_url,
+            append_qb_suffix(path, &self.config.api_suffix)
+        );
         let response = self
             .http
             .get(url)
@@ -195,6 +199,15 @@ impl QbClient {
             Ok(())
         }
     }
+}
+
+pub fn append_qb_suffix(path_or_url: &str, suffix: &str) -> String {
+    let suffix = suffix.trim().trim_start_matches(['?', '&']);
+    if suffix.is_empty() || path_or_url.contains(suffix) {
+        return path_or_url.to_string();
+    }
+    let separator = if path_or_url.contains('?') { '&' } else { '?' };
+    format!("{path_or_url}{separator}{suffix}")
 }
 
 fn username_candidates(username: &str) -> Vec<String> {
