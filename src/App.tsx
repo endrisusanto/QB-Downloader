@@ -30,7 +30,7 @@ function AppContent() {
   const dataWaster = useDataWaster();
   const { settings, patchSettings, saveSettings, loading: settingsLoading, error: settingsError } = useSettings();
   const credentials = useMemo(() => ({ username: settings.username, accessToken: settings.accessToken }), [settings.username, settings.accessToken]);
-  const config = useMemo(() => ({ baseUrl: settings.quickBuildUrl, apiSuffix: settings.apiSuffix }), [settings.quickBuildUrl, settings.apiSuffix]);
+  const config = useMemo(() => ({ baseUrl: settings.quickBuildUrl }), [settings.quickBuildUrl]);
   const builds = useBuilds(credentials, config, settings.selectedTypes, settings.hideUncheckedArtifacts);
   const downloads = useDownload(builds.groups, builds.setGroups);
 

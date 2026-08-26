@@ -1,20 +1,17 @@
 use serde::{Deserialize, Serialize};
 
 pub const ANDROID_QB_URL: &str = "https://android.qb.sec.samsung.net";
-pub const QB_SUFFIX: &str = "QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC";
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QuickBuildConfig {
     pub base_url: String,
-    pub api_suffix: String,
 }
 
 impl Default for QuickBuildConfig {
     fn default() -> Self {
         Self {
             base_url: ANDROID_QB_URL.to_string(),
-            api_suffix: QB_SUFFIX.to_string(),
         }
     }
 }
@@ -28,14 +25,7 @@ impl QuickBuildConfig {
             return Err("QuickBuild URL must use HTTP or HTTPS.".to_string());
         }
 
-        Ok(Self {
-            base_url,
-            api_suffix: self
-                .api_suffix
-                .trim()
-                .trim_start_matches(['?', '&'])
-                .to_string(),
-        })
+        Ok(Self { base_url })
     }
 }
 
@@ -151,19 +141,16 @@ mod tests {
     fn normalizes_quickbuild_configuration() {
         let config = QuickBuildConfig {
             base_url: " https://example.test/qb/// ".to_string(),
-            api_suffix: "?token=abc".to_string(),
         }
         .normalized()
         .unwrap();
         assert_eq!(config.base_url, "https://example.test/qb");
-        assert_eq!(config.api_suffix, "token=abc");
     }
 
     #[test]
     fn rejects_non_http_quickbuild_configuration() {
         assert!(QuickBuildConfig {
             base_url: "file:///tmp/qb".to_string(),
-            api_suffix: String::new(),
         }
         .normalized()
         .is_err());

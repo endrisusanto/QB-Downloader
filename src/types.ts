@@ -1,5 +1,5 @@
 export type Credentials = { username: string; accessToken: string };
-export type QuickBuildConfig = { baseUrl: string; apiSuffix: string };
+export type QuickBuildConfig = { baseUrl: string };
 
 export type ArtifactKind =
   | "all"
@@ -84,7 +84,6 @@ export type TokenTestResult = {
 export type SettingsState = {
   username: string;
   accessToken: string;
-  apiSuffix: string;
   quickBuildUrl: string;
   downloadTargetDir: string;
   selectedTypes: string[];

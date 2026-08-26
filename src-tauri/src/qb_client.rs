@@ -153,11 +153,7 @@ impl QbClient {
     }
 
     async fn send_rest(&self, path: &str) -> Result<String, QbError> {
-        let url = format!(
-            "{}/rest{}",
-            self.config.base_url,
-            append_qb_suffix(path, &self.config.api_suffix)
-        );
+        let url = format!("{}/rest{}", self.config.base_url, path);
         let response = self
             .http
             .get(url)
@@ -199,15 +195,6 @@ impl QbClient {
             Ok(())
         }
     }
-}
-
-pub fn append_qb_suffix(path_or_url: &str, suffix: &str) -> String {
-    let suffix = suffix.trim().trim_start_matches(['?', '&']);
-    if suffix.is_empty() || path_or_url.contains(suffix) {
-        return path_or_url.to_string();
-    }
-    let separator = if path_or_url.contains('?') { '&' } else { '?' };
-    format!("{path_or_url}{separator}{suffix}")
 }
 
 fn username_candidates(username: &str) -> Vec<String> {
@@ -284,19 +271,6 @@ mod tests {
             username_candidates("corp\\endri.s"),
             vec!["corp\\endri.s".to_string(), "endri.s".to_string()]
         );
-    }
-
-    #[test]
-    fn appends_original_qd_suffix_like_qd_exe() {
-        assert_eq!(
-            append_qb_suffix("/builds/123", "token"),
-            "/builds/123?token"
-        );
-        assert_eq!(
-            append_qb_suffix("/ids?user_name=endri.s", "?token"),
-            "/ids?user_name=endri.s&token"
-        );
-        assert_eq!(append_qb_suffix("/builds/123", ""), "/builds/123");
     }
 
     #[test]

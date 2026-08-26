@@ -1,5 +1,5 @@
 use crate::path_safety::output_path;
-use crate::qb_client::{append_qb_suffix, map_status};
+use crate::qb_client::map_status;
 use crate::types::{DownloadEvent, DownloadRequest, QuickBuildConfig};
 use reqwest::{header, header::HeaderMap, Client, Response, StatusCode};
 use std::collections::HashMap;
@@ -647,26 +647,20 @@ pub fn encode_path_segments(path: &str) -> String {
 }
 
 pub fn direct_download_url(build_id: &str, name: &str, config: &QuickBuildConfig) -> String {
-    append_qb_suffix(
-        &format!(
-            "{}/download/{}/{}",
-            config.base_url,
-            urlencoding::encode(build_id),
-            encode_path_segments(name)
-        ),
-        &config.api_suffix,
+    let base = config.base_url.trim_end_matches('/');
+    format!(
+        "{base}/download/{}/{}",
+        urlencoding::encode(build_id),
+        encode_path_segments(name)
     )
 }
 
 pub fn ads5_download_url(build_id: &str, name: &str, config: &QuickBuildConfig) -> String {
-    append_qb_suffix(
-        &format!(
-            "{}/rest/ads5/download/{}?filename={}",
-            config.base_url,
-            urlencoding::encode(build_id),
-            urlencoding::encode(name)
-        ),
-        &config.api_suffix,
+    let base = config.base_url.trim_end_matches('/');
+    format!(
+        "{base}/rest/ads5/download/{}?filename={}",
+        urlencoding::encode(build_id),
+        urlencoding::encode(name)
     )
 }
 
@@ -677,28 +671,15 @@ pub fn artifact_download_urls(
 ) -> Vec<String> {
     let mut urls = Vec::new();
     if let Some(url) = artifact.url.as_deref() {
-        urls.push(with_qb_suffix(url, &config.api_suffix));
         urls.push(url.to_string());
     }
     let direct = direct_download_url(build_id, &artifact.name, config);
     urls.push(direct);
 
-    let base = config.base_url.trim_end_matches('/');
-    let direct_clean = format!(
-        "{base}/download/{}/{}",
-        urlencoding::encode(build_id),
-        encode_path_segments(&artifact.name)
-    );
-    urls.push(direct_clean);
-
     let ads5 = ads5_download_url(build_id, &artifact.name, config);
     urls.push(ads5);
     urls.dedup();
     urls
-}
-
-fn with_qb_suffix(url: &str, suffix: &str) -> String {
-    append_qb_suffix(url, suffix)
 }
 
 fn resolve_redirect_url(base: &str, location: &str) -> String {
@@ -880,7 +861,7 @@ mod tests {
         let config = QuickBuildConfig::default();
         assert_eq!(
             direct_download_url("QB 1", "AP file.tar.md5", &config),
-            "https://android.qb.sec.samsung.net/download/QB%201/AP%20file.tar.md5?QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC"
+            "https://android.qb.sec.samsung.net/download/QB%201/AP%20file.tar.md5"
         );
     }
 
@@ -889,7 +870,7 @@ mod tests {
         let config = QuickBuildConfig::default();
         assert_eq!(
             direct_download_url("123", "sub folder/file name.zip", &config),
-            "https://android.qb.sec.samsung.net/download/123/sub%20folder/file%20name.zip?QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC"
+            "https://android.qb.sec.samsung.net/download/123/sub%20folder/file%20name.zip"
         );
     }
 
@@ -898,12 +879,12 @@ mod tests {
         let config = QuickBuildConfig::default();
         assert_eq!(
             ads5_download_url("QB 1", "AP file.tar.md5", &config),
-            "https://android.qb.sec.samsung.net/rest/ads5/download/QB%201?filename=AP%20file.tar.md5&QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC"
+            "https://android.qb.sec.samsung.net/rest/ads5/download/QB%201?filename=AP%20file.tar.md5"
         );
     }
 
     #[test]
-    fn artifact_download_urls_adds_qd_suffix_to_existing_url() {
+    fn artifact_download_urls_preserves_clean_url() {
         let artifact = crate::types::Artifact {
             id: "1".to_string(),
             build_id: "110".to_string(),
@@ -916,7 +897,7 @@ mod tests {
 
         assert_eq!(
             artifact_download_urls("110", &artifact, &QuickBuildConfig::default())[0],
-            "https://android.qb.sec.samsung.net/download/110/ALL.tar.md5?QDgil8FjqA27El7lpOaC3YACGlCzhR9yq4FV1gnyZC"
+            "https://android.qb.sec.samsung.net/download/110/ALL.tar.md5"
         );
     }
 
@@ -945,11 +926,10 @@ mod tests {
     fn download_urls_use_job_configuration() {
         let config = QuickBuildConfig {
             base_url: "https://quickbuild.example.test".to_string(),
-            api_suffix: "secret=1".to_string(),
         };
         assert_eq!(
             direct_download_url("12", "ALL_file.zip", &config),
-            "https://quickbuild.example.test/download/12/ALL_file.zip?secret=1"
+            "https://quickbuild.example.test/download/12/ALL_file.zip"
         );
     }
 
