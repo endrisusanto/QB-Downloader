@@ -121,7 +121,7 @@ impl DownloadManager {
         let http = self.http.clone();
         let remaining = Arc::new(AtomicUsize::new(artifacts.len()));
 
-        for artifact in artifacts {
+        for (index, artifact) in artifacts.into_iter().enumerate() {
             let output = output_path(&request.target_dir, &artifact.name);
             let partial = partial_path(&output);
             let existing = tokio::fs::metadata(&partial)
@@ -170,6 +170,10 @@ impl DownloadManager {
             let remaining = remaining.clone();
             tokio::spawn(async move {
                 let _permit = semaphore.acquire_owned().await.expect("semaphore open");
+                if index > 0 {
+                    // ponytail: stagger initial connection handshakes to stay well below 10 req/s
+                    tokio::time::sleep(tokio::time::Duration::from_millis(((index % 16) as u64) * 80)).await;
+                }
                 if control.cancelled.load(Ordering::Relaxed) || art_control.cancelled.load(Ordering::Relaxed) {
                     emit_event(
                         &app,

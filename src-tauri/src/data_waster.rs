@@ -155,8 +155,8 @@ impl DataWasterManager {
                     tokio::select! {
                         _ = cancel_rx.recv() => break,
                         res = http.get(url).send() => {
-                            if let Ok(response) = res {
-                                if response.status().is_success() {
+                            match res {
+                                Ok(response) if response.status().is_success() => {
                                     let mut stream = response.bytes_stream();
                                     loop {
                                         tokio::select! {
@@ -182,6 +182,10 @@ impl DataWasterManager {
                                             }
                                         }
                                     }
+                                }
+                                _ => {
+                                    // ponytail: back off on network or HTTP error/rate-limit
+                                    tokio::time::sleep(Duration::from_millis(1500)).await;
                                 }
                             }
                         }

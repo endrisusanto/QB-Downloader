@@ -1,8 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Artifact, BuildArtifactGroup, Credentials, QuickBuildConfig } from "../types";
-import { normalizeGroup, prepareGroup, selectedArtifacts, sortArtifactsByPriority, splitBulkInput } from "../utils";
+import { normalizeGroup, prepareGroup, selectedArtifacts, splitBulkInput } from "../utils";
 
 const WATCH_POLL_MS = 60_000;
 
@@ -26,39 +25,6 @@ export function useBuilds(
     localStorage.setItem("quickbuild-download-manager-groups", JSON.stringify(groups));
   }, [groups]);
 
-  // ponytail: listen for background artifact size resolution events
-  useEffect(() => {
-    const unlisten = listen<{ artifactId: string; size: number }>("artifact://size", (event) => {
-      setGroups((current) =>
-        current.map((group) => ({
-          ...group,
-          artifacts: group.artifacts.map((a) =>
-            a.id === event.payload.artifactId ? { ...a, size: event.payload.size } : a,
-          ),
-        })),
-      );
-    });
-    return () => { unlisten.then((fn) => fn()); };
-  }, []);
-
-  // ponytail: automatically resolve missing sizes for loaded or updated artifacts with filter priority
-  const resolvedArtifactIds = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    if (!credentials.username || !credentials.accessToken) return;
-    const missing: Artifact[] = [];
-    for (const group of groups) {
-      for (const artifact of group.artifacts) {
-        if (artifact.size == null && !resolvedArtifactIds.current.has(artifact.id)) {
-          resolvedArtifactIds.current.add(artifact.id);
-          missing.push(artifact);
-        }
-      }
-    }
-    if (missing.length > 0) {
-      const prioritized = sortArtifactsByPriority(missing, selectedTypes);
-      invoke("resolve_artifact_sizes", { artifacts: prioritized, credentials, quickBuildConfig }).catch(() => {});
-    }
-  }, [groups, credentials, quickBuildConfig, selectedTypes]);
   const [loadingInputs, setLoadingInputs] = useState<Set<string>>(new Set());
   const [readyAutoDownloads, setReadyAutoDownloads] = useState<Set<string>>(new Set());
   const pollingInputs = useRef<Set<string>>(new Set());
@@ -85,14 +51,6 @@ export function useBuilds(
               });
         const prepared = results.map((group, index) => prepareFetchedGroup(group, inputs[index] || "bulk", selectedTypes, autoCheck));
         setGroups((current) => prepared.reduce(upsertGroup, current));
-        // ponytail: fire-and-forget background size resolution with filter priority
-        for (const group of prepared) {
-          const missing = group.artifacts.filter((a) => a.size == null);
-          if (missing.length > 0) {
-            const prioritized = sortArtifactsByPriority(missing, group.customFilters || selectedTypes);
-            invoke("resolve_artifact_sizes", { artifacts: prioritized, credentials, quickBuildConfig }).catch(() => {});
-          }
-        }
       } catch (error) {
         setGroups((current) => [
           {
@@ -126,12 +84,6 @@ export function useBuilds(
         quickBuildConfig,
       });
       const prepared = prepareFetchedGroup(result, input, group.customFilters || selectedTypes, autoCheck);
-      // ponytail: fire-and-forget background size resolution with filter priority
-      const missing = prepared.artifacts.filter((a) => a.size == null);
-      if (missing.length > 0) {
-        const prioritized = sortArtifactsByPriority(missing, group.customFilters || selectedTypes);
-        invoke("resolve_artifact_sizes", { artifacts: prioritized, credentials, quickBuildConfig }).catch(() => {});
-      }
       const now = new Date().toISOString();
       setGroups((current) => {
         const existing = current.find((item) => sameIdentity(item, group));
