@@ -55,7 +55,6 @@ export function applyArtifactFilters(artifacts: Artifact[]): Artifact[] {
     const name = artifact.name.toUpperCase();
     if (kind === "all" || kind === "userdata") {
       if (name.includes("SUP")) return false;
-      if (name.includes("QB") && !name.includes("MQB") && !name.includes("MQ")) return false;
     }
     return true;
   });

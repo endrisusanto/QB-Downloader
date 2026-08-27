@@ -79,6 +79,28 @@ describe("input and settings migration", () => {
     expect(norm.artifacts.map(a => a.name)).toEqual(["BL_S711BXXSIGZH9_S711BXXSIGZH9_MQB113431209_REV01_user_low_ship_MULTI_CERT.tar.md5"]);
   });
 
+  it("keeps raw QB artifacts when no MQB version exists", () => {
+    const rawGroup: BuildArtifactGroup = {
+      id: "g5",
+      input: "113998990",
+      buildId: "113998990",
+      status: "ready",
+      artifacts: [
+        {
+          id: "a1",
+          buildId: "113998990",
+          name: "ALL_OLE_G525FXXUKEZH1_G525FOLEKEZH1_QB113431759_REV00_user_low_ship_MULTI_CERT_meta_OS14_ALLQB113998990.tar.md5",
+          kind: "all",
+          selected: true,
+        },
+      ],
+    };
+    const norm = normalizeGroup(rawGroup, "113998990");
+    expect(norm.artifacts.map(a => a.name)).toEqual([
+      "ALL_OLE_G525FXXUKEZH1_G525FOLEKEZH1_QB113431759_REV00_user_low_ship_MULTI_CERT_meta_OS14_ALLQB113998990.tar.md5",
+    ]);
+  });
+
   it("prioritizes selected artifacts and active filter types for size fetching", () => {
     const list: import("./types").Artifact[] = [
       { id: "1", buildId: "b1", name: "USERDATA_other.tar.md5", kind: "userdata", selected: false },

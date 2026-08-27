@@ -4,7 +4,7 @@ const http = require("http");
 const path = require("path");
 const express = require("express");
 const { WebSocketServer } = require("ws");
-const { randomUUID } = require("crypto");
+const { randomUUID, randomBytes } = require("crypto");
 
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.API_KEY || ""; // empty = no auth required
