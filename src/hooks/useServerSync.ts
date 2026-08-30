@@ -51,6 +51,10 @@ export function useServerSync(
   onRemoteWakeQueue?: (concurrency?: number) => void,
   wasteStats?: { active: boolean; totalBytes: number; speedBps: number },
   onRemoteWasteData?: (action: "start" | "stop", concurrency?: number, targetBytes?: number) => void,
+  onRemotePauseGroup?: (groupId: string) => void,
+  onRemotePauseArtifact?: (groupId: string, artifactId: string) => void,
+  onRemoteResumeGroup?: (groupId: string) => void,
+  onRemoteResumeArtifact?: (groupId: string, artifactId: string) => void,
 ) {
   const [status, setStatus] = useState<SyncStatus>("disconnected");
   const [sysStats, setSysStats] = useState<SystemStats | null>(null);
@@ -74,6 +78,10 @@ export function useServerSync(
   const onRemoteSetMaxConcurrentRef = useRef(onRemoteSetMaxConcurrent);
   const onRemoteWakeQueueRef = useRef(onRemoteWakeQueue);
   const onRemoteWasteDataRef = useRef(onRemoteWasteData);
+  const onRemotePauseGroupRef = useRef(onRemotePauseGroup);
+  const onRemotePauseArtifactRef = useRef(onRemotePauseArtifact);
+  const onRemoteResumeGroupRef = useRef(onRemoteResumeGroup);
+  const onRemoteResumeArtifactRef = useRef(onRemoteResumeArtifact);
 
   const groupsRef = useRef(groups);
   const rowsRef = useRef(rows);
@@ -96,7 +104,11 @@ export function useServerSync(
     onRemoteSetMaxConcurrentRef.current = onRemoteSetMaxConcurrent;
     onRemoteWakeQueueRef.current = onRemoteWakeQueue;
     onRemoteWasteDataRef.current = onRemoteWasteData;
-  }, [onRemoteDownload, onRemoteDeleteGroup, onRemoteCancelGroup, onRemoteCancelAll, onRemoteCancelArtifact, onRemoteDeleteArtifact, onRemoteRestartArtifact, onRemoteStartGroup, onRemoteToggleArtifact, onRemoteSetMaxConcurrent, onRemoteWakeQueue, onRemoteWasteData]);
+    onRemotePauseGroupRef.current = onRemotePauseGroup;
+    onRemotePauseArtifactRef.current = onRemotePauseArtifact;
+    onRemoteResumeGroupRef.current = onRemoteResumeGroup;
+    onRemoteResumeArtifactRef.current = onRemoteResumeArtifact;
+  }, [onRemoteDownload, onRemoteDeleteGroup, onRemoteCancelGroup, onRemoteCancelAll, onRemoteCancelArtifact, onRemoteDeleteArtifact, onRemoteRestartArtifact, onRemoteStartGroup, onRemoteToggleArtifact, onRemoteSetMaxConcurrent, onRemoteWakeQueue, onRemoteWasteData, onRemotePauseGroup, onRemotePauseArtifact, onRemoteResumeGroup, onRemoteResumeArtifact]);
 
   useEffect(() => {
     groupsRef.current = groups;
@@ -215,8 +227,22 @@ export function useServerSync(
             onRemoteDeleteArtifactRef.current(msg.groupId, msg.artifactId);
           } else if (msg.type === "restart_artifact") {
             onRemoteRestartArtifactRef.current(msg.groupId, msg.artifactId);
-          } else if (msg.type === "start_group") {
-            onRemoteStartGroupRef.current(msg.groupId);
+          } else if (msg.type === "start_group" || msg.type === "resume_group") {
+            if (msg.type === "resume_group" && onRemoteResumeGroupRef.current) {
+              onRemoteResumeGroupRef.current(msg.groupId);
+            } else {
+              onRemoteStartGroupRef.current(msg.groupId);
+            }
+          } else if (msg.type === "pause_group") {
+            onRemotePauseGroupRef.current?.(msg.groupId);
+          } else if (msg.type === "pause_artifact") {
+            onRemotePauseArtifactRef.current?.(msg.groupId, msg.artifactId);
+          } else if (msg.type === "resume_artifact") {
+            if (onRemoteResumeArtifactRef.current) {
+              onRemoteResumeArtifactRef.current(msg.groupId, msg.artifactId);
+            } else {
+              onRemoteRestartArtifactRef.current(msg.groupId, msg.artifactId);
+            }
           } else if (msg.type === "set_artifact_selected") {
             onRemoteToggleArtifactRef.current(msg.groupId, msg.artifactId, Boolean(msg.selected));
           } else if (msg.type === "start_artifact") {

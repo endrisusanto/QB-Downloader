@@ -266,7 +266,10 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
 
       const unstarted = selected.filter((artifact) => {
         const row = latestRows.current[artifact.id];
-        return !row || (row.status !== "downloading" && row.status !== "queued" && row.status !== "paused");
+        const isActivelyRunning = Object.values(activeJobs.current).some((j) => j.activeArtifactIds.has(artifact.id));
+        const isInQueue = queue.current.some((q) => q.artifacts.some((a) => a.id === artifact.id));
+        if (isActivelyRunning || isInQueue) return false;
+        return !row || row.status === "paused" || row.status === "failed" || row.status === "cancelled" || row.status === "queued";
       });
 
       if (unstarted.length > 0) {
@@ -285,6 +288,18 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
         const [jobId] = activeEntry;
         try {
           await invoke("resume_download", { jobId, artifactId: artifact.id });
+          setRows((current) => {
+            const row = current[artifact.id];
+            if (!row) return current;
+            return {
+              ...current,
+              [artifact.id]: {
+                ...row,
+                status: "downloading",
+                message: undefined,
+              },
+            };
+          });
           return;
         } catch {
           // Fall through to enqueue if job was completed/dropped
@@ -293,6 +308,81 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
       enqueue(group, [artifact], options);
     },
     [enqueue],
+  );
+
+  const pause = useCallback(async (group: BuildArtifactGroup) => {
+    const selectedIds = new Set(selectedArtifacts(group).map((artifact) => artifact.id));
+    queue.current = queue.current.map((item) => {
+      if (item.groupId === group.id) {
+        item.artifacts = item.artifacts.filter((a) => !selectedIds.has(a.id));
+      }
+      return item;
+    }).filter((item) => item.artifacts.length > 0);
+
+    const activeJobIds = Object.entries(activeJobs.current)
+      .filter(([, job]) => job.groupId === group.id && [...job.activeArtifactIds].some((id) => selectedIds.has(id)))
+      .map(([jobId]) => jobId);
+
+    await Promise.all(
+      activeJobIds.map((jobId) =>
+        invoke("pause_download", { jobId }).catch(() => invoke("cancel_download", { jobId }))
+      )
+    );
+
+    setRows((current) => {
+      const next = { ...current };
+      for (const artifact of group.artifacts) {
+        if (selectedIds.has(artifact.id) && next[artifact.id]) {
+          next[artifact.id] = {
+            ...next[artifact.id],
+            status: "paused",
+            message: "Paused",
+            resumable: true,
+          };
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  const pauseSingle = useCallback(
+    async (group: BuildArtifactGroup, artifact: Artifact) => {
+      queue.current = queue.current
+        .map((item) => {
+          if (item.groupId === group.id) {
+            item.artifacts = item.artifacts.filter((a) => a.id !== artifact.id);
+          }
+          return item;
+        })
+        .filter((item) => item.artifacts.length > 0);
+
+      const activeEntry = Object.entries(activeJobs.current).find(
+        ([, job]) => job.groupId === group.id && job.activeArtifactIds.has(artifact.id)
+      );
+      if (activeEntry) {
+        const [jobId] = activeEntry;
+        try {
+          await invoke("pause_download", { jobId, artifactId: artifact.id });
+        } catch {
+          await invoke("cancel_download", { jobId, artifactId: artifact.id });
+        }
+      }
+
+      setRows((current) => {
+        const row = current[artifact.id];
+        if (!row) return current;
+        return {
+          ...current,
+          [artifact.id]: {
+            ...row,
+            status: "paused",
+            message: "Paused",
+            resumable: true,
+          },
+        };
+      });
+    },
+    [],
   );
 
   const cancel = useCallback(async (group: BuildArtifactGroup) => {
@@ -313,15 +403,23 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
       }
     });
 
-    const activeJobIds = Object.entries(activeJobs.current)
-      .filter(([, job]) => job.groupId === group.id && [...job.activeArtifactIds].some((id) => selectedIds.has(id)))
-      .map(([jobId]) => jobId);
+    const activeEntries = Object.entries(activeJobs.current)
+      .filter(([, job]) => job.groupId === group.id && [...job.activeArtifactIds].some((id) => selectedIds.has(id)));
 
     await Promise.all(
-      activeJobIds.map((jobId) =>
-        invoke("pause_download", { jobId }).catch(() => invoke("cancel_download", { jobId }))
+      activeEntries.map(([jobId]) =>
+        invoke("cancel_download", { jobId }).catch(() => {})
       )
     );
+
+    for (const [jobId, job] of activeEntries) {
+      for (const id of selectedIds) {
+        job.activeArtifactIds.delete(id);
+      }
+      if (job.activeArtifactIds.size === 0) {
+        delete activeJobs.current[jobId];
+      }
+    }
 
     setRows((current) => {
       const next = { ...current };
@@ -329,15 +427,16 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
         if (selectedIds.has(artifact.id) && next[artifact.id]) {
           next[artifact.id] = {
             ...next[artifact.id],
-            status: "paused",
-            message: "Paused (Connection Held)",
-            resumable: true,
+            status: "cancelled",
+            message: "Cancelled",
+            resumable: (next[artifact.id].downloaded || 0) > 0,
           };
         }
       }
       return next;
     });
-  }, []);
+    pumpQueue();
+  }, [pumpQueue]);
 
   const cancelSingle = useCallback(
     async (group: BuildArtifactGroup, artifact: Artifact) => {
@@ -363,12 +462,14 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
         ([, job]) => job.groupId === group.id && job.activeArtifactIds.has(artifact.id)
       );
       if (activeEntry) {
-        const [jobId] = activeEntry;
-        try {
-          await invoke("pause_download", { jobId, artifactId: artifact.id });
-        } catch {
-          await invoke("cancel_download", { jobId, artifactId: artifact.id });
+        const [jobId, job] = activeEntry;
+        job.activeArtifactIds.delete(artifact.id);
+        if (job.activeArtifactIds.size === 0) {
+          delete activeJobs.current[jobId];
         }
+        try {
+          await invoke("cancel_download", { jobId, artifactId: artifact.id });
+        } catch {}
       }
 
       setRows((current) => {
@@ -378,14 +479,15 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
           ...current,
           [artifact.id]: {
             ...row,
-            status: "paused",
-            message: "Paused (Connection Held)",
-            resumable: true,
+            status: "cancelled",
+            message: "Cancelled",
+            resumable: (row.downloaded || 0) > 0,
           },
         };
       });
+      pumpQueue();
     },
-    [],
+    [pumpQueue],
   );
 
   const retry = useCallback(async (group: BuildArtifactGroup) => {
@@ -432,7 +534,7 @@ export function useDownload(groups: BuildArtifactGroup[], setGroups: React.Dispa
   }, [pumpQueue]);
 
   const categories = useMemo(() => classifyGroups(groups, rows), [groups, rows]);
-  return { rows, setRows, totalSpeed, averageThreadSpeed, slotSpeeds, start, startSingle, cancel, cancelSingle, retry, removeRow, setMaxConcurrent, categories };
+  return { rows, setRows, totalSpeed, averageThreadSpeed, slotSpeeds, start, startSingle, pause, pauseSingle, cancel, cancelSingle, retry, removeRow, setMaxConcurrent, categories };
 }
 
 export function calculateRollingSpeed(samples: { at: number; bytes: number }[], now: number) {
@@ -462,7 +564,7 @@ export function classifyGroups(groups: BuildArtifactGroup[], rows: Record<string
     const artifacts = group.artifacts;
     const hasActiveOrFinished = artifacts.some((a) => {
       const status = rows[a.id]?.status;
-      return status === "queued" || status === "downloading" || status === "retrying" || status === "completed" || status === "failed";
+      return status === "queued" || status === "downloading" || status === "retrying" || status === "paused" || status === "completed" || status === "failed";
     });
     if (!hasActiveOrFinished) {
       fetched.push(group);
@@ -478,7 +580,7 @@ export function classifyGroups(groups: BuildArtifactGroup[], rows: Record<string
     
     const progressSelected = artifacts.filter((a) => {
       const status = rows[a.id]?.status;
-      return status === "queued" || status === "downloading" || status === "retrying";
+      return status === "queued" || status === "downloading" || status === "retrying" || status === "paused";
     });
     if (progressSelected.length > 0) {
       progress.push({

@@ -207,7 +207,24 @@ window.remoteSetMaxConcurrent = (pcId, maxConcurrent) => {
 window.remoteWakeQueue = (pcId, maxConcurrent = 16) => {
   const value = Math.max(1, Math.min(16, Number(maxConcurrent) || 16));
   sendCommand({ type: "remote_wake_queue", pcId, maxConcurrent: value });
-  showToast(`Queue woken up with ${value} concurrency`, "ok");
+window.remotePauseGroup = (pcId, groupId) => {
+  sendCommand({ type: "remote_pause_group", pcId, groupId });
+  showToast("Pause requested", "ok");
+};
+
+window.remoteResumeGroup = (pcId, groupId) => {
+  sendCommand({ type: "remote_resume_group", pcId, groupId });
+  showToast("Resume requested", "ok");
+};
+
+window.remotePauseArtifact = (pcId, groupId, artifactId) => {
+  sendCommand({ type: "remote_pause_artifact", pcId, groupId, artifactId });
+  showToast("Pause artifact requested", "ok");
+};
+
+window.remoteResumeArtifact = (pcId, groupId, artifactId) => {
+  sendCommand({ type: "remote_resume_artifact", pcId, groupId, artifactId });
+  showToast("Resume artifact requested", "ok");
 };
 
 window.remoteWasteData = (pcId, action, concurrency = 8) => {
@@ -221,7 +238,7 @@ function openDownload(pcId, pcName) {
   selectedTypes = new Set(pc && pc.presetTypes && pc.presetTypes.length > 0 ? pc.presetTypes : FILTER_OPTIONS);
   document.getElementById("dl-pc-name").textContent = pcName;
   document.getElementById("dl-qb-id").value = "";
-  document.getElementById("dl-fetch-only").checked = true;
+  document.getElementById("dl-fetch-only").checked = false;
   renderChips();
   downloadModal.classList.remove("hidden");
   setTimeout(() => document.getElementById("dl-qb-id").focus(), 50);
@@ -280,7 +297,7 @@ function classifyGroups(groups, rows) {
     const artifacts = group.artifacts || [];
     const hasActiveOrFinished = artifacts.some((a) => {
       const status = rows[a.id]?.status;
-      return status === "queued" || status === "downloading" || status === "retrying" || status === "completed" || status === "failed";
+      return status === "queued" || status === "downloading" || status === "retrying" || status === "paused" || status === "completed" || status === "failed";
     });
     if (!hasActiveOrFinished) {
       fetched.push(group);
@@ -296,7 +313,7 @@ function classifyGroups(groups, rows) {
 
     const progressSelected = artifacts.filter((a) => {
       const status = rows[a.id]?.status;
-      return status === "queued" || status === "downloading" || status === "retrying";
+      return status === "queued" || status === "downloading" || status === "retrying" || status === "paused";
     });
     if (progressSelected.length > 0) {
       progress.push({
@@ -322,7 +339,7 @@ function calculatePcProgress(pc, progressGroups) {
   for (const group of progressGroups) {
     for (const a of group.artifacts) {
       const row = pc.rows[a.id];
-      if (row && (row.status === "downloading" || row.status === "queued" || row.status === "retrying")) {
+      if (row && (row.status === "downloading" || row.status === "queued" || row.status === "retrying" || row.status === "paused")) {
         const total = row.total || a.size || 0;
         const downloaded = row.downloaded || 0;
         totalBytes += total;
@@ -375,11 +392,13 @@ function renderGroupList(pc, groupList, type) {
     } else if (isProgress) {
       let total = 0;
       let downloaded = 0;
+      let allPaused = true;
       g.artifacts.forEach((a) => {
         const row = pc.rows[a.id];
         if (row) {
           total += row.total || a.size || 0;
           downloaded += row.downloaded || 0;
+          if (row.status !== "paused") allPaused = false;
         }
       });
       const p = total > 0 ? Math.min(100, Math.round((downloaded / total) * 100)) : 0;
@@ -390,7 +409,13 @@ function renderGroupList(pc, groupList, type) {
           </div>
           <div class="progress-meta">
             <span>${p}% (${formatBytes(downloaded)} / ${formatBytes(total)})</span>
-            <button class="btn-danger btn-sm" onclick="remoteCancelGroup('${pc.pcId}', '${g.id}')">Cancel</button>
+            <div style="display:flex;gap:4px;">
+              ${allPaused
+                ? `<button class="btn-primary btn-sm" onclick="remoteResumeGroup('${pc.pcId}', '${g.id}')">Resume</button>`
+                : `<button class="btn-warning btn-sm" onclick="remotePauseGroup('${pc.pcId}', '${g.id}')">Pause</button>`
+              }
+              <button class="btn-danger btn-sm" onclick="remoteCancelGroup('${pc.pcId}', '${g.id}')">Cancel</button>
+            </div>
           </div>
         </div>
       `;
@@ -418,8 +443,17 @@ function renderGroupList(pc, groupList, type) {
       } else if (isProgress) {
         const total = row.total || a.size || 0;
         const percent = total > 0 ? Math.min(100, Math.round(((row.downloaded || 0) / total) * 100)) : 0;
+        const isPaused = row.status === "paused";
         rowStatusHtml = `<span class="art-status ${row.status || "queued"}">${row.status || "queued"} · ${percent}%</span>`;
-        artActionsHtml = `<button class="btn-danger btn-sm" onclick="remoteCancelArtifact('${pc.pcId}', '${g.id}', '${a.id}')">Cancel</button>`;
+        artActionsHtml = `
+          <div class="art-actions">
+            ${isPaused
+              ? `<button class="btn-primary-icon" onclick="remoteResumeArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Resume download">▶</button>`
+              : `<button class="btn-warning-icon" onclick="remotePauseArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Pause download">⏸</button>`
+            }
+            <button class="btn-danger-icon" onclick="remoteCancelArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Cancel">✕</button>
+          </div>
+        `;
       } else {
         rowStatusHtml = `<span class="art-status pending">pending</span>`;
         artActionsHtml = `

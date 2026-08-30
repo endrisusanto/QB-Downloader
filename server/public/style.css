@@ -508,6 +508,7 @@ input:focus { border-color: var(--accent); }
 .art-status.pending { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); }
 .art-status.downloading { background: rgba(59,130,246,0.15); color: #60a5fa; }
 .art-status.queued { background: rgba(100,116,139,0.15); color: #94a3b8; }
+.art-status.paused { background: var(--yellow-bg); color: var(--yellow); }
 
 .art-actions {
   display: flex;
@@ -531,7 +532,7 @@ input:focus { border-color: var(--accent); }
 .btn-danger:hover {
   background: rgba(239, 68, 68, 0.2);
 }
-.btn-danger-icon, .btn-primary-icon {
+.btn-danger-icon, .btn-primary-icon, .btn-warning-icon {
   background: none;
   border: none;
   cursor: pointer;
@@ -545,6 +546,9 @@ input:focus { border-color: var(--accent); }
 }
 .btn-primary-icon:hover {
   background: rgba(59, 130, 246, 0.15);
+}
+.btn-warning-icon:hover {
+  background: rgba(245, 158, 11, 0.15);
 }
 .group-progress-info {
   flex: 1;

@@ -202,10 +202,25 @@ wss.on("connection", (ws, req) => {
           if (pc?.ws?.readyState === 1) {
             sendTo(pc.ws, { type: "set_artifact_selected", groupId: msg.groupId, artifactId: msg.artifactId, selected: msg.selected === true });
           }
-        } else if (msg.type === "remote_start_group") {
+        } else if (msg.type === "remote_start_group" || msg.type === "remote_resume_group") {
           const pc = findPc(msg.pcId);
           if (pc?.ws?.readyState === 1) {
             sendTo(pc.ws, { type: "start_group", groupId: msg.groupId });
+          }
+        } else if (msg.type === "remote_pause_group") {
+          const pc = findPc(msg.pcId);
+          if (pc?.ws?.readyState === 1) {
+            sendTo(pc.ws, { type: "pause_group", groupId: msg.groupId });
+          }
+        } else if (msg.type === "remote_pause_artifact") {
+          const pc = findPc(msg.pcId);
+          if (pc?.ws?.readyState === 1) {
+            sendTo(pc.ws, { type: "pause_artifact", groupId: msg.groupId, artifactId: msg.artifactId });
+          }
+        } else if (msg.type === "remote_resume_artifact") {
+          const pc = findPc(msg.pcId);
+          if (pc?.ws?.readyState === 1) {
+            sendTo(pc.ws, { type: "start_artifact", groupId: msg.groupId, artifactId: msg.artifactId });
           }
         } else if (msg.type === "remote_set_max_concurrent") {
           const pc = findPc(msg.pcId);
