@@ -268,6 +268,44 @@ class ServerClient(private val context: Context) {
         ws?.send(payload.toString())
     }
 
+    fun sendRemotePauseGroup(pcId: String, groupId: String) {
+        val payload = JSONObject().apply {
+            put("type", "remote_pause_group")
+            put("pcId", pcId)
+            put("groupId", groupId)
+        }
+        ws?.send(payload.toString())
+    }
+
+    fun sendRemoteResumeGroup(pcId: String, groupId: String) {
+        val payload = JSONObject().apply {
+            put("type", "remote_resume_group")
+            put("pcId", pcId)
+            put("groupId", groupId)
+        }
+        ws?.send(payload.toString())
+    }
+
+    fun sendRemotePauseArtifact(pcId: String, groupId: String, artifactId: String) {
+        val payload = JSONObject().apply {
+            put("type", "remote_pause_artifact")
+            put("pcId", pcId)
+            put("groupId", groupId)
+            put("artifactId", artifactId)
+        }
+        ws?.send(payload.toString())
+    }
+
+    fun sendRemoteResumeArtifact(pcId: String, groupId: String, artifactId: String) {
+        val payload = JSONObject().apply {
+            put("type", "remote_resume_artifact")
+            put("pcId", pcId)
+            put("groupId", groupId)
+            put("artifactId", artifactId)
+        }
+        ws?.send(payload.toString())
+    }
+
     fun sendRemoteWasteData(pcId: String, action: String, concurrency: Int = 8, targetBytes: Long? = null) {
         val payload = JSONObject().apply {
             put("type", "remote_waste_data")

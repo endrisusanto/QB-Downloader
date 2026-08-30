@@ -26,7 +26,7 @@ fun RemoteDownloadDialog(
     var selectedTypes by remember(presetTypes) {
         mutableStateOf(if (presetTypes.isNotEmpty()) presetTypes.toSet() else FILTER_OPTIONS.toSet())
     }
-    var fetchOnly by remember { mutableStateOf(true) }
+    var fetchOnly by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
 
     AlertDialog(

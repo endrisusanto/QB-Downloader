@@ -47,7 +47,7 @@ fun classifyPcGroups(groups: List<BuildArtifactGroup>, rows: Map<String, Downloa
         val artifacts = group.artifacts
         val hasActiveOrFinished = artifacts.any { a ->
             val status = rows[a.id]?.status
-            status in listOf("queued", "downloading", "retrying", "completed", "failed")
+            status in listOf("queued", "downloading", "retrying", "paused", "completed", "failed")
         }
         if (!hasActiveOrFinished) {
             fetched.add(group)
@@ -58,7 +58,7 @@ fun classifyPcGroups(groups: List<BuildArtifactGroup>, rows: Map<String, Downloa
             failed.add(group.copy(artifacts = failedSelected))
         }
 
-        val progressSelected = artifacts.filter { rows[it.id]?.status in listOf("queued", "downloading", "retrying") }
+        val progressSelected = artifacts.filter { rows[it.id]?.status in listOf("queued", "downloading", "retrying", "paused") }
         if (progressSelected.isNotEmpty()) {
             progress.add(group.copy(artifacts = progressSelected))
         }
@@ -78,7 +78,7 @@ fun calculatePcProgress(progress: List<BuildArtifactGroup>, rows: Map<String, Do
     for (group in progress) {
         for (a in group.artifacts) {
             val row = rows[a.id]
-            if (row != null && (row.status == "downloading" || row.status == "queued" || row.status == "retrying")) {
+            if (row != null && (row.status == "downloading" || row.status == "queued" || row.status == "retrying" || row.status == "paused")) {
                 val total = if (row.total > 0) row.total else a.size
                 totalBytes += total
                 downloadedBytes += row.downloaded
@@ -525,6 +525,8 @@ fun FetchedGroupCard(pcId: String, group: BuildArtifactGroup, presetTypes: List<
 fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String, DownloadEvent>, serverClient: ServerClient, onCancel: () -> Unit, onCancelArtifact: (String) -> Unit) {
     var totalSize = 0L
     var downloaded = 0L
+    val allPaused = group.artifacts.isNotEmpty() && group.artifacts.all { rows[it.id]?.status == "paused" }
+
     group.artifacts.forEach { a ->
         val row = rows[a.id]
         if (row != null) {
@@ -547,14 +549,33 @@ fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 CopyableBuildId(group.buildId ?: group.input)
-                OutlinedButton(
-                    onClick = onCancel,
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
-                    modifier = Modifier.height(32.dp)
-                ) {
-                    Text("Cancel", style = MaterialTheme.typography.labelMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (allPaused) {
+                        Button(
+                            onClick = { serverClient.sendRemoteResumeGroup(pcId, group.id) },
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text("Resume", style = MaterialTheme.typography.labelMedium)
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = { serverClient.sendRemotePauseGroup(pcId, group.id) },
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text("Pause", style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = onCancel,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text("Cancel", style = MaterialTheme.typography.labelMedium)
+                    }
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -573,6 +594,7 @@ fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String,
             group.artifacts.forEach { a ->
                 val row = rows[a.id]
                 val status = row?.status ?: "queued"
+                val isPaused = status == "paused"
                 Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
@@ -590,8 +612,8 @@ fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            color = if (isPaused) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = if (isPaused) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimaryContainer,
                             shape = MaterialTheme.shapes.small
                         ) {
                             Text(
@@ -600,13 +622,28 @@ fun ProgressGroupCard(pcId: String, group: BuildArtifactGroup, rows: Map<String,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
                         }
-                        OutlinedButton(
-                            onClick = { onCancelArtifact(a.id) },
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
-                            modifier = Modifier.height(32.dp)
-                        ) { Text("Cancel", style = MaterialTheme.typography.labelMedium) }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (isPaused) {
+                                Button(
+                                    onClick = { serverClient.sendRemoteResumeArtifact(pcId, group.id, a.id) },
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    modifier = Modifier.height(32.dp)
+                                ) { Text("Resume", style = MaterialTheme.typography.labelMedium) }
+                            } else {
+                                OutlinedButton(
+                                    onClick = { serverClient.sendRemotePauseArtifact(pcId, group.id, a.id) },
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    modifier = Modifier.height(32.dp)
+                                ) { Text("Pause", style = MaterialTheme.typography.labelMedium) }
+                            }
+                            OutlinedButton(
+                                onClick = { onCancelArtifact(a.id) },
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                                modifier = Modifier.height(32.dp)
+                            ) { Text("Cancel", style = MaterialTheme.typography.labelMedium) }
+                        }
                     }
                 }
             }
