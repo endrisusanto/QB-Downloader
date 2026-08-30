@@ -77,31 +77,50 @@ function connect() {
   if (ws) { try { ws.close(); } catch { /**/ } }
   setBadge("connecting");
 
-  const url = new URL(config.serverUrl.replace(/^http/, "ws"));
-  url.pathname = "/ws/client";
-  if (config.apiKey) url.searchParams.set("token", config.apiKey);
+  try {
+    let rawUrl = (config.serverUrl || "").trim();
+    if (!rawUrl) {
+      const proto = location.protocol === "https:" ? "wss:" : "ws:";
+      rawUrl = `${proto}//${location.host}`;
+    } else if (!/^wss?:\/\//i.test(rawUrl)) {
+      if (/^https?:\/\//i.test(rawUrl)) {
+        rawUrl = rawUrl.replace(/^http/i, "ws");
+      } else {
+        const proto = location.protocol === "https:" ? "wss:" : "ws:";
+        rawUrl = `${proto}//${rawUrl}`;
+      }
+    }
 
-  ws = new WebSocket(url.toString());
+    const url = new URL(rawUrl);
+    url.pathname = "/ws/client";
+    if (config.apiKey) url.searchParams.set("token", config.apiKey);
 
-  ws.onopen = () => setBadge("connected");
-  ws.onclose = () => {
+    ws = new WebSocket(url.toString());
+
+    ws.onopen = () => setBadge("connected");
+    ws.onclose = () => {
+      setBadge("disconnected");
+      ws = null;
+      if (!reconnectTimer) reconnectTimer = setTimeout(() => { reconnectTimer = null; connect(); }, 5000);
+    };
+    ws.onerror = () => { /* onclose will fire */ };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === "state_update") { pcs = msg.pcs; render(); }
+        else if (msg.type === "error") showToast(msg.message, "error");
+        else if (msg.type === "download_ack" && msg.status === "accepted") showToast("Download started on PC!", "ok");
+        else if (msg.type === "cancel_result" && cancelRequest?.requestId === msg.requestId) {
+          if (msg.ok) { closeCancelModal(); showToast("PIN correct. Cancellation requested", "ok"); }
+          else { cancelMessage.textContent = "Incorrect cancel PIN"; cancelMessage.hidden = false; showToast("PIN incorrect", "error"); cancelPin.select(); }
+        }
+      } catch { /**/ }
+    };
+  } catch {
     setBadge("disconnected");
     ws = null;
-    reconnectTimer = setTimeout(connect, 5000);
-  };
-  ws.onerror = () => { /* onclose will fire */ };
-  ws.onmessage = (e) => {
-    try {
-      const msg = JSON.parse(e.data);
-      if (msg.type === "state_update") { pcs = msg.pcs; render(); }
-      else if (msg.type === "error") showToast(msg.message, "error");
-      else if (msg.type === "download_ack" && msg.status === "accepted") showToast("Download started on PC!", "ok");
-      else if (msg.type === "cancel_result" && cancelRequest?.requestId === msg.requestId) {
-        if (msg.ok) { closeCancelModal(); showToast("PIN correct. Cancellation requested", "ok"); }
-        else { cancelMessage.textContent = "Incorrect cancel PIN"; cancelMessage.hidden = false; showToast("PIN incorrect", "error"); cancelPin.select(); }
-      }
-    } catch { /**/ }
-  };
+    if (!reconnectTimer) reconnectTimer = setTimeout(() => { reconnectTimer = null; connect(); }, 5000);
+  }
 }
 
 // ── Settings modal ────────────────────────────────────────────────────────────
@@ -207,6 +226,9 @@ window.remoteSetMaxConcurrent = (pcId, maxConcurrent) => {
 window.remoteWakeQueue = (pcId, maxConcurrent = 16) => {
   const value = Math.max(1, Math.min(16, Number(maxConcurrent) || 16));
   sendCommand({ type: "remote_wake_queue", pcId, maxConcurrent: value });
+  showToast(`Queue woken up with ${value} concurrency`, "ok");
+};
+
 window.remotePauseGroup = (pcId, groupId) => {
   sendCommand({ type: "remote_pause_group", pcId, groupId });
   showToast("Pause requested", "ok");
