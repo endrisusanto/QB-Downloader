@@ -34,6 +34,10 @@ function AppContent() {
   const builds = useBuilds(credentials, config, settings.selectedTypes, settings.hideUncheckedArtifacts);
   const downloads = useDownload(builds.groups, builds.setGroups);
 
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", settings.darkMode ? "dark" : "light");
+  }, [settings.darkMode]);
+
   const handleRemoteDownload = useCallback(
     async (qbId: string, artifactTypes: string[], autoStart: boolean = true) => {
       if (!settings.username || !settings.accessToken || settingsError) return;
@@ -388,6 +392,10 @@ function StandaloneDialog({ kind, storageKey }: { kind: DialogKind; storageKey: 
   const [snapshot, setSnapshot] = useState(() => readDialogSnapshot(storageKey));
   const darkMode = (() => { try { return Boolean(JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}").darkMode); } catch { return false; } })();
   
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
+  }, [darkMode]);
+
   useEffect(() => {
     const channel = new BroadcastChannel(DIALOG_CHANNEL);
     channel.postMessage({ type: "subscribe", key: storageKey });

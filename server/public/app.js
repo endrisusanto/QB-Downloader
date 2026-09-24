@@ -4,6 +4,16 @@
 const FILTER_OPTIONS = ["ALL_", "AP_", "BL_", "CP_", "CSC_", "md5", "USERDATA_", "HOME_"];
 const STORAGE_KEY = "qb-dashboard-config";
 
+// ponytail: SVG icons for action buttons (0 extra bloat)
+const SVG_PLAY = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
+const SVG_PAUSE = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`;
+const SVG_TRASH = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
+const SVG_CANCEL = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+const SVG_DOWNLOAD = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
+const SVG_RESTART = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>`;
+const SVG_CHECK = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+const SVG_FLAME = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 3.5z"/></svg>`;
+
 // ── Config ────────────────────────────────────────────────────────────────────
 function loadConfig() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch { return {}; }
@@ -29,47 +39,77 @@ const pcList = document.getElementById("pc-list");
 const emptyMsg = document.getElementById("empty-msg");
 const emptyUrl = document.getElementById("empty-url");
 
+const themeToggleBtn = document.getElementById("theme-toggle-btn");
+function initTheme() {
+  const saved = localStorage.getItem("qb-remote-theme") || "dark";
+  applyTheme(saved);
+}
+function applyTheme(theme) {
+  document.body.setAttribute("data-theme", theme);
+  localStorage.setItem("qb-remote-theme", theme);
+  if (!themeToggleBtn) return;
+  const sunIcon = themeToggleBtn.querySelector(".sun-icon");
+  const moonIcon = themeToggleBtn.querySelector(".moon-icon");
+  if (theme === "dark") {
+    if (sunIcon) sunIcon.style.display = "block";
+    if (moonIcon) moonIcon.style.display = "none";
+  } else {
+    if (sunIcon) sunIcon.style.display = "none";
+    if (moonIcon) moonIcon.style.display = "block";
+  }
+}
+if (themeToggleBtn) {
+  themeToggleBtn.addEventListener("click", () => {
+    const current = document.body.getAttribute("data-theme") || "dark";
+    applyTheme(current === "dark" ? "light" : "dark");
+  });
+}
+initTheme();
+
 const settingsModal = document.getElementById("settings-modal");
 const serverUrlInput = document.getElementById("server-url-input");
 const apiKeyInput = document.getElementById("api-key-input");
-document.getElementById("settings-btn").addEventListener("click", openSettings);
-document.getElementById("close-settings").addEventListener("click", () => settingsModal.classList.add("hidden"));
-document.getElementById("save-settings").addEventListener("click", saveSettings);
+document.getElementById("settings-btn")?.addEventListener("click", openSettings);
+document.getElementById("close-settings")?.addEventListener("click", () => settingsModal?.classList.add("hidden"));
+document.getElementById("save-settings")?.addEventListener("click", saveSettings);
 
 const downloadModal = document.getElementById("download-modal");
-document.getElementById("close-download").addEventListener("click", () => downloadModal.classList.add("hidden"));
-document.getElementById("cancel-download").addEventListener("click", () => downloadModal.classList.add("hidden"));
-document.getElementById("submit-download").addEventListener("click", submitDownload);
+document.getElementById("close-download")?.addEventListener("click", () => downloadModal?.classList.add("hidden"));
+document.getElementById("cancel-download")?.addEventListener("click", () => downloadModal?.classList.add("hidden"));
+document.getElementById("submit-download")?.addEventListener("click", submitDownload);
 
 const cancelModal = document.getElementById("cancel-modal");
 const cancelPin = document.getElementById("cancel-pin");
 const cancelMessage = document.getElementById("cancel-message");
 let cancelRequest = null;
-function closeCancelModal() { cancelModal.classList.add("hidden"); cancelRequest = null; }
+function closeCancelModal() { cancelModal?.classList.add("hidden"); cancelRequest = null; }
 function openCancelModal(pcId, groupId, artifactId) {
   cancelRequest = { pcId, groupId, artifactId, requestId: crypto.randomUUID() };
   const label = artifactId ? "Cancel artifact" : groupId ? "Cancel download" : "Cancel all downloads";
-  document.getElementById("cancel-title").textContent = label;
-  document.getElementById("submit-cancel").textContent = artifactId ? "Cancel artifact" : groupId ? "Cancel download" : "Cancel all";
-  cancelMessage.hidden = true;
-  cancelPin.value = "";
-  cancelModal.classList.remove("hidden");
-  cancelPin.focus();
+  const cancelTitle = document.getElementById("cancel-title");
+  const submitCancel = document.getElementById("submit-cancel");
+  if (cancelTitle) cancelTitle.textContent = label;
+  if (submitCancel) submitCancel.textContent = artifactId ? "Cancel artifact" : groupId ? "Cancel download" : "Cancel all";
+  if (cancelMessage) cancelMessage.hidden = true;
+  if (cancelPin) { cancelPin.value = ""; cancelModal?.classList.remove("hidden"); cancelPin.focus(); }
 }
-document.getElementById("close-cancel").addEventListener("click", closeCancelModal);
-document.getElementById("dismiss-cancel").addEventListener("click", closeCancelModal);
-document.getElementById("cancel-form").addEventListener("submit", (event) => {
+document.getElementById("close-cancel")?.addEventListener("click", closeCancelModal);
+document.getElementById("dismiss-cancel")?.addEventListener("click", closeCancelModal);
+document.getElementById("cancel-form")?.addEventListener("submit", (event) => {
   event.preventDefault();
   if (!cancelRequest) return;
-  cancelMessage.hidden = true;
-  sendCommand({ type: cancelRequest.artifactId ? "remote_cancel_artifact" : cancelRequest.groupId ? "remote_cancel_group" : "remote_cancel_all", ...cancelRequest, pin: cancelPin.value });
+  if (cancelMessage) cancelMessage.hidden = true;
+  sendCommand({ type: cancelRequest.artifactId ? "remote_cancel_artifact" : cancelRequest.groupId ? "remote_cancel_group" : "remote_cancel_all", ...cancelRequest, pin: cancelPin?.value || "" });
 });
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 function setBadge(state) {
+  if (!connBadge) return;
+  const text = state === "connected" ? "Connected" : state === "connecting" ? "Connecting…" : "Disconnected";
   connBadge.className = `badge badge-${state}`;
-  connBadge.querySelector(".badge-label").textContent =
-    state === "connected" ? "Connected" : state === "connecting" ? "Connecting…" : "Disconnected";
+  connBadge.setAttribute("title", `Status: ${text}`);
+  const labelEl = connBadge.querySelector(".badge-label");
+  if (labelEl) labelEl.textContent = text;
 }
 
 let reconnectTimer = null;
@@ -310,22 +350,23 @@ function formatETA(seconds) {
   return `${s}s`;
 }
 
-function classifyGroups(groups, rows) {
+function classifyGroups(groups = [], rows = {}) {
   const fetched = [];
   const progress = [];
   const completed = [];
   const failed = [];
-  for (const group of groups) {
-    const artifacts = group.artifacts || [];
+  const safeRows = rows || {};
+  for (const group of (groups || [])) {
+    const artifacts = group?.artifacts || [];
     const hasActiveOrFinished = artifacts.some((a) => {
-      const status = rows[a.id]?.status;
+      const status = safeRows[a?.id]?.status;
       return status === "queued" || status === "downloading" || status === "retrying" || status === "paused" || status === "completed" || status === "failed";
     });
     if (!hasActiveOrFinished) {
       fetched.push(group);
     }
 
-    const failedSelected = artifacts.filter((a) => rows[a.id]?.status === "failed");
+    const failedSelected = artifacts.filter((a) => safeRows[a?.id]?.status === "failed");
     if (failedSelected.length > 0) {
       failed.push({
         ...group,
@@ -334,7 +375,7 @@ function classifyGroups(groups, rows) {
     }
 
     const progressSelected = artifacts.filter((a) => {
-      const status = rows[a.id]?.status;
+      const status = safeRows[a?.id]?.status;
       return status === "queued" || status === "downloading" || status === "retrying" || status === "paused";
     });
     if (progressSelected.length > 0) {
@@ -344,7 +385,7 @@ function classifyGroups(groups, rows) {
       });
     }
 
-    const completedSelected = artifacts.filter((a) => rows[a.id]?.status === "completed");
+    const completedSelected = artifacts.filter((a) => safeRows[a?.id]?.status === "completed");
     if (completedSelected.length > 0) {
       completed.push({
         ...group,
@@ -355,14 +396,15 @@ function classifyGroups(groups, rows) {
   return { fetched, progress, completed, failed };
 }
 
-function calculatePcProgress(pc, progressGroups) {
+function calculatePcProgress(pc, progressGroups = []) {
   let totalBytes = 0;
   let downloadedBytes = 0;
-  for (const group of progressGroups) {
-    for (const a of group.artifacts) {
-      const row = pc.rows[a.id];
+  const safeRows = pc?.rows || {};
+  for (const group of (progressGroups || [])) {
+    for (const a of (group?.artifacts || [])) {
+      const row = safeRows[a?.id];
       if (row && (row.status === "downloading" || row.status === "queued" || row.status === "retrying" || row.status === "paused")) {
-        const total = row.total || a.size || 0;
+        const total = row.total || a?.size || 0;
         const downloaded = row.downloaded || 0;
         totalBytes += total;
         downloadedBytes += downloaded;
@@ -372,18 +414,19 @@ function calculatePcProgress(pc, progressGroups) {
   return { downloadedBytes, totalBytes };
 }
 
-function calculatePcETA(pc, progressGroups) {
+function calculatePcETA(pc, progressGroups = []) {
   const { downloadedBytes, totalBytes } = calculatePcProgress(pc, progressGroups);
   const remainingBytes = totalBytes - downloadedBytes;
   if (remainingBytes <= 0) return null;
-  const speed = pc.sysStats?.totalSpeed || 0;
+  const speed = pc?.sysStats?.totalSpeed || 0;
   if (speed === 0) return null;
   return remainingBytes / speed;
 }
 
 function matchesArtifactFilter(artifact, filters) {
   if (!filters?.length) return true;
-  const name = artifact.name.toUpperCase();
+  const name = String(artifact?.name || "").toUpperCase();
+  if (!name) return true;
   return filters.some((filter) => filter === "md5" ? name.endsWith(".MD5") : name.startsWith(filter.toUpperCase()));
 }
 
@@ -401,14 +444,14 @@ function renderGroupList(pc, groupList, type) {
       actionHtml = `
         <div class="group-actions">
           <span class="art-status pending">Waiting for artifacts</span>
-          <button class="btn-danger btn-sm" onclick="remoteDeleteGroup('${pc.pcId}', '${g.id}')">Delete</button>
+          <button class="btn-danger btn-sm" onclick="remoteDeleteGroup('${pc.pcId}', '${g.id}')">${SVG_TRASH} Delete</button>
         </div>
       `;
     } else if (isFetched) {
       actionHtml = `
         <div class="group-actions">
-          <button class="btn-primary btn-sm" onclick="remoteStartGroup('${pc.pcId}', '${g.id}')">Start Download</button>
-          <button class="btn-danger btn-sm" onclick="remoteDeleteGroup('${pc.pcId}', '${g.id}')">Delete</button>
+          <button class="btn-primary btn-sm" onclick="remoteStartGroup('${pc.pcId}', '${g.id}')">${SVG_DOWNLOAD} Start Download</button>
+          <button class="btn-danger btn-sm" onclick="remoteDeleteGroup('${pc.pcId}', '${g.id}')">${SVG_TRASH} Delete</button>
         </div>
       `;
     } else if (isProgress) {
@@ -430,13 +473,16 @@ function renderGroupList(pc, groupList, type) {
             <div class="progress-fill" style="width:${p}%"></div>
           </div>
           <div class="progress-meta">
-            <span>${p}% (${formatBytes(downloaded)} / ${formatBytes(total)})</span>
+            <div class="progress-text-block">
+              <span class="progress-pct">${p}%</span>
+              <span class="progress-bytes">(${formatBytes(downloaded)} / ${formatBytes(total)})</span>
+            </div>
             <div style="display:flex;gap:4px;">
               ${allPaused
-                ? `<button class="btn-primary btn-sm" onclick="remoteResumeGroup('${pc.pcId}', '${g.id}')">Resume</button>`
-                : `<button class="btn-warning btn-sm" onclick="remotePauseGroup('${pc.pcId}', '${g.id}')">Pause</button>`
+                ? `<button class="btn-primary btn-sm" onclick="remoteResumeGroup('${pc.pcId}', '${g.id}')">${SVG_PLAY} Resume</button>`
+                : `<button class="btn-warning btn-sm" onclick="remotePauseGroup('${pc.pcId}', '${g.id}')">${SVG_PAUSE} Pause</button>`
               }
-              <button class="btn-danger btn-sm" onclick="remoteCancelGroup('${pc.pcId}', '${g.id}')">Cancel</button>
+              <button class="btn-danger btn-sm" onclick="remoteCancelGroup('${pc.pcId}', '${g.id}')">${SVG_CANCEL} Cancel</button>
             </div>
           </div>
         </div>
@@ -453,13 +499,13 @@ function renderGroupList(pc, groupList, type) {
 
       if (isCompleted) {
         rowStatusHtml = `<span class="art-status completed">completed</span>`;
-        artActionsHtml = `<button class="btn-danger-icon" onclick="remoteDeleteArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Delete file from disk">🗑️</button>`;
+        artActionsHtml = `<button class="btn-danger-icon" onclick="remoteDeleteArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Delete file from disk">${SVG_TRASH}</button>`;
       } else if (isFailed) {
         rowStatusHtml = `<span class="art-status failed" title="${row.message || "Unknown error"}">failed</span>`;
         artActionsHtml = `
           <div class="art-actions">
-            <button class="btn-primary-icon" onclick="remoteRestartArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Restart download">🔄</button>
-            <button class="btn-danger-icon" onclick="remoteDeleteArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Delete">🗑️</button>
+            <button class="btn-primary-icon" onclick="remoteRestartArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Restart download">${SVG_RESTART}</button>
+            <button class="btn-danger-icon" onclick="remoteDeleteArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Delete">${SVG_TRASH}</button>
           </div>
         `;
       } else if (isProgress) {
@@ -470,18 +516,18 @@ function renderGroupList(pc, groupList, type) {
         artActionsHtml = `
           <div class="art-actions">
             ${isPaused
-              ? `<button class="btn-primary-icon" onclick="remoteResumeArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Resume download">▶</button>`
-              : `<button class="btn-warning-icon" onclick="remotePauseArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Pause download">⏸</button>`
+              ? `<button class="btn-primary-icon" onclick="remoteResumeArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Resume download">${SVG_PLAY}</button>`
+              : `<button class="btn-warning-icon" onclick="remotePauseArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Pause download">${SVG_PAUSE}</button>`
             }
-            <button class="btn-danger-icon" onclick="remoteCancelArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Cancel">✕</button>
+            <button class="btn-danger-icon" onclick="remoteCancelArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Cancel">${SVG_CANCEL}</button>
           </div>
         `;
       } else {
         rowStatusHtml = `<span class="art-status pending">pending</span>`;
         artActionsHtml = `
           <div class="art-actions">
-            <button class="btn-primary-icon" onclick="remoteStartArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Download">⬇</button>
-            <button class="btn-danger-icon" onclick="remoteDeleteArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Delete">🗑️</button>
+            <button class="btn-primary-icon" onclick="remoteStartArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Download">${SVG_DOWNLOAD}</button>
+            <button class="btn-danger-icon" onclick="remoteDeleteArtifact('${pc.pcId}', '${g.id}', '${a.id}')" title="Delete">${SVG_TRASH}</button>
           </div>
         `;
       }
@@ -489,7 +535,7 @@ function renderGroupList(pc, groupList, type) {
       return `
         <div class="art-row ${isProgress ? "art-progress-row" : ""}">
           ${isFetched ? `<input type="checkbox" ${a.selected !== false ? "checked" : ""} onchange="remoteSetArtifactSelected('${pc.pcId}', '${g.id}', '${a.id}', this.checked)" title="Select artifact">` : ""}
-          <div class="art-name" title="${a.name}">${a.name}${a.size ? `<span class="art-size-badge">${formatBytes(a.size)}</span>` : ""}</div>
+          <div class="art-name clickable-copy" onclick="copyToClipboard('${String(a.name || '').replace(/'/g, "\\'")}', 'Filename')" title="Click to copy filename">${a.name}${a.size ? `<span class="art-size-badge">${formatBytes(a.size)}</span>` : ""}</div>
           <div class="art-right ${isProgress ? "art-progress-actions" : ""}">
             ${rowStatusHtml}
             ${artActionsHtml}
@@ -498,10 +544,11 @@ function renderGroupList(pc, groupList, type) {
       `;
     }).join("");
 
+    const buildTitle = String(g.buildId || g.input || "");
     return `
       <div class="group-box">
         <div class="group-box-header">
-          <div class="group-box-title">${g.buildId || g.input}${isWaiting ? '<div class="group-waiting-message">Build is running. Waiting for artifacts.</div>' : ""}</div>
+          <div class="group-box-title clickable-copy" onclick="copyToClipboard('${buildTitle.replace(/'/g, "\\'")}', 'Build ID')" title="Click to copy Build ID">${buildTitle}${isWaiting ? '<div class="group-waiting-message">Build is running. Waiting for artifacts.</div>' : ""}</div>
           ${actionHtml}
         </div>
         <div class="group-box-artifacts">
@@ -513,9 +560,11 @@ function renderGroupList(pc, groupList, type) {
 }
 
 function renderPc(pc) {
+  const pcId = pc.pcId || "";
+  const pcName = pc.pcName || pcId.slice(0, 8) || "PC Workstation";
   const card = document.createElement("div");
   card.className = `pc-card ${pc.online ? "online" : "offline"}`;
-  card.id = `pc-${pc.pcId}`;
+  card.id = `pc-${pcId}`;
 
   const { fetched, progress, completed, failed } = classifyGroups(pc.groups || [], pc.rows || {});
   
@@ -523,11 +572,11 @@ function renderPc(pc) {
   if (pc.sysStats) {
     const s = pc.sysStats;
     const cpuVal = s.cpuUsage ? s.cpuUsage.toFixed(1) : "0.0";
-    const ramUsedStr = formatBytes(s.ramUsed);
-    const ramTotalStr = formatBytes(s.ramTotal);
-    const ramPct = s.ramTotal ? Math.round((s.ramUsed / s.ramTotal) * 100) : 0;
-    const diskAvailStr = formatBytes(s.diskAvailable);
-    const diskTotalStr = formatBytes(s.diskTotal);
+    const ramUsedStr = formatBytes(s.ramUsed || 0);
+    const ramTotalStr = formatBytes(s.ramTotal || 0);
+    const ramPct = s.ramTotal ? Math.round(((s.ramUsed || 0) / s.ramTotal) * 100) : 0;
+    const diskAvailStr = formatBytes(s.diskAvailable || 0);
+    const diskTotalStr = formatBytes(s.diskTotal || 0);
     const wasterActive = pc.wasteStats?.active;
     const wasterSpeed = wasterActive ? (pc.wasteStats.speedBps || 0) : 0;
     const wasterBytes = wasterActive ? (pc.wasteStats.totalBytes || 0) : 0;
@@ -592,10 +641,10 @@ function renderPc(pc) {
   card.innerHTML = `
     <div class="pc-card-header">
       <div class="pc-info">
-        <div class="pc-name">${pc.pcName}</div>
+        <div class="pc-name">${pcName}</div>
         <div class="pc-meta">
           <span class="pc-os">${pc.os || "Windows"}</span>
-          <span class="pc-id">${pc.pcId.slice(0, 8)}</span>
+          <span class="pc-id">${pcId.slice(0, 8)}</span>
           ${pc.ip ? `<span class="pc-ip">${pc.ip}</span>` : ""}
         </div>
       </div>
@@ -604,12 +653,11 @@ function renderPc(pc) {
 
     ${sysStatsHtml}
     <div class="pc-actions">
-      <button class="btn-primary remote-dl-btn" ${!pc.online ? "disabled" : ""} data-pc-id="${pc.pcId}" data-pc-name="${pc.pcName}">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Remote Download
+      <button class="btn-primary remote-dl-btn" ${!pc.online ? "disabled" : ""} data-pc-id="${pcId}" data-pc-name="${pcName}">
+        ${SVG_DOWNLOAD} Remote Download
       </button>
       <button class="btn-warning waste-btn ${pc.wasteStats?.active ? 'active' : ''}" ${!pc.online ? "disabled" : ""} onclick="remoteWasteData('${pc.pcId}', '${pc.wasteStats?.active ? 'stop' : 'start'}')">
-        ${pc.wasteStats?.active ? `Wasting (${formatBytes(pc.wasteStats.totalBytes)} · ${formatBytes(pc.wasteStats.speedBps || 0)}/s)` : 'Waste Data'}
+        ${SVG_FLAME} ${pc.wasteStats?.active ? `Wasting (${formatBytes(pc.wasteStats.totalBytes)} · ${formatBytes(pc.wasteStats.speedBps || 0)}/s)` : 'Waste Data'}
       </button>
     </div>
 
@@ -617,14 +665,14 @@ function renderPc(pc) {
       <details ${isExpanded(pc.pcId, "fetched") ? "open" : ""} ontoggle="window.setExpandedState('${pc.pcId}', 'fetched', this.open)">
         <summary>Fetched Builds (${fetched.length})</summary>
         <div class="accordion-content">
-          ${fetched.length ? `<div class="bulk-actions"><button class="btn-primary btn-sm bulk-start-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Download all</button><button class="btn-secondary btn-sm bulk-toggle-select-btn">${toggleSelectText}</button><button class="btn-danger btn-sm bulk-delete-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Delete all</button></div>` : ""}
+          ${fetched.length ? `<div class="bulk-actions"><button class="btn-primary btn-sm bulk-start-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">${SVG_DOWNLOAD} Download all</button><button class="btn-secondary btn-sm bulk-toggle-select-btn">${SVG_CHECK} ${toggleSelectText}</button><button class="btn-danger btn-sm bulk-delete-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">${SVG_TRASH} Delete all</button></div>` : ""}
           ${renderGroupList(pc, fetched, "fetched")}
         </div>
       </details>
       <details ${isExpanded(pc.pcId, "progress") ? "open" : ""} ontoggle="window.setExpandedState('${pc.pcId}', 'progress', this.open)">
         <summary>Progress (${progress.length})</summary>
         <div class="accordion-content">
-          ${progress.length ? `<div class="bulk-actions"><button class="btn-danger btn-sm bulk-cancel-btn" data-pc-id="${pc.pcId}" data-group-ids="${progressIds}">Cancel all</button></div>` : ""}
+          ${progress.length ? `<div class="bulk-actions"><button class="btn-danger btn-sm bulk-cancel-btn" data-pc-id="${pc.pcId}" data-group-ids="${progressIds}">${SVG_CANCEL} Cancel all</button></div>` : ""}
           ${renderGroupList(pc, progress, "progress")}
         </div>
       </details>
@@ -671,25 +719,43 @@ function renderPc(pc) {
 }
 
 function render() {
-  emptyUrl.textContent = config.serverUrl || window.location.origin;
+  try {
+    if (emptyUrl) emptyUrl.textContent = config.serverUrl || window.location.origin;
 
-  const currentIds = new Set(pcs.map((p) => p.pcId));
-  document.querySelectorAll(".pc-card").forEach((el) => {
-    if (!currentIds.has(el.id.replace("pc-", ""))) el.remove();
-  });
+    const currentIds = new Set((pcs || []).map((p) => p.pcId));
+    document.querySelectorAll(".pc-card").forEach((el) => {
+      if (!currentIds.has(el.id.replace("pc-", ""))) el.remove();
+    });
 
-  if (!pcs.length) {
-    emptyMsg.style.display = "";
-    return;
-  }
-  emptyMsg.style.display = "none";
+    if (!pcs || !pcs.length) {
+      if (emptyMsg) {
+        emptyMsg.style.display = "";
+        if (pcList && !pcList.contains(emptyMsg)) pcList.appendChild(emptyMsg);
+      }
+      return;
+    }
+    if (emptyMsg) emptyMsg.style.display = "none";
 
-  for (const pc of pcs) {
-    const existing = document.getElementById(`pc-${pc.pcId}`);
-    if (existing) {
-      patchPcCard(existing, pc);
-    } else {
-      pcList.appendChild(renderPc(pc));
+    if (!pcList) return;
+
+    for (const pc of pcs) {
+      if (!pc || !pc.pcId) continue;
+      try {
+        const existing = document.getElementById(`pc-${pc.pcId}`);
+        if (existing) {
+          patchPcCard(existing, pc);
+        } else {
+          pcList.appendChild(renderPc(pc));
+        }
+      } catch (pcErr) {
+        console.error("Error rendering PC card:", pc, pcErr);
+      }
+    }
+  } catch (err) {
+    console.error("Error in render():", err);
+    if (emptyMsg) {
+      emptyMsg.style.display = "";
+      if (pcList && !pcList.contains(emptyMsg)) pcList.appendChild(emptyMsg);
     }
   }
 }
@@ -780,9 +846,9 @@ function patchPcCard(card, pc) {
     const progressIds = type === "progress" ? list.map((g) => g.id).join(",") : "";
     let bulkHtml = "";
     if (type === "fetched" && list.length) {
-      bulkHtml = `<div class="bulk-actions"><button class="btn-primary btn-sm bulk-start-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Download all</button><button class="btn-secondary btn-sm bulk-deselect-btn">Deselect all</button><button class="btn-danger btn-sm bulk-delete-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">Delete all</button></div>`;
+      bulkHtml = `<div class="bulk-actions"><button class="btn-primary btn-sm bulk-start-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">${SVG_DOWNLOAD} Download all</button><button class="btn-secondary btn-sm bulk-deselect-btn">${SVG_CHECK} Deselect all</button><button class="btn-danger btn-sm bulk-delete-btn" data-pc-id="${pc.pcId}" data-group-ids="${fetchedIds}">${SVG_TRASH} Delete all</button></div>`;
     } else if (type === "progress" && list.length) {
-      bulkHtml = `<div class="bulk-actions"><button class="btn-danger btn-sm bulk-cancel-btn" data-pc-id="${pc.pcId}" data-group-ids="${progressIds}">Cancel all</button></div>`;
+      bulkHtml = `<div class="bulk-actions"><button class="btn-danger btn-sm bulk-cancel-btn" data-pc-id="${pc.pcId}" data-group-ids="${progressIds}">${SVG_CANCEL} Cancel all</button></div>`;
     }
     const groupHtml = renderGroupList(pc, list, type);
     const newInner = bulkHtml + groupHtml;
@@ -813,6 +879,37 @@ function patchPcCard(card, pc) {
 // ponytail: only touch DOM if text actually changed
 function patchText(el, text) {
   if (el && el.textContent !== text) el.textContent = text;
+}
+
+// ── Copy to Clipboard ─────────────────────────────────────────────────────────
+window.copyToClipboard = (text, label = "Text") => {
+  if (!text) return;
+  const cleanText = text.trim();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(cleanText).then(() => {
+      showToast(`Copied ${label}: ${cleanText}`, "ok");
+    }).catch(() => {
+      fallbackCopy(cleanText, label);
+    });
+  } else {
+    fallbackCopy(cleanText, label);
+  }
+};
+
+function fallbackCopy(text, label) {
+  try {
+    const el = document.createElement("textarea");
+    el.value = text;
+    el.style.position = "fixed";
+    el.style.opacity = "0";
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand("copy");
+    document.body.removeChild(el);
+    showToast(`Copied ${label}: ${text}`, "ok");
+  } catch {
+    showToast(`Failed to copy ${label}`, "error");
+  }
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────

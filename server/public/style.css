@@ -1,23 +1,47 @@
 /* ── Reset & base ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-:root {
-  --bg: #0f1117;
-  --surface: #16181f;
-  --surface2: #1e2130;
-  --border: rgba(255,255,255,0.08);
-  --text: #e8eaf0;
-  --text-muted: #7c879a;
-  --accent: #3b82f6;
-  --accent-glow: rgba(59,130,246,0.18);
-  --green: #22c55e;
-  --green-bg: rgba(34,197,94,0.12);
-  --yellow: #f59e0b;
-  --yellow-bg: rgba(245,158,11,0.12);
-  --red: #ef4444;
-  --red-bg: rgba(239,68,68,0.12);
+:root,
+body[data-theme="dark"],
+[data-theme="dark"] {
+  --bg: #090d16;
+  --surface: #131b2e;
+  --surface2: #1e293b;
+  --border: #2a374e;
+  --text: #f8fafc;
+  --text-muted: #94a3b8;
+  --accent: #38bdf8;
+  --accent-glow: rgba(56, 189, 248, 0.16);
+  --green: #4ade80;
+  --green-bg: rgba(34, 197, 94, 0.14);
+  --yellow: #fbbf24;
+  --yellow-bg: rgba(245, 158, 11, 0.14);
+  --red: #f87171;
+  --red-bg: rgba(239, 68, 68, 0.14);
   --radius: 12px;
   --radius-sm: 8px;
+  color-scheme: dark;
+}
+
+body[data-theme="light"],
+[data-theme="light"] {
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface2: #f1f5f9;
+  --border: #cbd5e1;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --accent: #0284c7;
+  --accent-glow: rgba(2, 132, 199, 0.12);
+  --green: #166534;
+  --green-bg: #dcfce7;
+  --yellow: #92400e;
+  --yellow-bg: #fef3c7;
+  --red: #9f1239;
+  --red-bg: #ffe4e8;
+  --radius: 12px;
+  --radius-sm: 8px;
+  color-scheme: light;
 }
 
 body {
@@ -27,6 +51,11 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* ── Topbar ── */
@@ -54,31 +83,39 @@ body {
 
 .topbar-right { display: flex; align-items: center; gap: 12px; }
 
-/* ── Connection Badge ── */
+/* ── Connection Status Box (Boxy rounded with dot, matching icon-btn) ── */
 .badge {
-  display: flex;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 5px 12px;
-  border-radius: 999px;
-  font-size: 12.5px;
-  font-weight: 600;
-  border: 1px solid transparent;
-  transition: all 0.3s;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: default;
+  transition: all 0.15s;
+}
+
+.badge-label {
+  display: none;
 }
 
 .badge-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
+  box-shadow: none;
+  border: none;
+  outline: none;
 }
 
-.badge-connected { background: var(--green-bg); border-color: rgba(34,197,94,0.25); color: var(--green); }
-.badge-connected .badge-dot { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
-.badge-disconnected { background: var(--red-bg); border-color: rgba(239,68,68,0.25); color: var(--red); }
-.badge-disconnected .badge-dot { background: var(--red); }
-.badge-connecting { background: var(--yellow-bg); border-color: rgba(245,158,11,0.25); color: var(--yellow); }
-.badge-connecting .badge-dot { background: var(--yellow); animation: pulse 1s infinite; }
+.badge-connected { background: transparent; border-color: var(--border); }
+.badge-connected .badge-dot { background: var(--green); box-shadow: none; border: none; outline: none; animation: pulse 2s infinite; }
+.badge-disconnected { background: transparent; border-color: var(--border); }
+.badge-disconnected .badge-dot { background: var(--red); box-shadow: none; border: none; outline: none; }
+.badge-connecting { background: transparent; border-color: var(--border); }
+.badge-connecting .badge-dot { background: var(--yellow); box-shadow: none; border: none; outline: none; animation: pulse 1s infinite; }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
@@ -98,6 +135,45 @@ body {
   font-size: 16px;
 }
 .icon-btn:hover { background: var(--surface2); color: var(--text); border-color: rgba(255,255,255,0.15); }
+
+/* ponytail: pure CSS SVG micro-animations for interactive buttons */
+.icon-btn svg,
+.btn-primary svg,
+.btn-secondary svg,
+.btn-danger svg {
+  transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1), color 150ms ease;
+}
+
+.icon-btn:hover svg,
+.btn-primary:hover svg,
+.btn-secondary:hover svg,
+.btn-danger:hover svg {
+  transform: scale(1.12);
+}
+
+.icon-btn:active,
+.btn-primary:active,
+.btn-secondary:active,
+.btn-danger:active {
+  transform: scale(0.96);
+}
+
+#settings-btn:hover svg {
+  transform: rotate(90deg) scale(1.1);
+}
+
+#theme-toggle-btn:hover svg {
+  transform: rotate(45deg) scale(1.12);
+}
+
+#theme-toggle-btn:active svg {
+  transform: rotate(180deg) scale(0.9);
+}
+
+.remote-dl-btn:hover svg,
+#submit-download:hover svg {
+  transform: translateY(2px) scale(1.1);
+}
 
 /* ── Main content ── */
 .main-content {
@@ -429,6 +505,19 @@ input:focus { border-color: var(--accent); }
   font-weight: 700;
   color: var(--text);
 }
+.clickable-copy {
+  cursor: pointer;
+  user-select: text;
+  transition: color 0.15s ease, opacity 0.15s ease;
+}
+.art-name.clickable-copy:hover {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.group-box-title.clickable-copy:hover {
+  color: var(--accent);
+}
 .group-waiting-message {
   margin-top: 3px;
   font-size: 11px;
@@ -563,6 +652,20 @@ input:focus { border-color: var(--accent); }
   justify-content: space-between;
   font-size: 11px;
   color: var(--text-muted);
+}
+.progress-text-block {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.progress-pct {
+  font-weight: 700;
+  color: var(--accent);
+}
+.progress-bytes {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 .btn-warning {
   background: var(--yellow-bg);
